@@ -51,11 +51,12 @@ export interface ModelAsset {
   face?: FaceAnchor;
 }
 
-const humanFace: FaceAnchor = { y: 0.92, z: 0.25, size: 0.34 };
+/** 人間（大きな頭の2頭身）の顔の位置 */
+const humanFace: FaceAnchor = { y: 0.84, z: 0.335, size: 0.42 };
 
 /**
  * 手続き生成するモデル（tools/assets/models）。単位は m、原点は床の中心、+Y が上、キャラクターの正面は +Z。
- * 人間は髪型・服の色・小物で、Agent はボディの形で見分ける。
+ * 人間は大きな頭の2頭身で、髪型・服の色・小物で見分ける。Agent はボディの形で見分ける。
  */
 export const modelAssets = {
   /** 島に置くデスク（モニター・キーボード付き） */

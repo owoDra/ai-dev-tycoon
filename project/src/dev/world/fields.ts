@@ -60,6 +60,8 @@ export const worldTweakGroups: readonly TweakGroup[] = [
       range('flow.travelMinutes', 5, 60, 1),
       range('flow.packetSize', 0.15, 0.6, 0.01),
       range('flow.packetGlow', 0, 1, 0.05),
+      range('flow.hop', 0, 0.15, 0.005),
+      range('flow.hopHz', 0, 3, 0.1),
       range('flow.stackSpacing', 0.15, 0.6, 0.01),
     ],
   },
@@ -72,6 +74,7 @@ export const worldTweakGroups: readonly TweakGroup[] = [
       range('bottleneck.pulseHz', 0.2, 3, 0.1),
       range('bottleneck.ringOpacity', 0, 1, 0.05),
       select('bottleneck.ringColor', scaleRefs),
+      range('bottleneck.pileJitter', 0, 0.8, 0.05),
     ],
   },
   {

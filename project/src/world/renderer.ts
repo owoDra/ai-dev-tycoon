@@ -18,7 +18,14 @@ export interface RenderStats {
   frames: number;
   /** 描画ループが回っているか（静止時は false） */
   running: boolean;
+  /** 1フレームの更新と描画にかかった CPU 時間（ミリ秒、指数移動平均）。GPU の時間は含まない */
+  cpuMs: number;
+  /** フレームの間隔（ミリ秒、指数移動平均）。60fps なら約 16.7 */
+  intervalMs: number;
 }
+
+/** 計測値の指数移動平均の重み（新しいフレームの割合） */
+const STATS_SMOOTHING = 0.1;
 
 /**
  * 1フレームの更新。dt は前のフレームからの実時間（秒）。
@@ -48,7 +55,8 @@ export function createWorldRenderer(
 ): WorldRenderer {
   const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio));
-  const stats: RenderStats = { drawCalls: 0, triangles: 0, frames: 0, running: false };
+  const stats: RenderStats = { drawCalls: 0, triangles: 0, frames: 0, running: false, cpuMs: 0, intervalMs: 0 };
+  const smooth = (prev: number, next: number) => (prev === 0 ? next : prev + (next - prev) * STATS_SMOOTHING);
   let frame = 0;
   let dirty = false;
   let last: number | undefined;
@@ -57,10 +65,13 @@ export function createWorldRenderer(
   const tick = (now: number) => {
     frame = 0;
     const dt = last === undefined ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
+    if (last !== undefined) stats.intervalMs = smooth(stats.intervalMs, now - last);
     last = now;
     dirty = false;
+    const start = performance.now();
     const animating = onFrame(dt, now / 1000);
     renderer.render(scene, camera());
+    stats.cpuMs = smooth(stats.cpuMs, performance.now() - start);
     stats.drawCalls = renderer.info.render.calls;
     stats.triangles = renderer.info.render.triangles;
     stats.frames++;

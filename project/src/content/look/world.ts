@@ -4,7 +4,7 @@ import type { ScaleName, ScaleStep } from '../../styles/tokens';
  * 2.5D ワールドの見た目のプリセット（カメラ・陰影・アウトライン・キャラクター・流れ・ボトルネック・環境）。
  * 描画（src/world）はここから値を読み、実行中にプリセットを差し替えると再読み込みなしで反映する。
  * 配色は D1 の visual.ts のトークンから段階（`primary.200` など）で選ぶ。
- * 今の値は Phase 05 の仮の既定値で、D2 で比較して決める。
+ * 値は D2 で決めた「おもちゃ箱の工場」（docs/decisions/D2-world-look.md）。
  */
 
 /** トークンの色の段階（`<スケール名>.<段階>`） */
@@ -73,6 +73,9 @@ export interface WorldFlowLook {
   /** パケットの大きさ（m）と光り方（0〜1） */
   packetSize: number;
   packetGlow: number;
+  /** コンベアの上を動くパケットの弾み（m）と速さ（回/秒） */
+  hop: number;
+  hopHz: number;
   /** 島の前に積み上がるパケットの段の高さ（m） */
   stackSpacing: number;
   /** コンベアの部品の間隔（m） */
@@ -90,6 +93,8 @@ export interface WorldBottleneckLook {
   /** 赤みのリングの濃さ（0〜1） */
   ringOpacity: number;
   ringColor: ScaleRef;
+  /** 島の前に積み上がったパケットの乱れ（ラジアン）。0 できれいに積む。散らかった山で詰まりを見せる */
+  pileJitter: number;
 }
 
 export interface WorldEnvironmentLook {
@@ -117,10 +122,13 @@ export interface WorldLook {
   environment: WorldEnvironmentLook;
 }
 
-/** 仮の既定値：約35°の俯角・45°の回転のアイソメトリック、トゥーン調、反転ハルのアウトライン、コンベアとパケット */
+/**
+ * おもちゃ箱の工場（D2 で採用）：正アイソメトリック（約30°の俯角・45°の回転）、トゥーン調と反転ハルのアウトライン、
+ * 大きな頭の2頭身、コンベアとパケット、散らかったパケットの山と床の赤いリング、昼のタイル床・壁なし・小物少なめ
+ */
 const standard: WorldLook = {
   camera: {
-    elevationDeg: 35,
+    elevationDeg: 30,
     azimuthDeg: 45,
     zoomMin: 0.8,
     zoomMax: 3,
@@ -132,8 +140,16 @@ const standard: WorldLook = {
   shading: { mode: 'toon', ambient: 1.1, sun: 2.2, sunElevationDeg: 60, sunAzimuthDeg: 20 },
   outline: { enabled: true, thickness: 0.025 },
   shadow: { opacity: 0.32, size: 1.5 },
-  character: { scale: 1.6, stretch: 1, bob: 0.04, tiltDeg: 8, squash: 0.18, walkSpeed: 2.2, cheerMinutes: 12 },
-  flow: { travelMinutes: 20, packetSize: 0.4, packetGlow: 0.45, stackSpacing: 0.36, segmentLength: 0.5 },
+  character: { scale: 1.5, stretch: 1, bob: 0.04, tiltDeg: 8, squash: 0.18, walkSpeed: 2.2, cheerMinutes: 12 },
+  flow: {
+    travelMinutes: 20,
+    packetSize: 0.4,
+    packetGlow: 0.45,
+    hop: 0.03,
+    hopHz: 0.6,
+    stackSpacing: 0.36,
+    segmentLength: 0.5,
+  },
   bottleneck: {
     fullMinutes: 240,
     threshold: 0.15,
@@ -141,6 +157,7 @@ const standard: WorldLook = {
     pulseHz: 1.2,
     ringOpacity: 0.55,
     ringColor: 'danger.400',
+    pileJitter: 0.35,
   },
   environment: {
     islandSize: 3,
@@ -150,23 +167,11 @@ const standard: WorldLook = {
     floorTint: 'warning.100',
     islandTop: 'primary.100',
     islandDone: 'success.100',
-    props: 0.6,
+    props: 0.35,
   },
 };
 
-/**
- * 軽量：アウトラインと陰影の段をなくし、描画回数を減らした組み合わせ。
- * 実行中のプリセット切り替えの確認と、性能の比較に使う
- */
-const lite: WorldLook = {
-  ...standard,
-  shading: { ...standard.shading, mode: 'lambert' },
-  outline: { ...standard.outline, enabled: false },
-  shadow: { ...standard.shadow, opacity: 0.2 },
-  environment: { ...standard.environment, props: 0.2 },
-};
-
-export const worldLooks = { standard, lite } as const satisfies Record<string, WorldLook>;
+export const worldLooks = { standard } as const satisfies Record<string, WorldLook>;
 
 export type WorldLookId = keyof typeof worldLooks;
 

@@ -126,7 +126,7 @@ export const ja = {
     drawCalls: (calls: number, budget: number) => `draw call ${calls} / ${budget}`,
     frames: (n: number) => `描画 ${n}フレーム`,
     idle: '描画停止中',
-    looks: { standard: '標準（仮）', lite: '軽量' },
+    looks: { standard: '標準' },
     lookSwitcher: 'ワールドの見た目',
     tweakGroups: {
       camera: 'カメラ',
@@ -183,6 +183,38 @@ export const ja = {
     copied: 'コピーしました',
     reset: 'この案を元に戻す',
     close: '閉じる',
+    d2: {
+      title: 'D2 2.5Dの見せ方',
+      adopted: {
+        name: 'A おもちゃ箱の工場（採用）',
+        aim: 'D1 の太い輪郭にそろえ、仕事が物として流れる様子をいちばん分かりやすく見せる',
+      },
+      demo: {
+        title: 'デモ再生（ECサイトリニューアル）',
+        play: '再生',
+        pause: '停止',
+        restart: '最初から',
+        speed: (n: number) => `${n}倍`,
+        speedGroup: '再生速度',
+        scenes: {
+          before: '第1幕：全部人間が担当（実装の8時間が渋滞する）',
+          after: '第2幕：AI に任せて人間はレビュー（渋滞が解消する）',
+        },
+        clock: (day: number, time: string) => `${day}日目 ${time}`,
+        bottleneck: (label: string, percent: number) => `ボトルネック：${label}（強度 ${percent}%）`,
+        noBottleneck: 'ボトルネック：なし',
+        next: '次の幕へ…',
+      },
+      stats: {
+        title: '描画負荷',
+        drawCalls: 'draw call',
+        triangles: '三角形',
+        cpu: 'CPU 時間/フレーム',
+        interval: 'フレーム間隔',
+        note: 'CPU 時間は更新と描画命令の発行にかかった時間（GPU の時間は含まない）。値はこの端末での実測',
+        ms: (v: number) => `${v.toFixed(2)} ms`,
+      },
+    },
     d1: {
       title: 'D1 ビジュアルの方向性',
       presets: {

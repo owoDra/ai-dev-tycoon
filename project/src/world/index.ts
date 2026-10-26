@@ -28,6 +28,7 @@ import { type ScreenPoint, toScreen } from './project';
 import { createWorldRenderer, type RenderStats } from './renderer';
 
 export type { SelectEntity } from './picking';
+export type { RenderStats } from './renderer';
 export { DRAW_CALL_BUDGET } from './renderer';
 
 export interface WorldOptions {
@@ -197,23 +198,29 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       const conveyor = layout?.conveyors.find((c) => c.id === place.conveyorId);
       if (conveyor) {
         const { at, dir } = pointAlong(conveyor.points, place.progress);
-        return { position: new Vector3(at.x, BELT_TOP + size / 2, at.z), yaw: Math.atan2(dir.x, dir.z) };
+        const position = new Vector3(at.x, BELT_TOP + size / 2, at.z);
+        return { position, yaw: Math.atan2(dir.x, dir.z), moving: true, tilt: 0 };
       }
     }
+    // 積み上がったものは、段ごとに決まった向きへ少しずつ乱す（ボトルネックの山を散らかって見せる）
+    const jitter = (index: number) => look.bottleneck.pileJitter * Math.sin(index * 2.3 + 1);
     if (place.kind === 'stack' || place.kind === 'desk') {
       const c = islandCenter(place.islandId) ?? { x: 0, z: 0 };
       if (place.kind === 'desk') {
         return {
           position: new Vector3(c.x + DESK_OFFSET.x + 0.2, h + DESK_TOP + size / 2, c.z + DESK_OFFSET.z + 0.2),
           yaw,
+          moving: false,
+          tilt: 0,
         };
       }
       const y = h + size / 2 + place.index * look.flow.stackSpacing;
-      return { position: new Vector3(c.x - half + 0.45, y, c.z + 0.55), yaw };
+      return { position: new Vector3(c.x - half + 0.45, y, c.z + 0.55), yaw, moving: false, tilt: jitter(place.index) };
     }
     const e = layout?.exit ?? { x: 0, z: 0 };
     const index = place.kind === 'exit' ? place.index : 0;
-    return { position: new Vector3(e.x, PAD_HEIGHT + size / 2 + index * look.flow.stackSpacing, e.z), yaw };
+    const position = new Vector3(e.x, PAD_HEIGHT + size / 2 + index * look.flow.stackSpacing, e.z);
+    return { position, yaw, moving: false, tilt: 0 };
   }
 
   function sync(next: WorldViewModel) {

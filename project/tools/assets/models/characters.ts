@@ -1,5 +1,5 @@
 import { type BufferGeometry, ExtrudeGeometry, Shape } from 'three';
-import { agentModels, humanModels } from '../../../src/assets/catalog';
+import { agentModels, humanModels, modelAssets } from '../../../src/assets/catalog';
 import type { VisualPreset } from '../../../src/content/look/visual';
 import type { AgentRole, HumanLookId } from '../../../src/content/look/world';
 import { colorScales } from '../../../src/styles/tokens';
@@ -7,60 +7,82 @@ import { bakeModel, type Part } from './build';
 import { box, capsule, cone, cylinder, dome, groundAo, ring, sphere } from './shapes';
 
 /**
- * キャラクター。丸い頭とカプセル状の体の抽象的な形にし、顔（目と口）は描かない
- * （ランタイムで表情のアトラスを catalog の face の位置に貼る）。
- * 人間は髪型・服の色・小物で、AI Agent はボディの形と役割の部品で見分けがつくようにする。
+ * キャラクター。顔（目と口）は描かない（ランタイムで表情のアトラスを catalog の face の位置に貼る）。
+ * 人間は大きな頭の2頭身にし、髪型・服の色・小物で見分けがつくようにする（D2 で決定）。
+ * AI Agent はボディの形と役割の部品で見分けがつくようにする。
  */
 
 /** 肌の色。パレットの外の値だが、どのプリセットでも同じにする */
 const SKIN = '#ffd9c2';
 
-const HEAD = { r: 0.24, y: 0.92 };
+/** 頭の大きさと中心の高さ。頭と体がほぼ同じ高さの2頭身 */
+const HEAD = { r: 0.32, y: 0.84 };
+/** 頭頂の高さ */
+const TOP = HEAD.y + HEAD.r;
+/** 胸の前面（ネクタイ・名札を付ける位置） */
+const CHEST = { y: 0.36, z: 0.17 };
 
 function humanBase(clothes: string, shoes: string): Part[] {
   return [
-    { geometry: sphere(0.085, -0.09, 0.05, 0.03, 0.6), color: shoes },
-    { geometry: sphere(0.085, 0.09, 0.05, 0.03, 0.6), color: shoes },
-    { geometry: capsule(0.2, 0.28, 0, 0.4, 0), color: clothes },
-    { geometry: sphere(0.065, -0.22, 0.38, 0.05), color: SKIN },
-    { geometry: sphere(0.065, 0.22, 0.38, 0.05), color: SKIN },
-    { geometry: sphere(HEAD.r, 0, HEAD.y, 0), color: SKIN },
+    { geometry: sphere(0.08, -0.08, 0.05, 0.03, 0.6), color: shoes },
+    { geometry: sphere(0.08, 0.08, 0.05, 0.03, 0.6), color: shoes },
+    { geometry: capsule(0.17, 0.12, 0, 0.32, 0), color: clothes },
+    { geometry: sphere(0.06, -0.19, 0.3, 0.04), color: SKIN },
+    { geometry: sphere(0.06, 0.19, 0.3, 0.04), color: SKIN },
+    { geometry: sphere(HEAD.r, 0, HEAD.y, 0, 1, 20), color: SKIN },
   ];
 }
 
 /** 頭より少し大きい球を後ろへずらした髪。正面の顔は隠さず、頭頂と横と後ろを覆う */
 function hair(color: string, back: number, up: number, r = HEAD.r + 0.02): Part {
-  return { geometry: sphere(r, 0, HEAD.y + up, -back), color };
+  return { geometry: sphere(r, 0, HEAD.y + up, -back, 1, 20), color };
 }
 
 export function buildHuman(look: HumanLookId, preset: VisualPreset) {
   const s = colorScales(preset);
+  const id = humanModels[look];
+  const face = modelAssets[id].face;
+  const front = face.z + 0.01;
   const shoes = s.neutral[800];
   const parts: Part[] = [];
   switch (look) {
     case 'bob':
       parts.push(...humanBase(s.primary[400], shoes), hair(s.warning[800], 0.04, 0.03));
       // 前髪
-      parts.push({ geometry: box(0.36, 0.08, 0.12, 0.04, 0, HEAD.y + 0.17, 0.13), color: s.warning[800] });
+      parts.push({
+        geometry: box(face.size * 1.05, 0.08, 0.1, 0.04, 0, face.y + face.size * 0.5, front - 0.05),
+        color: s.warning[800],
+      });
       break;
-    case 'cap':
+    case 'cap': {
       parts.push(...humanBase(s.accent[400], shoes), hair(s.neutral[800], 0.06, 0.0, HEAD.r + 0.012));
-      parts.push({ geometry: dome(HEAD.r + 0.022, 0, HEAD.y + 0.04, 0), color: s.primary[500] });
-      parts.push({ geometry: cylinder(0.13, 0.13, 0.025, 0, HEAD.y + 0.1, 0.2, 20), color: s.primary[600] });
+      const capR = HEAD.r + 0.022;
+      const capY = TOP - capR * 0.75;
+      parts.push({ geometry: dome(capR, 0, capY, 0), color: s.primary[500] });
+      parts.push({
+        geometry: cylinder(capR * 0.55, capR * 0.55, 0.025, 0, capY + 0.05, front - 0.04, 20),
+        color: s.primary[600],
+      });
       // 名札
-      parts.push({ geometry: box(0.1, 0.07, 0.03, 0.01, 0.08, 0.5, 0.19), color: preset.palette.surface });
+      parts.push({
+        geometry: box(0.1, 0.07, 0.03, 0.01, 0.08, CHEST.y + 0.08, CHEST.z + 0.02),
+        color: preset.palette.surface,
+      });
       break;
-    case 'glasses':
+    }
+    case 'glasses': {
       parts.push(...humanBase(s.success[500], shoes), hair(s.neutral[900], 0.06, 0.05, HEAD.r + 0.01));
-      for (const x of [-0.075, 0.075])
-        parts.push({ geometry: ring(0.055, 0.012, x, HEAD.y + 0.0, HEAD.r + 0.02), color: s.neutral[900] });
-      parts.push({ geometry: box(0.05, 0.015, 0.015, 0.005, 0, HEAD.y + 0.01, HEAD.r + 0.02), color: s.neutral[900] });
+      const dx = face.size * 0.16;
+      for (const x of [-dx, dx])
+        parts.push({ geometry: ring(face.size * 0.15, 0.012, x, face.y, front), color: s.neutral[900] });
+      parts.push({ geometry: box(dx * 0.6, 0.015, 0.015, 0.005, 0, face.y + 0.01, front), color: s.neutral[900] });
       // ネクタイ
-      parts.push({ geometry: box(0.06, 0.2, 0.03, 0.012, 0, 0.5, 0.195), color: s.danger[500] });
+      parts.push({ geometry: box(0.06, 0.18, 0.03, 0.012, 0, CHEST.y, CHEST.z + 0.02), color: s.danger[500] });
       break;
+    }
     case 'bun':
       parts.push(...humanBase(s.warning[400], shoes), hair(s.danger[700], 0.05, 0.03));
-      parts.push({ geometry: sphere(0.1, 0, HEAD.y + 0.27, -0.06), color: s.danger[700] });
+      parts.push({ geometry: sphere(0.1, 0, TOP + 0.04, -0.08), color: s.danger[700] });
       // ヘッドホン（頭の上のアーチと耳当て）
       parts.push({ geometry: ring(HEAD.r + 0.045, 0.022, 0, HEAD.y, 0, Math.PI), color: s.neutral[800] });
       for (const x of [-1, 1]) {
@@ -69,7 +91,7 @@ export function buildHuman(look: HumanLookId, preset: VisualPreset) {
       }
       break;
   }
-  return bakeModel(humanModels[look], parts, groundAo);
+  return bakeModel(id, parts, groundAo);
 }
 
 /** rotate は原点まわりなので、回転後に元の中心へ戻す */

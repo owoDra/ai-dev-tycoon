@@ -1,5 +1,5 @@
 {
-  "inputHash": "c5c2a33b05fac5482689159fdf89b4375c5f20f32bbae3425771b99f61c0a39b",
+  "inputHash": "1d501d93466249bffeb53c1eaaa4ab840ca4d24141b6952375fa54068a1e359c",
   "outputs": {
     "src/styles/tokens.css": "149be1ab0007b21d00bba832a911d32cd97dbf72df38c381ebd7f09d3ae2d40f",
     "src/assets/generated/title-key@1x.webp": "84513c85edf6afe39d99ade1dddaa8d36cdf6f65366623be9f54d6787aeeb203",
@@ -16,10 +16,10 @@
     "src/assets/generated/face-atlas@1x.webp": "fda9d754678491c913eb65035d3f60af5181e5dd7c1fea359f2e502a04b5881a",
     "src/assets/generated/blob-shadow@1x.webp": "bf4ac0198952bd4ef0585c7792bd0409f76d5322d8a7a0e10bc27e9535b55dd1",
     "src/assets/generated/desk.glb": "d0e6229d8a800f598a4cf2d750106b9d7014c86ebad4328b5881d40dca6fa8b1",
-    "src/assets/generated/human-bob.glb": "b4d2286225366b57c9c35f4dcd9ee6bcdbd795b439d58e7a2d2cb358b6565a80",
-    "src/assets/generated/human-cap.glb": "a9ea7f8482503eea301fde84663e533ff48fc45446e02402dc9bbf98057c9da9",
-    "src/assets/generated/human-glasses.glb": "fcdafbd166f5be98c66b7f82af8ff21068013d877568ed54e2368ff0a00935e0",
-    "src/assets/generated/human-bun.glb": "e3a8381b0caee5662ee09bf7edac5899dc8a21dec8ec76ac837735a13484369f",
+    "src/assets/generated/human-bob.glb": "7319b4e8b005dcfb936b4c219522699915348e1d21cc34dc039a6af61321355d",
+    "src/assets/generated/human-cap.glb": "db6c6b5e8669f202dd64c912f62c82e9308e3176983b27fac770737c6ab44f34",
+    "src/assets/generated/human-glasses.glb": "f21c5a83237f0809633408cfb5db6ee0d38ea0356d18b9461b00a11ed5fc3a6f",
+    "src/assets/generated/human-bun.glb": "77d8bbc658ac636f6ab99e981097669f33da33a83c42088f845566928b793c0c",
     "src/assets/generated/agent-research.glb": "1e8df5138ef5f5a0aad98f8cb2d435efcf6ac503acf07c094b8b4cfa92df969c",
     "src/assets/generated/agent-code.glb": "d7c60f5f1adf54b885edd0b7d34685d858117db5172eccec523026998e6c26d6",
     "src/assets/generated/agent-qa.glb": "dd20c8a6b02aa6e338e767fbb1be621dcb4cc6b270717b73ae8f4b79a1be304b",

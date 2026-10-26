@@ -44,6 +44,8 @@ export interface VisualShape {
   outlineWidth: number;
   /** アウトラインの色。'line' はパレットの line を使う */
   outlineColor: string;
+  /** 余白の単位（px）。余白のスケールはこの倍数にする */
+  spaceUnit: number;
 }
 
 export interface VisualShadow {
@@ -92,6 +94,10 @@ export interface VisualMotion {
   popOvershoot: number;
   /** 演出の長さ（ms） */
   popDuration: number;
+  /** UI の切り替えの長さ（ms）。ホバーなどの小さな反応 / パネルの開閉 / 画面の切り替え */
+  fastDuration: number;
+  baseDuration: number;
+  slowDuration: number;
 }
 
 export interface VisualPreset {
@@ -121,12 +127,12 @@ const candyPop: VisualPreset = {
     warning: { base: '#ffa928', text: '#874600', soft: '#fff0cc' },
     danger: { base: '#ff4d5e', text: '#b0152a', soft: '#ffe1e4' },
   },
-  shape: { radiusSm: 10, radiusMd: 16, radiusLg: 24, outlineWidth: 3, outlineColor: 'line' },
+  shape: { radiusSm: 10, radiusMd: 16, radiusLg: 24, outlineWidth: 3, outlineColor: 'line', spaceUnit: 4 },
   shadow: { offsetY: 5, blur: 0, opacity: 1, layers: 1, color: '#2a1b3d', innerLight: 0.35, pressDepth: 4 },
   surface: { gradient: 0.1, sideShade: 0.28 },
   icon: { style: 'sticker', strokeWidth: 3.2 },
   type: { baseSize: 16, scale: 1.3, headingWeight: 900, bodyWeight: 500, numberWeight: 900, headingTracking: -0.01 },
-  motion: { popOvershoot: 1.25, popDuration: 650 },
+  motion: { popOvershoot: 1.25, popDuration: 650, fastDuration: 120, baseDuration: 220, slowDuration: 380 },
 };
 
 /**

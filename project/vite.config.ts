@@ -3,9 +3,12 @@ import tailwindcss from '@tailwindcss/vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
+import { svgoRaw } from './tools/svgo.ts';
 
 export default defineConfig(({ mode }) => ({
   plugins: [
+    // アイコン SVG（?raw）をビルド時に最適化する
+    svgoRaw(),
     solid(),
     tailwindcss(),
     viteSingleFile(),

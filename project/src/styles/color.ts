@@ -40,7 +40,7 @@ export function shade(hex: string, amount: number): string {
 
 export function rgba(hex: string, alpha: number): string {
   const { r, g, b } = parseHex(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${Number(alpha.toFixed(3))})`;
 }
 
 /** WCAG の相対輝度 */

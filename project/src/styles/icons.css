@@ -1,0 +1,86 @@
+/* アイコン（ui/Icon.tsx）の配色。SVG のクラス（m / s / l / d）に currentColor とトークンの色を当てる */
+.icon {
+  --icon-main: currentColor;
+  --icon-sub: currentColor;
+  --icon-line: currentColor;
+  display: inline-block;
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  line-height: 0;
+  vertical-align: -0.15em;
+}
+
+.icon > svg {
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.icon .m,
+.icon .s,
+.icon .l {
+  stroke: var(--icon-line);
+  stroke-width: var(--icon-stroke);
+}
+
+.icon .m {
+  fill: var(--icon-main);
+}
+
+.icon .s {
+  fill: var(--icon-sub);
+}
+
+.icon .l {
+  fill: none;
+}
+
+.icon .d {
+  fill: var(--icon-line);
+}
+
+.icon[data-tone="primary"],
+.icon[data-tone="accent"],
+.icon[data-tone="success"],
+.icon[data-tone="warning"],
+.icon[data-tone="danger"],
+.icon[data-tone="neutral"] {
+  --icon-line: var(--color-outline);
+}
+
+.icon[data-tone="primary"] {
+  --icon-main: var(--color-primary-500);
+  --icon-sub: var(--color-primary-200);
+}
+
+.icon[data-tone="accent"] {
+  --icon-main: var(--color-accent-500);
+  --icon-sub: var(--color-accent-200);
+}
+
+.icon[data-tone="success"] {
+  --icon-main: var(--color-success-500);
+  --icon-sub: var(--color-success-200);
+}
+
+.icon[data-tone="warning"] {
+  --icon-main: var(--color-warning-500);
+  --icon-sub: var(--color-warning-200);
+}
+
+.icon[data-tone="danger"] {
+  --icon-main: var(--color-danger-500);
+  --icon-sub: var(--color-danger-200);
+}
+
+.icon[data-tone="neutral"] {
+  --icon-main: var(--color-neutral-300);
+  --icon-sub: var(--color-neutral-100);
+}
+
+/* 線だけで描く。面は塗らずに背景を透かす */
+.icon[data-tone="mono"] {
+  --icon-main: transparent;
+  --icon-sub: transparent;
+}

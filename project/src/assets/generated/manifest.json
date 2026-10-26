@@ -1,0 +1,18 @@
+{
+  "inputHash": "dd3a69bec9e1ecdc640d7e7dedfb32b8497a308dca9c6e8e85d43ef8f5df98ab",
+  "outputs": {
+    "src/styles/tokens.css": "149be1ab0007b21d00bba832a911d32cd97dbf72df38c381ebd7f09d3ae2d40f",
+    "src/assets/generated/title-key@1x.webp": "84513c85edf6afe39d99ade1dddaa8d36cdf6f65366623be9f54d6787aeeb203",
+    "src/assets/generated/title-key@2x.webp": "ecc847aee8451648e4568cc525f65af7ce6a44f871b70d90c89e91c0a3f13318",
+    "src/assets/generated/result-bg@1x.webp": "962e78b9ae596cfad69a2fd03e9dc2f5717c9848a3b4a03574bd53770f724efa",
+    "src/assets/generated/result-bg@2x.webp": "599b8ed05632fe3ea336add360149cd5d7504080630afe2a1236c3b599281f38",
+    "src/assets/generated/floor@1x.webp": "a4fa07ce8f1dc2344a3898e313bf5748c9fdc83b9bb85a42e3edb7c402361ee8",
+    "src/assets/generated/floor@2x.webp": "87f7f98df6f0f7a81cb7bb4a7362aa7c0adfcabcc9ca1d5bcf6a81d87d56036d",
+    "src/assets/generated/wall@1x.webp": "61155fbaf8d5e462a6ed1a63978dbf0229afbcb41a22e8e24968de3219ad501f",
+    "src/assets/generated/wall@2x.webp": "e62eec2b3a87f1da84eb8abd47c7d96913f70177e4d00277f349ed00dbe74ad8",
+    "src/assets/generated/matcap-toon@1x.webp": "f8029b716de0f382d62c9ad10aef9607db33e7ddb086dd3bbae6140f907d592b",
+    "src/assets/generated/matcap-toon@2x.webp": "caa151389a554f13393df231f30dc9111a30f050b47548d829e4fcffeb9ae112",
+    "src/assets/generated/toon-gradient@1x.webp": "35c46e4dc763a9ae28c365f511b54c898a723a2265f0a0c9ecd0c6fd5c67de65",
+    "src/assets/generated/desk.glb": "d0e6229d8a800f598a4cf2d750106b9d7014c86ebad4328b5881d40dca6fa8b1"
+  }
+}

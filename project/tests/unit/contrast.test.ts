@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { contrastPairs, defaultVisualPresetId, visual, visualPresets } from '../../src/content/look/visual';
 import {
@@ -10,6 +11,7 @@ import {
   shade,
   toHex,
 } from '../../src/styles/color';
+import { colorScales, renderTokensCss, SCALE_STEPS, textScale, tokenContrastPairs } from '../../src/styles/tokens';
 
 describe('色の計算', () => {
   it('#rrggbb を読み書きできる', () => {
@@ -68,5 +70,40 @@ describe('採用した配色（D1: A キャンディポップ）が WCAG AA を�
     const boundary = contrastPairs(visual).find((p) => p.id === 'buttonBoundary');
     expect(visual.shape.outlineWidth).toBeGreaterThanOrEqual(2);
     expect(boundary?.fg).toBe(visual.palette.line);
+  });
+});
+
+describe('デザイントークン（styles/tokens.css）', () => {
+  it.each(Object.entries(tokenContrastPairs(visual)))('文字に使える組み合わせ %s が WCAG AA を満たす', (_, pair) => {
+    expect(contrastRatio(pair.fg, pair.bg)).toBeGreaterThanOrEqual(pair.min);
+  });
+
+  it('tokens.css は visual.ts から生成した内容と一致する（値を二重に管理しない）', () => {
+    const css = readFileSync(new URL('../../src/styles/tokens.css', import.meta.url), 'utf8');
+    expect(css).toBe(renderTokensCss(visual));
+  });
+
+  it('各色の 50〜900 は明るい順に並び、500 は元の色', () => {
+    const scales = colorScales(visual);
+    expect(scales.primary[500]).toBe(visual.palette.primary);
+    expect(scales.success[500]).toBe(visual.palette.success.base);
+    expect(scales.neutral[50]).toBe(visual.palette.bg);
+    expect(scales.neutral[50]).not.toBe('#ffffff');
+    for (const scale of Object.values(scales)) {
+      const lum = SCALE_STEPS.map((s) => relativeLuminance(scale[s]));
+      for (let i = 1; i < lum.length; i++) expect(lum[i]).toBeLessThan(lum[i - 1] ?? 0);
+    }
+  });
+
+  it('本文の文字サイズは 16px 以上、最小の文字も 14px 以上', () => {
+    const scale = textScale(visual);
+    expect(scale.base).toBeGreaterThanOrEqual(16);
+    expect(Math.min(...Object.values(scale))).toBeGreaterThanOrEqual(14);
+  });
+
+  it('フォントは system-ui 系のみ（外部フォントを読み込まない）', () => {
+    const css = renderTokensCss(visual);
+    expect(css).toMatch(/--font-sans: system-ui,/);
+    expect(css).not.toMatch(/@font-face|url\(/);
   });
 });

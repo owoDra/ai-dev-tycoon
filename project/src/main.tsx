@@ -88,6 +88,9 @@ if (!root) throw new Error('#root が見つからない');
 const devFlags = parseDevFlags(location.search);
 if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && (devFlags.has('explore') || devFlags.has('tweak')))) {
   void import('./dev/explore/main').then((m) => m.mountExplore(root, { tweak: devFlags.has('tweak') }));
+} else if (import.meta.env.DEV && devFlags.has('styleguide')) {
+  // スタイルガイド（src/dev/styleguide）。開発サーバーだけで開ける
+  void import('./dev/styleguide/main').then((m) => m.mountStyleguide(root));
 } else {
   render(() => <App />, root);
 }

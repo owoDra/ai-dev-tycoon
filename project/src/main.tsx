@@ -7,6 +7,7 @@ import { balance } from './content/balance';
 import { content } from './content/index';
 import { assertValidContent } from './content/validate';
 import { createInitialState } from './core/state';
+import { parseDevFlags } from './dev/flags';
 import { ja } from './i18n/ja';
 import { ProjectPanel } from './ui/ProjectPanel';
 import { clockView } from './view/clock';
@@ -82,4 +83,11 @@ function PauseIcon() {
 assertValidContent(content);
 const root = document.getElementById('root');
 if (!root) throw new Error('#root が見つからない');
-render(() => <App />, root);
+
+// デザイン比較ページ（src/dev/explore）。本番ビルドでは条件が定数 false になり、コードごと取り除かれる
+const devFlags = parseDevFlags(location.search);
+if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && (devFlags.has('explore') || devFlags.has('tweak')))) {
+  void import('./dev/explore/main').then((m) => m.mountExplore(root, { tweak: devFlags.has('tweak') }));
+} else {
+  render(() => <App />, root);
+}

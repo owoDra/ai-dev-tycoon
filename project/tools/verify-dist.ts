@@ -3,7 +3,7 @@
  * 判定関数は export してテストし、CLI 部分（ファイル読み込みと終了コード）はファイル末尾に分ける。
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
@@ -97,7 +97,7 @@ function main(distDir: string): number {
   const { rawBytes, gzipBytes } = measure(content);
   const size = checkSize(rawBytes, gzipBytes);
   console.log(
-    `dist/index.html  raw ${formatKiB(size.rawBytes)} / ${formatKiB(RAW_BUDGET_BYTES)}` +
+    `${basename(distDir)}/index.html  raw ${formatKiB(size.rawBytes)} / ${formatKiB(RAW_BUDGET_BYTES)}` +
       `  gzip ${formatKiB(size.gzipBytes)} / ${formatKiB(GZIP_BUDGET_BYTES)}`,
   );
   if (!size.rawOk) errors.push('raw サイズが予算を超えている');

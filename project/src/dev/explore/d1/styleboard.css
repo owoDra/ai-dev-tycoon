@@ -1,0 +1,198 @@
+/* D1 のスタイルボード。値はすべてプリセットから作った CSS 変数（--v-*）を読む */
+
+.sb {
+  background: var(--v-bg);
+  color: var(--v-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--v-font-size);
+  font-weight: var(--v-weight-body);
+  line-height: 1.6;
+}
+
+.sb-h1,
+.sb-h2,
+.sb-h3 {
+  font-weight: var(--v-weight-heading);
+  letter-spacing: var(--v-tracking-heading);
+  line-height: 1.25;
+}
+.sb-h1 {
+  font-size: var(--v-font-h1);
+}
+.sb-h2 {
+  font-size: var(--v-font-h2);
+}
+.sb-h3 {
+  font-size: var(--v-font-h3);
+}
+.sb-small {
+  font-size: var(--v-font-small);
+  color: var(--v-text-muted);
+}
+.sb-muted {
+  color: var(--v-text-muted);
+}
+.sb-num {
+  font-weight: var(--v-weight-number);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-card {
+  background: var(--v-fill-surface);
+  border: var(--v-outline-width) solid var(--v-outline);
+  border-radius: var(--v-radius-lg);
+  box-shadow: var(--v-shadow);
+}
+.sb-sunken {
+  background: var(--v-sunken);
+  border-radius: var(--v-radius-md);
+}
+
+.sb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 1.2em;
+  border: var(--v-outline-width) solid var(--v-outline);
+  border-radius: var(--v-radius-md);
+  background: var(--v-fill-primary);
+  color: var(--v-on-primary);
+  font: inherit;
+  font-weight: var(--v-weight-heading);
+  box-shadow: var(--v-shadow);
+  cursor: pointer;
+  transition:
+    transform 120ms ease-out,
+    box-shadow 120ms ease-out,
+    background-color 120ms ease-out,
+    filter 120ms ease-out;
+}
+.sb-btn:hover:not(:disabled),
+.sb-btn[data-state="hover"] {
+  background: var(--v-primary-hover);
+  box-shadow: var(--v-shadow-raised);
+  transform: translateY(-2px);
+}
+.sb-btn:active:not(:disabled),
+.sb-btn[data-state="pressed"] {
+  background: var(--v-primary-pressed);
+  box-shadow: var(--v-shadow-pressed);
+  transform: translateY(var(--v-press-depth));
+}
+.sb-btn:disabled {
+  background: var(--v-disabled);
+  color: var(--v-on-disabled);
+  border-color: var(--v-disabled);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.sb-btn:focus-visible {
+  outline: 3px solid var(--v-accent);
+  outline-offset: 3px;
+}
+
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.8em 0.25em 0.35em;
+  border-radius: 999px;
+  font-weight: var(--v-weight-heading);
+}
+.sb-chip[data-tone="success"] {
+  background: var(--v-success-soft);
+  color: var(--v-success-text);
+}
+.sb-chip[data-tone="warning"] {
+  background: var(--v-warning-soft);
+  color: var(--v-warning-text);
+}
+.sb-chip[data-tone="danger"] {
+  background: var(--v-danger-soft);
+  color: var(--v-danger-text);
+}
+.sb-chip-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 999px;
+  color: var(--v-surface);
+}
+.sb-chip[data-tone="success"] .sb-chip-mark {
+  background: var(--v-success-text);
+}
+.sb-chip[data-tone="warning"] .sb-chip-mark {
+  background: var(--v-warning-text);
+}
+.sb-chip[data-tone="danger"] .sb-chip-mark {
+  background: var(--v-danger-text);
+}
+
+.sb-bar {
+  height: 14px;
+  border-radius: 999px;
+  background: var(--v-sunken);
+  overflow: hidden;
+  border: calc(var(--v-outline-width) * 0.67) solid var(--v-outline);
+}
+.sb-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--v-fill-primary);
+}
+.sb-bar[data-tone="accent"] > span {
+  background: var(--v-fill-accent);
+}
+
+.sb-big {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3em;
+  font-size: var(--v-font-display);
+  font-weight: var(--v-weight-number);
+  line-height: 1;
+  color: var(--v-success-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  animation: sb-pop var(--v-pop-duration) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.sb-big-unit {
+  white-space: nowrap;
+  font-size: var(--v-font-h3);
+  font-weight: var(--v-weight-heading);
+}
+.sb-accent-tag {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-fill-accent);
+  color: var(--v-on-accent);
+  border: var(--v-outline-width) solid var(--v-outline);
+  font-weight: var(--v-weight-heading);
+}
+
+@keyframes sb-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(var(--v-pop-overshoot));
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-big {
+    animation: none;
+  }
+  .sb-btn {
+    transition: none;
+  }
+}

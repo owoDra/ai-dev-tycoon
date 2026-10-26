@@ -7,6 +7,7 @@ import { progressSystem } from './progress';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
 import { taskSystem, taskUnlockSystem } from './taskSystem';
+import { seatSystem } from './team';
 
 /** システム関数に渡す、1ステップ分の作業場所 */
 export interface SystemContext {
@@ -31,6 +32,8 @@ export const releaseScheduledEvents: System = (state, ctx) => {
 /** 1ステップごとに先頭から順に適用されるシステム */
 export const defaultSystems: readonly System[] = [
   releaseScheduledEvents,
+  // 営業日が変わったら Seat の使用量を戻し、固定費を日割りで計上する
+  seatSystem,
   // このステップで AI が処理する分を、工程が終わって人間に回る前に数える
   autonomySystem,
   taskSystem,

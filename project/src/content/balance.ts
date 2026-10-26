@@ -149,6 +149,23 @@ export const balance = {
     /** Streak がこの時間（分）を越えるたびに AutonomyMilestone を出す（AUTONOMY STREAK の演出）。昇順 */
     milestones: [30, 60, 120, 240],
   },
+  /**
+   * Seat（企画書6章）。価格（content/seats.ts の米ドル）をゲーム内の円に換算して日割りで計上する。
+   * 人件費や売上と同じ桁で効くよう、為替レートではなくゲームの経済に合わせた係数にしている
+   */
+  seat: {
+    /** 1米ドルあたりのゲーム内の円 */
+    yenPerUsd: 2000,
+    /** 月額を日割りにするときの1か月の営業日数 */
+    businessDaysPerMonth: 20,
+    /** 運用者の Seat の使用量が上限を超えた後の、AI Worker の作業速度の倍率（上限は営業日ごとに戻る） */
+    overLimitSpeed: 0.25,
+  },
+  /** 社員（content/staff.ts） */
+  staff: {
+    /** 得意分野の Task の人間の工程の速度の倍率 */
+    strengthSpeed: 1.25,
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

@@ -1,8 +1,10 @@
 import { primaryActor } from '../content/assignModes';
 import { balance, type GameSpeed } from '../content/balance';
 import { content, findWorker } from '../content/index';
-import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId } from '../content/types';
+import { seats } from '../content/seats';
+import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
 import { allFeatures, modeFeature } from '../content/unlocks';
+import { canStartProject } from './campaign';
 import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
@@ -10,6 +12,7 @@ import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
+import { inTeam, setSeat } from './team';
 import { isAllowed } from './tutorial';
 import { isUnlocked } from './unlocks';
 
@@ -17,7 +20,10 @@ import { isUnlocked } from './unlocks';
 export type Command =
   | { readonly type: 'SetSpeed'; readonly speed: GameSpeed }
   | { readonly type: 'TogglePause' }
+  /** 案件を始める（受注する）。キャンペーンでは受注できるようになった案件だけ。進行中の案件と同時に進められる */
   | { readonly type: 'StartProject'; readonly projectId: string }
+  /** 社員の Seat を変える（企画書6章）。固定費は日割りなので、変えた時点から新しい月額で計上する */
+  | { readonly type: 'SetSeat'; readonly staffId: string; readonly seat: SeatId }
   /**
    * Task の担当を決める。依存が未完了でも先に決めておける。開始後は変更できない。
    * workerId はモードの主な担い手（AI が関わるモードでは AI Worker）。人間の工程は空いている人が担う。
@@ -92,7 +98,7 @@ function apply(state: GameState, command: Command): Transition {
     }
     case 'StartProject': {
       const def = content.projects.find((p) => p.id === command.projectId);
-      if (!def || state.projects[def.id]) return unchanged(state);
+      if (!def || !canStartProject(state, def.id)) return unchanged(state);
       const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
       const run = { projectId: def.id, startedAt: state.clock, completedAt: null, tasks };
       return { state: { ...state, projects: { ...state.projects, [def.id]: run } }, events: [] };
@@ -105,7 +111,8 @@ function apply(state: GameState, command: Command): Transition {
         run?.status !== 'waiting' ||
         !mode ||
         !isUnlocked(state, modeFeature(mode.id)) ||
-        worker?.kind !== primaryActor(mode)
+        worker?.kind !== primaryActor(mode) ||
+        (worker.kind === 'human' && !inTeam(state, worker.id))
       ) {
         return unchanged(state);
       }
@@ -119,6 +126,12 @@ function apply(state: GameState, command: Command): Transition {
         .map((feature) => ({ type: 'FeatureUnlocked', feature }));
       events.push({ type: 'TutorialEnded', skipped: true });
       return { state: { ...state, tutorial: null, unlocked: allFeatures }, events };
+    }
+    case 'SetSeat': {
+      const { staffId, seat } = command;
+      if (!isUnlocked(state, 'team') || !seats.some((s) => s.id === seat)) return unchanged(state);
+      const next = setSeat(state, staffId, seat);
+      return next === state ? unchanged(state) : { state: next, events: [{ type: 'SeatChanged', staffId, seat }] };
     }
     case 'SetContextFeed': {
       const { feed, workerId } = command;

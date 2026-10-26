@@ -4,8 +4,8 @@ import type { AssignModeId, FeatureId, ModeFeatureId, UnlockDef } from './types'
 /**
  * 機能の解放（企画書50章「必要になる前に説明しない」）。条件を満たした時点で core/unlocks.ts が解放し、
  * FeatureUnlocked を出す（Tier 2 の演出と「NEW」バッジ）。
- * 解放の進み具合を持ち越すのは Phase 13（キャンペーン・セーブ）。それまでは、チュートリアルは start の機能だけで始まり、
- * それ以外のプレイはすべて解放済みで始まる。
+ * キャンペーンはチュートリアル（start の機能だけ）から始まり、解放の進み具合を案件をまたいで持ち越す（セーブにも残る）。
+ * キャンペーンでない単発のプレイ（テストなど）は、すべて解放済みで始まる。
  */
 export const unlockDefs: readonly UnlockDef[] = [
   { id: 'human', feature: 'mode:human', when: { type: 'start' }, message: 'basic' },
@@ -100,6 +100,8 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'projectsCompleted', count: 2 },
     message: 'harnessSubagent',
   },
+  // 2つ目の案件を納品し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
+  { id: 'team', feature: 'team', when: { type: 'projectsCompleted', count: 2 }, message: 'team' },
 ];
 
 export const modeFeature = (mode: AssignModeId): ModeFeatureId => `mode:${mode}`;

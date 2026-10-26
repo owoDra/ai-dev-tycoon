@@ -1,9 +1,10 @@
-import { getProject, humans } from '../../src/content/index';
+import { getProject } from '../../src/content/index';
 import type { AssignModeId, TaskDef } from '../../src/content/types';
 import { type Command, reduce } from '../../src/core/commands';
 import { deadlineMinutes } from '../../src/core/formulas';
 import { type ProjectScore, scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
+import { teamMembers } from '../../src/core/team';
 import { type HeadlessResult, runHeadless } from './headless';
 
 /** 戦略 Bot。state を見て Command の列を返す */
@@ -13,16 +14,17 @@ const AI_WORKER = 'agent';
 /** smart が AI に任せる AI 適性の下限 */
 const SMART_APTITUDE = 0.6;
 
-/** まだ担当が決まっていない Task に、decide が返すモードを割り当てる。人間は定義順に交互に指名する */
+/** まだ担当が決まっていない Task に、decide が返すモードを割り当てる。人間は会社にいる社員を定義順に交互に指名する */
 function assignAll(projectId: string, decide: (task: TaskDef) => AssignModeId): Strategy {
   return (state) => {
     const run = state.projects[projectId];
     if (!run) return [];
+    const humans = teamMembers(state).map((h) => h.id);
     return getProject(projectId)
       .tasks.filter((t) => run.tasks[t.id]?.assignment === null)
       .map((task, i) => {
         const mode = decide(task);
-        const human = humans[i % humans.length]?.id ?? '';
+        const human = humans[i % humans.length] ?? '';
         return { type: 'AssignTask', projectId, taskId: task.id, mode, workerId: mode === 'human' ? human : AI_WORKER };
       });
   };

@@ -1,6 +1,7 @@
 import { balance, type GameSpeed } from '../content/balance';
+import { campaign } from '../content/campaign';
 import { glossary } from '../content/glossary';
-import { aiWorkers, humans } from '../content/index';
+import { aiWorkers, getHuman } from '../content/index';
 import type {
   AssignModeId,
   ContextFeed,
@@ -9,6 +10,7 @@ import type {
   HandoffItemId,
   IncidentId,
   ModePhase,
+  SeatId,
   Stage,
   TermId,
 } from '../content/types';
@@ -75,6 +77,21 @@ export interface ProjectRun {
   readonly completedAt: number | null;
   /** TaskDef の並び順で持つ */
   readonly tasks: Readonly<Record<string, TaskRun>>;
+}
+
+/** 会社にいる社員の Seat と、今日の AI の使用量 */
+export interface StaffRun {
+  readonly seat: SeatId;
+  /** 今日（state.usageDay の営業日）に、この人が運用する AI Worker が使った量 */
+  readonly used: number;
+}
+
+/** 進行中のキャンペーン（content/campaign.ts） */
+export interface CampaignRun {
+  /** 受注できるようになった段階の id（なった順） */
+  readonly reached: readonly string[];
+  /** すべての案件を納品した */
+  readonly cleared: boolean;
 }
 
 /** 人間の待ち行列の1件。先頭だけが処理される */
@@ -198,19 +215,36 @@ export interface GameState {
   readonly harnessLedger: readonly HarnessLedgerEntry[];
   /** AI Worker ごとの自律の記録（AI Worker の id がキー。なければまだ何も処理していない） */
   readonly autonomy: Readonly<Record<string, AutonomyRun>>;
+  /** 会社にいる社員（人間の Worker の id がキー）。人間の工程はこの人たちが担う */
+  readonly team: Readonly<Record<string, StaffRun>>;
+  /** Seat の使用量を数えている営業日（ゲーム開始からの営業日の番号、0 から） */
+  readonly usageDay: number;
+  /** 日割りで計上した Seat の固定費の合計（円）。会社の固定費なので案件のスコアには入れず、会社のスコアで引く */
+  readonly seatCost: number;
+  /** キャンペーン。キャンペーンでなければ null（どの案件でも始められる） */
+  readonly campaign: CampaignRun | null;
 }
 
 export interface InitialStateOptions {
   /** チュートリアルとして始める。start の機能だけを解放し、用語はまだ明かさない */
   readonly tutorial?: boolean;
+  /**
+   * キャンペーンとして始める（チュートリアルから始まる）。受注できる案件はキャンペーンの段階で決まり、
+   * 機能の解放・社員・Harness 部品は案件をまたいで持ち越す
+   */
+  readonly campaign?: boolean;
+  /** 最初からいる社員。既定はキャンペーンの最初の社員 */
+  readonly team?: readonly string[];
 }
 
 /**
- * ゲームの初期状態。チュートリアル以外は、解放の進み具合を持ち越す仕組み（Phase 13）ができるまで、
- * すべての機能を解放し、すべての用語を明かした状態で始める。
+ * ゲームの初期状態。キャンペーンはチュートリアルから始まり、解放の進み具合を案件をまたいで持ち越す。
+ * キャンペーンでもチュートリアルでもなければ（単発の案件・テスト）、すべての機能を解放し、すべての用語を明かした状態で始める。
  */
 export function createInitialState(seed: string, options: InitialStateOptions = {}): GameState {
-  const tutorial = options.tutorial === true;
+  const isCampaign = options.campaign === true;
+  const tutorial = options.tutorial === true || isCampaign;
+  const team = options.team ?? campaign.team;
   return {
     seed,
     rng: hashSeed(seed),
@@ -220,7 +254,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     paused: false,
     entities: {},
     projects: {},
-    humanQueues: createHumanQueues(),
+    humanQueues: createHumanQueues(team),
     bottleneck: null,
     pendingEvents: [],
     unlocked: tutorial ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature) : allFeatures,
@@ -233,7 +267,18 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     ownedParts: [],
     harnessLedger: [],
     autonomy: {},
+    team: createTeam(team),
+    usageDay: 0,
+    seatCost: 0,
+    campaign: isCampaign
+      ? { reached: campaign.stages.filter((s) => s.when.type === 'start').map((s) => s.id), cleared: false }
+      : null,
   };
+}
+
+/** 社員を入社したときの Seat で迎える */
+export function createTeam(ids: readonly string[]): Record<string, StaffRun> {
+  return Object.fromEntries(ids.map((id) => [id, { seat: getHuman(id).seat, used: 0 }]));
 }
 
 /**
@@ -248,8 +293,8 @@ export function createSessions(): Record<string, SessionRun> {
   return Object.fromEntries(aiWorkers.map((w) => [w.id, createSession()]));
 }
 
-export function createHumanQueues(): Record<string, readonly QueueItem[]> {
-  return Object.fromEntries(humans.map((h) => [h.id, []]));
+export function createHumanQueues(team: readonly string[] = campaign.team): Record<string, readonly QueueItem[]> {
+  return Object.fromEntries(team.map((id) => [id, []]));
 }
 
 export function createTaskRun(): TaskRun {

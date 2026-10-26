@@ -1,5 +1,5 @@
 import type { GameSpeed } from '../content/balance';
-import type { AssignModeId, FeatureId, HandoffItemId, IncidentId, TermId } from '../content/types';
+import type { AssignModeId, FeatureId, HandoffItemId, IncidentId, SeatId, TermId } from '../content/types';
 import type { BottleneckRef } from './bottleneck';
 
 /**
@@ -55,7 +55,15 @@ export type GameEvent =
    */
   | { readonly type: 'AutonomyMilestone'; readonly workerId: string; readonly minutes: number }
   /** 複数の Task を Workflow にまとめて AI に任せた（企画書5章） */
-  | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] };
+  | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] }
+  /** 社員の Seat を変えた */
+  | { readonly type: 'SeatChanged'; readonly staffId: string; readonly seat: SeatId }
+  /** キャンペーンで社員が入社した */
+  | { readonly type: 'StaffJoined'; readonly staffId: string }
+  /** キャンペーンで新しい案件を受注できるようになった */
+  | { readonly type: 'ProjectsOffered'; readonly projectIds: readonly string[] }
+  /** キャンペーンのすべての案件を納品した */
+  | { readonly type: 'CampaignCleared' };
 
 /** 指定したゲーム内時刻（分）に発火させる予約済みの出来事 */
 export interface ScheduledEvent {

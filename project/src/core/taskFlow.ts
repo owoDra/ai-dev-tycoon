@@ -1,6 +1,6 @@
 import { getAssignMode, primaryActor } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { getAiWorker, getHuman, getProject, getTask, humans } from '../content/index';
+import { getAiWorker, getHuman, getProject, getTask } from '../content/index';
 import type { HarnessModifiers, ModeStep, TaskDef } from '../content/types';
 import { intervene } from './autonomy';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
@@ -18,6 +18,7 @@ import { evalMinutes, harnessModel, harnessModifiers, harnessSuccess, harnessToo
 import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
+import { humanSpeed, teamMembers } from './team';
 import { forcedAiOutcome } from './tutorial';
 
 /*
@@ -84,20 +85,27 @@ function rollRequests(
   return updateTask(state, projectId, taskId, (r) => ({ ...r, skipped }));
 }
 
-/** 人間の工程を誰に任せるか。人間だけのモードなら指名された人、それ以外は待ち行列の残り時間が最も短い人 */
-function chooseHuman(state: GameState, run: TaskRun): string {
+/**
+ * 人間の工程を誰に任せるか。人間だけのモードなら指名された人、それ以外は会社にいる社員のうち
+ * 待ち行列の残り時間が最も短い人（同じなら、その Task が得意分野の人）
+ */
+function chooseHuman(state: GameState, run: TaskRun, task: TaskDef): string {
   const assigned = run.assignment?.workerId;
-  if (assigned && humans.some((h) => h.id === assigned)) return assigned;
-  let best = humans[0]?.id ?? '';
+  const team = teamMembers(state);
+  if (assigned && team.some((h) => h.id === assigned)) return assigned;
+  let best = team[0]?.id ?? '';
   let bestLoad = Number.POSITIVE_INFINITY;
-  for (const h of humans) {
+  let bestSpeed = 0;
+  for (const h of team) {
     const load = (state.humanQueues[h.id] ?? []).reduce(
       (sum, q) => sum + (state.projects[q.projectId]?.tasks[q.taskId]?.remaining ?? 0),
       0,
     );
-    if (load < bestLoad) {
+    const speed = humanSpeed(h.id, task);
+    if (load < bestLoad || (load === bestLoad && speed > bestSpeed)) {
       best = h.id;
       bestLoad = load;
+      bestSpeed = speed;
     }
   }
   return best;
@@ -149,8 +157,8 @@ export function enterStep(
     }
     return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining }));
   }
-  const humanId = chooseHuman(state, run);
-  let remaining = stepMinutes(task, step, { kind: 'human', skill: getHuman(humanId).skill });
+  const humanId = chooseHuman(state, run, task);
+  let remaining = stepMinutes(task, step, { kind: 'human', skill: humanSpeed(humanId, task) });
   // AI が関わる Task の指示出しと確認は、人間の介入（Autonomy Streak が途切れる）。Harness の補正で軽くなり（重くもなり）、
   // 人間の確認待ちの事件（Human Bottleneck）が起きていれば重くなる
   const intervention = isIntervention(step) && usesAi(run);
@@ -171,6 +179,9 @@ export function enterStep(
   next = enqueue(next, humanId, projectId, taskId, false);
   return intervention ? rollIncidents(next, 'humanCheck', run.assignment.workerId, projectId, taskId, ctx) : next;
 }
+
+/** 人間の正確さに効く skill（得意分野は速さだけに効き、正確さには効かない） */
+const getHumanSkill = (humanId: string | null) => (humanId ? getHuman(humanId).skill : 1);
 
 const usesAi = (run: TaskRun) => run.assignment !== null && primaryActor(getAssignMode(run.assignment.mode)) === 'ai';
 
@@ -235,7 +246,8 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const humanId = run.humanId;
     ctx.emit({ type: 'ReworkDetected', projectId, taskId, humanId });
     const intervention = usesAi(run) ? 1 : 0;
-    const remaining = reworkMinutes(getTask(projectId, taskId), getHuman(humanId).skill);
+    const task = getTask(projectId, taskId);
+    const remaining = reworkMinutes(task, humanSpeed(humanId, task));
     const base = intervention && run.assignment ? intervene(state, run.assignment.workerId) : state;
     const next = updateTask(base, projectId, taskId, (r) => ({
       ...r,
@@ -255,7 +267,7 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const forced = ai ? forcedAiOutcome(state, projectId, taskId) : null;
     const p = ai
       ? aiSuccess(state, run, projectId, task)
-      : successProbability(task, { kind: 'human', skill: getHuman(run.humanId ?? '').skill });
+      : successProbability(task, { kind: 'human', skill: getHumanSkill(run.humanId) });
     const ok = forced === null ? ctx.rng.chance(p) : forced;
     if (ai && contextApplies(projectId)) next = afterContextWork(next, run, projectId, taskId);
     if (!ok) {

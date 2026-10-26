@@ -1,6 +1,10 @@
 import { type Accessor, createSignal } from 'solid-js';
 
-/** 画面。タイトル → 案件選択 → プレイ → 結果（仮）の順に進む。チュートリアルはタイトルから直接プレイへ進む */
+/**
+ * 画面。タイトル → 案件ボード（select：キャンペーンの受注と進行中の案件）→ プレイ → 結果（仮）の順に進む。
+ * キャンペーンはチュートリアルから始まり、タイトルから直接プレイへ進む。プレイ中はタブで案件を切り替え、
+ * 新しい依頼があれば案件ボードへ戻って受注する。結果の後は案件ボードへ戻る
+ */
 export type Screen =
   | { readonly id: 'title' }
   | { readonly id: 'select' }
@@ -15,7 +19,11 @@ export type ScreenAction =
   | { readonly type: 'StartTutorial'; readonly projectId: string }
   | { readonly type: 'Complete' }
   | { readonly type: 'Retry' }
-  | { readonly type: 'ToTitle' };
+  | { readonly type: 'ToTitle' }
+  /** プレイ中に別の案件のタブへ切り替える */
+  | { readonly type: 'Switch'; readonly projectId: string }
+  /** プレイ中・結果の後に案件ボードへ戻る */
+  | { readonly type: 'Board' };
 
 export const titleScreen: Screen = { id: 'title' };
 
@@ -36,6 +44,10 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
       return screen.id === 'result' ? { id: 'play', projectId: screen.projectId } : screen;
     case 'ToTitle':
       return titleScreen;
+    case 'Switch':
+      return screen.id === 'play' ? { id: 'play', projectId: action.projectId } : screen;
+    case 'Board':
+      return screen.id === 'play' || screen.id === 'result' ? { id: 'select' } : screen;
   }
 }
 

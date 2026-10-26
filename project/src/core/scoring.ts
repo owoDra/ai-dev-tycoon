@@ -128,3 +128,49 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     completed,
   };
 }
+
+/** 会社全体のスコア（複数の案件と、案件をまたぐ固定費）。金額は円、時間はゲーム内の分 */
+export interface CompanyScore {
+  /** 納品した案件の数 */
+  readonly delivered: number;
+  /** 始めた案件の利益の合計（Harness 部品の導入コストを除く） */
+  readonly projectProfit: number;
+  /** Harness 部品の導入コストの合計（同時に進めた案件で重複して数えない） */
+  readonly harnessCost: number;
+  /** Seat の固定費（日割り） */
+  readonly seatCost: number;
+  /** 会社の利益 = 案件の利益の合計 − 導入コスト − Seat の固定費 */
+  readonly profit: number;
+  /** 人間の総稼働時間（分） */
+  readonly humanMinutes: number;
+  /** 会社の Profit / Human Hour */
+  readonly profitPerHumanHour: number;
+}
+
+/**
+ * 会社全体のスコア。案件ごとのスコア（scoreProject）を合計し、案件をまたぐ費用（Seat の固定費と、
+ * 同時に進めた案件で重なって数えられうる Harness 部品の導入コスト）は会社として1回だけ引く
+ */
+export function scoreCompany(state: GameState): CompanyScore {
+  let projectProfit = 0;
+  let humanMinutes = 0;
+  let delivered = 0;
+  for (const projectId of Object.keys(state.projects)) {
+    const s = scoreProject(state, projectId);
+    if (!s) continue;
+    projectProfit += s.profit + s.harnessCost;
+    humanMinutes += s.humanMinutes;
+    if (s.completed) delivered++;
+  }
+  const harnessCost = state.harnessLedger.reduce((sum, e) => sum + e.cost, 0);
+  const profit = projectProfit - harnessCost - state.seatCost;
+  return {
+    delivered,
+    projectProfit,
+    harnessCost,
+    seatCost: state.seatCost,
+    profit,
+    humanMinutes,
+    profitPerHumanHour: humanMinutes > 0 ? profit / (humanMinutes / MINUTES_PER_HOUR) : 0,
+  };
+}

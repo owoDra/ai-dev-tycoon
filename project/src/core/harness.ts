@@ -128,12 +128,17 @@ export function runningCost(state: GameState, workerId: string): number {
   return equippedParts(state, workerId).reduce((sum, p) => sum + p.runningCost, 0);
 }
 
-/** Harness の Model に、速度と費用の補正とランニングコストを入れた実効の Model */
+/** Harness の Model に、速度と費用の補正とランニングコストを入れた実効の Model。使用量も AI の利用量の補正（aiCost）に比例する */
 export function harnessModel(state: GameState, workerId: string, mods: HarnessModifiers): ModelDef {
   const model = getModel(harnessOf(state, workerId).modelId);
   const running = runningCost(state, workerId);
   if (mods === NEUTRAL && running === 0) return model;
-  return { ...model, speed: model.speed * mods.speed, costPerMinute: model.costPerMinute * mods.aiCost + running };
+  return {
+    ...model,
+    speed: model.speed * mods.speed,
+    costPerMinute: model.costPerMinute * mods.aiCost + running,
+    usagePerMinute: model.usagePerMinute * mods.aiCost,
+  };
 }
 
 /** Harness の補正を入れた AI の作業の成功確率。成功率の補正を足し、Noise（Tool の複雑さ・お願いの指示文）の分を引く */

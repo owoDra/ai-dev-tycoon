@@ -1,4 +1,5 @@
 import { getAssignMode, primaryActor, stageOfPhase } from '../content/assignModes';
+import { campaign } from '../content/campaign';
 import { content, findWorker, getProject } from '../content/index';
 import type { AssignModeId, Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
@@ -53,10 +54,15 @@ export function defaultWorkerFor(mode: AssignModeId): string {
   return content.workers.find((w) => w.kind === kind)?.id ?? '';
 }
 
-/** モードに合う Worker の候補 */
-export function workerOptions(mode: AssignModeId): { id: string; name: string }[] {
+/** モードに合う Worker の候補。人間は会社にいる社員（team。既定はキャンペーンの最初の社員）だけ */
+export function workerOptions(
+  mode: AssignModeId,
+  team: readonly string[] = campaign.team,
+): { id: string; name: string }[] {
   const kind = primaryActor(getAssignMode(mode));
-  return content.workers.filter((w) => w.kind === kind).map((w) => ({ id: w.id, name: w.name }));
+  return content.workers
+    .filter((w) => w.kind === kind && (w.kind === 'ai' || team.includes(w.id)))
+    .map((w) => ({ id: w.id, name: w.name }));
 }
 
 /** 現在のボトルネックの表示名。なければ null */

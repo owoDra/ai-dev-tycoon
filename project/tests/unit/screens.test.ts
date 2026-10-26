@@ -30,3 +30,17 @@ describe('画面遷移', () => {
     expect(nextScreen(play, { type: 'Back' })).toBe(play);
   });
 });
+
+describe('画面遷移（キャンペーン）', () => {
+  it('プレイ中はタブで案件を切り替え、案件ボードへ戻れる。結果の後も案件ボードへ戻る', () => {
+    const play: Screen = { id: 'play', projectId: 'corporateSite' };
+    expect(nextScreen(play, { type: 'Switch', projectId: 'saasFeature' })).toEqual({
+      id: 'play',
+      projectId: 'saasFeature',
+    });
+    expect(nextScreen(play, { type: 'Board' })).toEqual({ id: 'select' });
+    expect(nextScreen({ id: 'result', projectId: 'saasFeature' }, { type: 'Board' })).toEqual({ id: 'select' });
+    expect(nextScreen(titleScreen, { type: 'Switch', projectId: 'saasFeature' })).toBe(titleScreen);
+    expect(nextScreen(titleScreen, { type: 'Board' })).toBe(titleScreen);
+  });
+});

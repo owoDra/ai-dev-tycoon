@@ -18,6 +18,8 @@ export const ja = {
     paymentFix: '決済画面の修正',
     corporateSite: 'コーポレートサイト制作',
     saasFeature: 'SaaS の新機能追加',
+    internalTool: '社内ツールの改修',
+    promoLp: 'キャンペーンLP制作',
   },
   tasks: {
     ecRenewal: {
@@ -61,6 +63,20 @@ export const ja = {
       qa: 'QA',
       release: 'リリース',
     },
+    internalTool: {
+      interview: '業務ヒアリング',
+      automation: '自動化スクリプト',
+      dashboard: '管理画面',
+      test: '動作テスト',
+      handover: '引き継ぎ',
+    },
+    promoLp: {
+      brief: '企画',
+      copy: 'コピー作成',
+      visual: 'ビジュアル',
+      build: 'ページ実装',
+      check: '公開前チェック',
+    },
   },
   /** 資料（content/documents.ts） */
   documents: {
@@ -80,7 +96,74 @@ export const ja = {
   workers: {
     sato: '佐藤（ディレクター）',
     suzuki: '鈴木（エンジニア）',
+    takahashi: '高橋（デザイナー）',
+    ito: '伊藤（エンジニア）',
+    watanabe: '渡辺（QA）',
     agent: 'AIワーカー',
+  },
+  /** 社員の職種（content/staff.ts） */
+  roles: {
+    pm: 'PM',
+    designer: 'Designer',
+    developer: 'Developer',
+    qa: 'QA',
+  },
+  /** Seat（content/seats.ts） */
+  seats: {
+    standard: 'Standard',
+    premium: 'Premium',
+  },
+  /** Task の種類（得意分野の表示） */
+  taskKinds: {
+    planning: '企画',
+    research: '調査',
+    design: 'デザイン',
+    content: '原稿',
+    code: '実装',
+    test: 'テスト',
+    release: 'リリース',
+  },
+  /** 社員と Seat の画面（企画書6章・47章） */
+  team: {
+    open: '社員と Seat',
+    title: '社員と Seat',
+    lead: 'AI ワーカーの使用量は、運用する人の Seat から減っていく。誰に Premium を渡すと会社全体が速くなる？',
+    close: '閉じる',
+    member: (name: string, role: string) => `${name}・${role}`,
+    strengths: (kinds: string) => `得意：${kinds}`,
+    operator: 'AI ワーカーを運用',
+    usage: '今日の AI 使用量',
+    usageValue: (used: number, limit: number) => `${Math.round(used)} / ${limit}`,
+    noUsage: 'AI ワーカーを運用していないので、Seat の容量は使わない',
+    overLimit: '上限超え：AI ワーカーが遅くなっている',
+    seatGroup: (name: string) => `${name}の Seat`,
+    current: '使用中',
+    capacity: (ratio: number) => `AI 容量 ${ratio >= 0 ? '+' : '−'}${Math.round(Math.abs(ratio) * 100)}%`,
+    cost: (yenPerMonth: number) =>
+      `費用 ${yenPerMonth >= 0 ? '+' : '−'}¥${Math.round(Math.abs(yenPerMonth)).toLocaleString('ja-JP')} / 月`,
+    monthly: (yen: number) => `¥${Math.round(yen).toLocaleString('ja-JP')} / 月`,
+    total: '固定費の合計',
+    model: 'AI ワーカーの Model',
+    modelUsage: (n: number) => `使用量 ${n}/分`,
+    changed: (seat: string) => `✓ ${seat}へ変更`,
+    joined: (name: string) => `${name}が入社した`,
+  },
+  /** キャンペーン（content/campaign.ts） */
+  campaign: {
+    tabs: '案件の切り替え',
+    floor: (n: number) => `${n}F`,
+    offers: (n: number) => `新しい依頼 ${n}件`,
+    board: '案件ボード',
+    offered: '受注できる案件',
+    active: '進行中の案件',
+    done: '納品した案件',
+    accept: '受注する',
+    resume: 'この案件へ',
+    none: '今は新しい依頼がない。進行中の案件を納品しよう',
+    cleared: 'キャンペーンクリア',
+    clearedLead: 'すべての案件を納品した',
+    delivered: (name: string) => `${name}を納品した`,
+    offeredNotice: (n: number) => `新しい依頼が${n}件届いた`,
   },
   models: {
     lite: '軽量モデル',
@@ -138,6 +221,9 @@ export const ja = {
     title: {
       tagline: '人間を、人間にしかできない仕事へ',
       start: 'はじめる',
+      newGame: 'はじめから',
+      continue: '続きから',
+      confirmNew: 'セーブを消して、はじめから始める',
       retryTutorial: 'チュートリアルをもう一度',
       keyVisual: 'オフィスの島で人間と AI が働くイラスト',
     },
@@ -155,6 +241,7 @@ export const ja = {
       baseline: '人間だけの見込み',
       gain: (ratio: number) => `×${ratio.toFixed(1)}`,
       retry: 'もう一度',
+      next: '案件ボードへ',
       toTitle: 'タイトルへ',
     },
   },
@@ -516,6 +603,7 @@ export const ja = {
     harnessPermission: 'AI の権限を決められるようになった',
     harnessEval: '自動の検証（Eval）を組み込めるようになった',
     harnessSubagent: 'AI の仕事を Subagent に分担できるようになった',
+    team: '社員の Seat を変えられるようになった',
   },
   /** 体験の後で明かす用語（content/glossary.ts） */
   glossary: {

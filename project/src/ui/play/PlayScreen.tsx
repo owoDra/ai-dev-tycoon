@@ -1,8 +1,9 @@
 import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
-import { aiWorkers, getHarnessPart, getModel, getTask } from '../../content/index';
+import { aiWorkers, getHarnessPart, getHuman, getModel, getProject, getTask } from '../../content/index';
 import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
+import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature, unlockDefs } from '../../content/unlocks';
@@ -12,10 +13,12 @@ import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
 import { type BottleneckMove, bottleneckMove, stageRows } from '../../view/bottleneck';
+import { projectTabs } from '../../view/campaign';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
 import { defaultWorkerFor, workflowTasks } from '../../view/project';
+import { teamView, usageWarning } from '../../view/team';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
 import { keyAction, nextIsland } from '../keyboard';
@@ -30,6 +33,7 @@ import { HarnessSheet } from './HarnessSheet';
 import { IslandLabels } from './IslandLabels';
 import { NoticeHost } from './NoticeHost';
 import { ProblemToasts } from './ProblemToasts';
+import { TeamSheet } from './TeamSheet';
 import { TutorialCoach } from './TutorialCoach';
 
 /** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
@@ -49,6 +53,10 @@ export function PlayScreen(props: {
   world?: Accessor<World | undefined>;
   layout?: UiLayout;
   onSettings?: () => void;
+  /** 別の案件のタブへ切り替える（キャンペーンの同時進行） */
+  onSwitch?: (projectId: string) => void;
+  /** 案件ボードへ戻る（新しい依頼の受注） */
+  onBoard?: () => void;
 }) {
   const layout = () => props.layout ?? uiLayout;
   const [view, setView] = createSignal({ width: window.innerWidth, height: window.innerHeight });
@@ -146,6 +154,18 @@ export function PlayScreen(props: {
         if (e.type === 'WorkflowAssigned' && e.projectId === props.projectId) {
           notices.push({ text: ja.notices.workflow(e.taskIds.length), icon: 'workflow', tone: 'success' });
         }
+        if (e.type === 'SeatChanged') {
+          notices.push({ text: ja.team.changed(getSeat(e.seat).name), icon: 'success', tone: 'success' });
+        }
+        if (e.type === 'StaffJoined') {
+          notices.push({ text: ja.team.joined(getHuman(e.staffId).name), icon: 'human', tone: 'success' });
+        }
+        if (e.type === 'ProjectsOffered') {
+          notices.push({ text: ja.campaign.offeredNotice(e.projectIds.length), icon: 'project', tone: 'success' });
+        }
+        if (e.type === 'ProjectCompleted' && e.projectId !== props.projectId) {
+          notices.push({ text: ja.campaign.delivered(getProject(e.projectId).name), icon: 'success', tone: 'success' });
+        }
         if (e.type === 'FeatureUnlocked') {
           const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';
           notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
@@ -182,9 +202,23 @@ export function PlayScreen(props: {
   const openContext = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setHarnessOpen(false);
+    setTeamOpen(false);
     setContextOpen(true);
   };
   const [harnessOpen, setHarnessOpen] = createSignal(false);
+  // 社員と Seat の画面（企画書6章）
+  const [teamOpen, setTeamOpen] = createSignal(false);
+  const teamOn = () => isUnlocked(props.store.state(), 'team');
+  const team = createMemo(() => (teamOpen() ? teamView(props.store.state()) : null));
+  const openTeam = () => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setContextOpen(false);
+    setHarnessOpen(false);
+    setTeamOpen(true);
+  };
+  const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
+    equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  });
   const harnessWorker = () => aiWorkers[0]?.id ?? '';
   const harnessOn = () => isUnlocked(props.store.state(), 'harness');
   const harness = createMemo(() =>
@@ -193,12 +227,14 @@ export function PlayScreen(props: {
   const openHarness = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setContextOpen(false);
+    setTeamOpen(false);
     setHarnessOpen(true);
   };
   createEffect(() => {
     if (props.selection.selected() !== null) {
       setContextOpen(false);
       setHarnessOpen(false);
+      setTeamOpen(false);
     }
   });
 
@@ -271,10 +307,11 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
-        if (contextOpen() || harnessOpen()) {
+        if (contextOpen() || harnessOpen() || teamOpen()) {
           e.preventDefault();
           setContextOpen(false);
           setHarnessOpen(false);
+          setTeamOpen(false);
           return;
         }
         if (selected() === null) return;
@@ -395,6 +432,18 @@ export function PlayScreen(props: {
           />
         )}
       </Presence>
+      <Presence when={team()} enter={false} class="pointer-events-auto">
+        {(v) => (
+          <TeamSheet
+            view={v()}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            dispatch={(c) => props.store.dispatch(c)}
+            onClose={() => setTeamOpen(false)}
+          />
+        )}
+      </Presence>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -406,6 +455,11 @@ export function PlayScreen(props: {
           onProblems={() => setDismissed(new Set<string>())}
           onContext={openContext}
           onHarness={harnessOn() ? openHarness : undefined}
+          onTeam={teamOn() ? openTeam : undefined}
+          teamWarning={usageWarning(props.store.state())}
+          tabs={props.onSwitch ? tabs() : undefined}
+          onSwitch={props.onSwitch}
+          onBoard={props.onBoard}
           onSettings={props.onSettings}
         />
       </div>

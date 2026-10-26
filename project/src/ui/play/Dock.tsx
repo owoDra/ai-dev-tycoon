@@ -8,12 +8,14 @@ import { dockFeature } from '../../content/unlocks';
 import { isUnlocked } from '../../core/unlocks';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
+import type { ProjectTabsView } from '../../view/campaign';
 import { contextView } from '../../view/context';
 import { type HudView, hudView, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
 import { iconButton, Meter, PlayPauseIcon, panel, SettingsIcon } from '../parts';
 import { contextStatusIcon } from './ContextSheet';
+import { ProjectTabs } from './ProjectTabs';
 
 const t = ja.hud;
 /** Profit / Human Hour の増減チップを出す最小の変化（円/人時）。見込みの細かな揺れでは出さない */
@@ -36,10 +38,22 @@ export function Dock(props: {
   onContext?: () => void;
   /** Harness Builder を開く（渡さなければボタンを出さない。解放前） */
   onHarness?: () => void;
+  /** 社員と Seat の画面を開く（渡さなければボタンを出さない。解放前） */
+  onTeam?: () => void;
+  /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
+  teamWarning?: boolean;
+  /** 案件のタブ（複数の案件を進めているか、新しい依頼があるときに案件名の代わりに出す） */
+  tabs?: ProjectTabsView;
+  onSwitch?: (projectId: string) => void;
+  onBoard?: () => void;
   /** 設定を開く（渡さなければボタンを出さない） */
   onSettings?: () => void;
   ref?: (el: HTMLElement) => void;
 }) {
+  const showTabs = () => {
+    const tabs = props.tabs;
+    return tabs !== undefined && (tabs.tabs.length > 1 || tabs.offers > 0) ? tabs : null;
+  };
   const hud = createMemo(() => hudView(props.store.state(), props.projectId));
   const items = createMemo(() =>
     props.layout.items.filter((id) => {
@@ -58,7 +72,17 @@ export function Dock(props: {
       }`}
       style={{ bottom: `${props.layout.bottom}px` }}
     >
-      <Show when={props.layout.projectName}>
+      <Show when={showTabs()}>
+        {(tabs) => (
+          <ProjectTabs
+            view={tabs()}
+            compact={props.compact}
+            onSwitch={(id) => props.onSwitch?.(id)}
+            onBoard={() => props.onBoard?.()}
+          />
+        )}
+      </Show>
+      <Show when={props.layout.projectName && !showTabs()}>
         <h1
           class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
         >
@@ -97,6 +121,27 @@ export function Dock(props: {
           >
             <Icon name="ai" class="text-xl" />
             <Show when={!props.compact}>{ja.harness.openShort}</Show>
+          </button>
+        )}
+      </Show>
+      <Show when={props.onTeam}>
+        {(open) => (
+          <button
+            type="button"
+            data-team-open
+            class={`flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
+              props.teamWarning ? 'bg-danger-200' : 'bg-surface'
+            }`}
+            aria-label={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
+            onClick={() => open()()}
+          >
+            <Icon name="seat" class="text-xl" />
+            <Show when={props.teamWarning}>
+              <span data-team-warning class="flex">
+                <Icon name="warning" class="text-lg" />
+              </span>
+            </Show>
+            <Show when={!props.compact}>{ja.team.open}</Show>
           </button>
         )}
       </Show>

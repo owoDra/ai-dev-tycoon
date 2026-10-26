@@ -74,7 +74,25 @@ export interface ModelDef {
   readonly speed: number;
   /** AI が1分作業するごとの費用（円） */
   readonly costPerMinute: number;
+  /** AI が1分作業するごとに、運用者の Seat の使用量の上限から消費する量（content/seats.ts の dailyUsage と同じ単位） */
+  readonly usagePerMinute: number;
 }
+
+/** Claude Team のシートの種類（企画書6章） */
+export type SeatId = 'standard' | 'premium';
+
+/** Seat（企画書6章）。月額費用と AI の使用量の上限。文言は i18n の ja.seats */
+export interface SeatDef {
+  readonly id: SeatId;
+  readonly name: string;
+  /** 月額費用（米ドル、企画書6章の月払いの価格）。balance.seat.yenPerUsd でゲーム内の円に換算し、日割りで計上する */
+  readonly monthlyUsd: number;
+  /** 1営業日に使える AI の使用量。超えると、その人が運用する AI Worker の作業が遅くなる */
+  readonly dailyUsage: number;
+}
+
+/** 社員の職種。文言は i18n の ja.roles */
+export type StaffRole = 'pm' | 'designer' | 'developer' | 'qa';
 
 export interface HumanWorkerDef {
   readonly kind: 'human';
@@ -84,6 +102,11 @@ export interface HumanWorkerDef {
   readonly hourlyWage: number;
   /** 作業速度の倍率。1 が標準 */
   readonly skill: number;
+  readonly role: StaffRole;
+  /** 得意分野。この種類の Task の人間の工程は balance.staff.strengthSpeed 倍の速さで進む */
+  readonly strengths: readonly TaskKind[];
+  /** 入社したときに割り当てる Seat */
+  readonly seat: SeatId;
 }
 
 export interface AiWorkerDef {
@@ -91,6 +114,8 @@ export interface AiWorkerDef {
   readonly id: string;
   readonly name: string;
   readonly modelId: string;
+  /** この AI Worker を運用する社員。AI の使用量はこの人の Seat の上限から消費する（いなければ上限なし） */
+  readonly operatorId?: string;
 }
 
 export type WorkerDef = HumanWorkerDef | AiWorkerDef;
@@ -151,7 +176,9 @@ export type FeatureId =
   | 'harness:tool'
   | 'harness:permission'
   | 'harness:eval'
-  | 'harness:subagent';
+  | 'harness:subagent'
+  /** team: 社員と Seat の画面（Seat の変更） */
+  | 'team';
 
 export interface UnlockDef {
   readonly id: string;
@@ -179,7 +206,8 @@ export type UnlockMessageId =
   | 'harnessTool'
   | 'harnessPermission'
   | 'harnessEval'
-  | 'harnessSubagent';
+  | 'harnessSubagent'
+  | 'team';
 
 /** 体験の後で名前を教える用語（企画書34章）。文言（名前・平易な説明）は i18n の ja.glossary */
 export type TermId =
@@ -403,4 +431,23 @@ export interface HarnessPartDef {
   readonly group?: string;
   /** この機能が解放されると選べる */
   readonly unlock: FeatureId;
+}
+
+/** キャンペーンの1段階。条件を満たすと案件を受注できるようになり、社員が加わる */
+export interface CampaignStageDef {
+  readonly id: string;
+  /** この段階で受注できるようになる案件（複数なら同時に進める） */
+  readonly projects: readonly string[];
+  /** 受注できるようになる条件（前の段階の案件の納品など） */
+  readonly when: Condition;
+  /** この段階で入社する社員 */
+  readonly joins: readonly string[];
+}
+
+/** キャンペーン（企画書21章）。案件の受注順・解放・難易度の上昇をデータで定義する */
+export interface CampaignDef {
+  /** 最初からいる社員 */
+  readonly team: readonly string[];
+  /** 並び順は受注できるようになる順 */
+  readonly stages: readonly CampaignStageDef[];
 }

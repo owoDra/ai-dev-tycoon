@@ -1,6 +1,6 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { aiWorkers, content, getProject, humans } from '../content/index';
+import { aiWorkers, content, getProject } from '../content/index';
 import type { AssignModeId } from '../content/types';
 import { autonomyOf } from '../core/autonomy';
 import { reduce } from '../core/commands';
@@ -9,6 +9,7 @@ import { deadlineMinutes, escapedDefectCost, escapedFixMinutes, laborCost } from
 import { type ProjectScore, scoreProject } from '../core/scoring';
 import { createInitialState, type GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
+import { teamMembers } from '../core/team';
 import { MINUTES_PER_HOUR } from '../core/units';
 
 /** 担当が決まっていない Task は、見込みの計算では人間が担当するものとみなす */
@@ -78,6 +79,7 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   const left = deadlineMinutes(def) - elapsed;
   const span = Math.abs(left);
 
+  const humans = teamMembers(state);
   let humanBusy = 0;
   for (const h of humans) {
     const head = state.humanQueues[h.id]?.[0];
@@ -116,6 +118,7 @@ export function projectedProfitPerHumanHour(state: GameState, projectId: string,
   const def = getProject(projectId);
   const run = state.projects[projectId];
   const ai = content.workers.find((w) => w.kind === 'ai');
+  const humans = teamMembers(state);
   if (!run || !ai || humans.length === 0) return 0;
   const wage = humans.reduce((sum, h) => sum + h.hourlyWage, 0) / humans.length;
   const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;

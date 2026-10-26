@@ -5,9 +5,12 @@ import { incidentDefs } from './incidents';
 import { models } from './models';
 import { corporateSite } from './projects/corporate-site';
 import { ecRenewal } from './projects/ec-renewal';
+import { internalTool } from './projects/internal-tool';
 import { paymentFix } from './projects/payment-fix';
+import { promoLp } from './projects/promo-lp';
 import { saasFeature } from './projects/saas-feature';
 import { tutorialLp } from './projects/tutorial-lp';
+import { seats } from './seats';
 import type {
   AiWorkerDef,
   AssignModeDef,
@@ -17,6 +20,7 @@ import type {
   IncidentDef,
   ModelDef,
   ProjectDef,
+  SeatDef,
   TaskDef,
   WorkerDef,
 } from './types';
@@ -31,16 +35,18 @@ export interface Content {
   readonly documents: readonly DocumentDef[];
   readonly incidents: readonly IncidentDef[];
   readonly harnessParts: readonly HarnessPartDef[];
+  readonly seats: readonly SeatDef[];
 }
 
 export const content: Content = {
-  projects: [ecRenewal, paymentFix, corporateSite, saasFeature, tutorialLp],
+  projects: [ecRenewal, paymentFix, corporateSite, saasFeature, internalTool, promoLp, tutorialLp],
   workers,
   models,
   assignModes,
   documents,
   incidents: incidentDefs,
   harnessParts,
+  seats,
 };
 
 export function getProject(id: string): ProjectDef {

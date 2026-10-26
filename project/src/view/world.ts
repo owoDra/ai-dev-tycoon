@@ -1,6 +1,6 @@
 import { agentModels, humanModels, incidentModels, type ModelId } from '../assets/catalog';
 import { getAssignMode } from '../content/assignModes';
-import { getHuman, getProject, getTask, humans } from '../content/index';
+import { getProject, getTask, humans } from '../content/index';
 import {
   type AgentRole,
   agentRoleByTask,
@@ -19,6 +19,7 @@ import { type ActorProfile, reworkMinutes, stepMinutes } from '../core/formulas'
 import { equippedParts, harnessModifiers } from '../core/harness';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
+import { humanSpeed, teamMembers } from '../core/team';
 import { ja } from '../i18n/ja';
 import { conveyorId, EXIT_ID } from '../world/layout';
 import { type TaskStatusView, taskRows } from './project';
@@ -201,7 +202,7 @@ export function taskProgress(state: GameState, projectId: string, taskId: string
   if (run.status !== 'running' || !run.assignment) return 0;
   const steps = getAssignMode(run.assignment.mode).steps;
   const task = getTask(projectId, taskId);
-  const skill = run.humanId ? getHuman(run.humanId).skill : 1;
+  const skill = run.humanId ? humanSpeed(run.humanId, task) : 1;
   const step = currentStep(run);
   let total = 0;
   if (run.phase === 'rework') total = reworkMinutes(task, skill);
@@ -312,7 +313,8 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
 
   // キャラクター
   const projectDone = run?.completedAt !== null && run?.completedAt !== undefined;
-  const actors: ActorView[] = humans.map((h) => {
+  // 人は案件をまたいで共有するので、どのフロアにも会社の全員を出す（別のフロアの仕事中は休憩所に立つ）
+  const actors: ActorView[] = teamMembers(state).map((h) => {
     const queue = state.humanQueues[h.id] ?? [];
     const head = queue[0]?.projectId === projectId ? queue[0] : undefined;
     const id = humanActorId(h.id);

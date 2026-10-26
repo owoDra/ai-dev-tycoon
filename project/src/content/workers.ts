@@ -1,9 +1,9 @@
 import { ja } from '../i18n/ja';
+import { staff } from './staff';
 import type { WorkerDef } from './types';
 
-/** 会社のメンバー。並び順は人間の割り当て候補の優先順 */
+/** 会社のメンバー。人間は社員（content/staff.ts）で、AI Worker は運用する社員の Seat から使用量を消費する */
 export const workers: readonly WorkerDef[] = [
-  { kind: 'human', id: 'sato', name: ja.workers.sato, hourlyWage: 4000, skill: 1 },
-  { kind: 'human', id: 'suzuki', name: ja.workers.suzuki, hourlyWage: 3500, skill: 1 },
-  { kind: 'ai', id: 'agent', name: ja.workers.agent, modelId: 'standard' },
+  ...staff,
+  { kind: 'ai', id: 'agent', name: ja.workers.agent, modelId: 'standard', operatorId: 'suzuki' },
 ];

@@ -1,9 +1,10 @@
+import { campaign } from '../content/campaign';
 import { glossary } from '../content/glossary';
 import { allFeatures } from '../content/unlocks';
-import { createHumanQueues, createSessions, type GameState } from './state';
+import { createHumanQueues, createSessions, createTeam, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -34,6 +35,11 @@ export const MIGRATIONS: readonly Migration[] = [
   { from: 4, migrate: (s) => migrateHarness(s as V4State) },
   // v6: AI Worker の自律の記録（Autonomy Streak と介入間隔）を追加（Phase 12）
   { from: 5, migrate: (s) => ({ ...(s as object), autonomy: {} }) },
+  // v7: 社員と Seat・使用量・Seat の固定費・キャンペーンを追加（Phase 13）。以前のセーブはキャンペーンでない単発のプレイ
+  {
+    from: 6,
+    migrate: (s) => ({ ...(s as object), team: createTeam(campaign.team), usageDay: 0, seatCost: 0, campaign: null }),
+  },
 ];
 
 interface V4State {
@@ -116,7 +122,11 @@ function isGameState(v: unknown): v is GameState {
     isRecord(v.sessions) &&
     Array.isArray(v.incidents) &&
     isRecord(v.contextStats) &&
-    isRecord(v.autonomy)
+    isRecord(v.autonomy) &&
+    isRecord(v.team) &&
+    typeof v.usageDay === 'number' &&
+    typeof v.seatCost === 'number' &&
+    (v.campaign === null || isRecord(v.campaign))
   );
 }
 

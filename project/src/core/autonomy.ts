@@ -3,6 +3,7 @@ import { aiWorkers } from '../content/index';
 import type { AutonomyRun, GameState } from './state';
 import type { System, SystemContext } from './system';
 import { isAiWorking } from './taskFlow';
+import { usageSpeed } from './team';
 
 /*
  * Autonomy（企画書23章「Human-Free Time」）。人間が介入せずに AI が処理を続けた時間を Streak として数える。
@@ -68,7 +69,8 @@ function isWorking(state: GameState, workerId: string): boolean {
 /** Streak を1ステップ分伸ばし、しきい値を越えたら AutonomyMilestone を出す（同じ Streak で同じしきい値は1回だけ） */
 function advance(state: GameState, workerId: string, ctx: SystemContext): GameState {
   const a = autonomyOf(state, workerId);
-  const streak = a.streak + balance.time.tickMinutes;
+  // Seat の使用量の上限で遅くなっている間は、進んだ分だけを数える（遅いほど Streak が伸びる、にしない）
+  const streak = a.streak + balance.time.tickMinutes * usageSpeed(state, workerId);
   const thresholds = balance.autonomy.milestones;
   let milestones = a.milestones;
   for (let t = thresholds[milestones]; t !== undefined && streak >= t; t = thresholds[++milestones]) {

@@ -7,10 +7,11 @@ import { aiCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
 import { aiActor, finishStep, isAiWorking, startReadyTasks } from './taskFlow';
+import { consumeUsage, usageSpeed } from './team';
 
 /**
  * Task の進行。担当が決まった時点で依存が解決している Task を開始し、実行中の Task のリードタイムを数え、AI の工程（と修復）を進めて完了を判定する。
- * AI Worker は複数の Task を同時に処理できる（同時実行数の制限は Phase 13 の Seat で入れる）。
+ * AI Worker は複数の Task を同時に処理できるが、そのぶん運用者の Seat の使用量を速く使い、上限を超えると遅くなる（core/team.ts）。
  * 人間の工程は humanQueueSystem が進める。
  */
 export const taskSystem: System = (state, ctx) => {
@@ -25,20 +26,27 @@ export const taskSystem: System = (state, ctx) => {
       const stage = stageOfPhase[run.phase];
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, lead: { ...r.lead, [stage]: r.lead[stage] + tick } }));
       if (!isAiWorking(run)) continue;
-      let cost = aiCost(tick, aiActor(next, run, getTask(projectId, taskId)).model);
-      // Context が働く案件では、Context の使用率に応じて費用が増え、Session の履歴が溜まる
       const workerId = run.assignment?.workerId ?? '';
+      // 運用者の Seat の使用量が上限に達していれば、進む量（と、それに比例する費用と使用量）が減る
+      const progress = tick * usageSpeed(next, workerId);
+      const model = aiActor(next, run, getTask(projectId, taskId)).model;
+      let cost = aiCost(progress, model);
+      let usage = progress * model.usagePerMinute;
+      // Context が働く案件では、Context の使用率に応じて費用と使用量が増え、Session の履歴が溜まる
       if (contextApplies(projectId)) {
-        cost *= aiCostFactor(next, workerId, projectId, taskId);
+        const factor = aiCostFactor(next, workerId, projectId, taskId);
+        cost *= factor;
+        usage *= factor;
         next = updateSession(next, workerId, (s) => ({ ...s, age: s.age + tick }));
       }
+      next = consumeUsage(next, workerId, usage);
       next = updateTask(next, projectId, taskId, (r) => ({
         ...r,
-        remaining: r.remaining - tick,
+        remaining: r.remaining - progress,
         aiMinutes: r.aiMinutes + tick,
         aiCost: r.aiCost + cost,
       }));
-      if (run.remaining - tick <= 0) next = finishStep(next, projectId, taskId, ctx);
+      if (run.remaining - progress <= 0) next = finishStep(next, projectId, taskId, ctx);
     }
   }
   return next;

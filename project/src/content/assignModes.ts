@@ -33,7 +33,7 @@ export const assignModes: readonly AssignModeDef[] = [
   },
   {
     // 簡易 Eval：AI の自動テストが先に失敗を見つけて AI が直すので、人間は最後に軽く確かめるだけになる
-    // （Phase 11 で Harness 部品の Eval に置き換える）
+    // （Harness の Eval 部品は、どのモードでも AI の作業の直後に検証する。core/taskFlow.ts）
     id: 'aiThenEval',
     name: ja.modes.aiThenEval,
     steps: [
@@ -54,7 +54,7 @@ export const assignModes: readonly AssignModeDef[] = [
     chains: false,
   },
   {
-    // 最小版：前の Task も Agent Workflow なら、指示出しなしで続けて実行する（Phase 11 で拡張する）
+    // 前の Task も Agent Workflow なら、指示出しなしで続けて実行する。AssignWorkflow で複数の Task をまとめて任せられる
     id: 'agentWorkflow',
     name: ja.modes.agentWorkflow,
     steps: [
@@ -65,13 +65,15 @@ export const assignModes: readonly AssignModeDef[] = [
   },
 ];
 
-/** 工程がどのボトルネック集計単位に入るか。手戻り（人間）と修復（AI）は確認で見つかるのでレビュー側に数える */
-export const stageOfPhase: Readonly<Record<ModePhase | 'rework' | 'repair', Stage>> = {
+/** 工程がどのボトルネック集計単位に入るか。手戻り（人間）・修復（AI）・Eval の検証と修復は確認なのでレビュー側に数える */
+export const stageOfPhase: Readonly<Record<ModePhase | 'rework' | 'repair' | 'eval' | 'evalRepair', Stage>> = {
   instruct: 'work',
   work: 'work',
   review: 'review',
   rework: 'review',
   repair: 'review',
+  eval: 'review',
+  evalRepair: 'review',
 };
 
 export function getAssignMode(id: AssignModeId): AssignModeDef {

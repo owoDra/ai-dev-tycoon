@@ -64,6 +64,42 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'projectCompleted', projectId: 'paymentFix' },
     message: 'contextRouter',
   },
+  // Harness Builder（企画書35章）。AI に任せる経験を積んで「Harness Engineering」の名前を知った後に、Model と Skill から
+  { id: 'harness', feature: 'harness', when: { type: 'projectsCompleted', count: 1 }, message: 'harness' },
+  // Builder と一緒に「お願い」と「Hook」を渡す（同じルールの2つの守らせ方を最初に比べさせる）
+  {
+    id: 'harnessHook',
+    feature: 'harness:hook',
+    when: { type: 'unlocked', feature: 'harness' },
+    message: 'harnessHook',
+  },
+  // Workflow で AI に工程をまとめて任せた後に、Tool と権限を渡す
+  {
+    id: 'harnessTool',
+    feature: 'harness:tool',
+    when: { type: 'modeCompleted', mode: 'agentWorkflow', count: 1 },
+    message: 'harnessTool',
+  },
+  {
+    id: 'harnessPermission',
+    feature: 'harness:permission',
+    when: { type: 'unlocked', feature: 'harness:tool' },
+    message: 'harnessPermission',
+  },
+  // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す
+  {
+    id: 'harnessEval',
+    feature: 'harness:eval',
+    when: { type: 'modeCompleted', mode: 'aiThenEval', count: 2 },
+    message: 'harnessEval',
+  },
+  // 2つ目の案件を納品したら、分担（Subagent）を渡す
+  {
+    id: 'harnessSubagent',
+    feature: 'harness:subagent',
+    when: { type: 'projectsCompleted', count: 2 },
+    message: 'harnessSubagent',
+  },
 ];
 
 export const modeFeature = (mode: AssignModeId): ModeFeatureId => `mode:${mode}`;

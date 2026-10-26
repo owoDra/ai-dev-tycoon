@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   type BufferGeometry,
   CylinderGeometry,
   Group,
@@ -64,9 +65,14 @@ export interface Stage {
     time: number,
     animate: boolean,
     fx?: (entityId: string) => { sx: number; sy: number; lift: number },
+    lanes?: readonly string[],
   ): void;
   dispose(): void;
 }
+
+/** 自動化レーンの帯の幅・厚み（m）。コンベアの上面に重ねる */
+const LANE_WIDTH = 0.5;
+const LANE_HEIGHT = 0.03;
 
 /** 本体とアウトライン（反転ハル）を同じジオメトリで重ねたもの */
 export function outlined(geometry: BufferGeometry, body: Material, materials: WorldMaterials, outline: boolean): Group {
@@ -196,6 +202,25 @@ export function createStage(parts: StageParts): Stage {
     root.add(beltOutline);
   }
 
+  // 自動化レーン：Workflow で AI どうしがつながった区間のコンベアに、明るい帯を重ねる（ViewModel の lanes で出し入れする）
+  const laneGeometry = own(new BoxGeometry(LANE_WIDTH, LANE_HEIGHT, 1));
+  const lanes = new Map<string, Group>();
+  for (const c of layout.conveyors) {
+    const lane = new Group();
+    const n = Math.max(1, Math.round(c.length / seg));
+    for (let i = 0; i < n; i++) {
+      const { at, dir } = pointAlong(c.points, (i + 0.5) / n);
+      const strip = new Mesh(laneGeometry, materials.lane);
+      strip.position.set(at.x, BELT_TOP + LANE_HEIGHT / 2, at.z);
+      strip.rotation.y = Math.atan2(dir.x, dir.z);
+      strip.scale.z = (c.length / n) * 0.8;
+      lane.add(strip);
+    }
+    lane.visible = false;
+    lanes.set(c.id, lane);
+    root.add(lane);
+  }
+
   // 休憩所（待機中の人間）と出口（納品）
   const padGeometry = own(new CylinderGeometry(1, 1, PAD_HEIGHT, 40).translate(0, PAD_HEIGHT / 2, 0));
   const lounge = new Mesh(padGeometry, materials.solid(scaleColor('accent.100', visual)));
@@ -226,8 +251,9 @@ export function createStage(parts: StageParts): Stage {
     root,
     islands,
     pickables,
-    update(views, time, animate, fx) {
+    update(views, time, animate, fx, auto = []) {
       currentViews = new Map(views.map((v) => [v.taskId, v]));
+      for (const [id, lane] of lanes) lane.visible = auto.includes(id);
       for (const v of views) {
         const island = islands.get(v.taskId);
         if (!island) continue;

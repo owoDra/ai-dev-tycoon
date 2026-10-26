@@ -3,7 +3,7 @@ import { allFeatures } from '../content/unlocks';
 import { createHumanQueues, createSessions, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -30,7 +30,31 @@ export const MIGRATIONS: readonly Migration[] = [
       contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
     }),
   },
+  // v5: AI Worker の Harness と導入コストの記録、Task の Harness の記録を追加（Phase 11）
+  { from: 4, migrate: (s) => migrateHarness(s as V4State) },
 ];
+
+interface V4State {
+  readonly projects: Readonly<Record<string, { readonly tasks: Readonly<Record<string, object>> }>>;
+}
+
+function migrateHarness(s: V4State): unknown {
+  const projects = Object.fromEntries(
+    Object.entries(s.projects).map(([id, p]) => [
+      id,
+      {
+        ...p,
+        tasks: Object.fromEntries(
+          Object.entries(p.tasks).map(([tid, t]) => [
+            tid,
+            { ...t, skipped: [], evalLoops: 0, accidents: 0, interventions: 0 },
+          ]),
+        ),
+      },
+    ]),
+  );
+  return { ...s, projects, harnesses: {}, ownedParts: [], harnessLedger: [] };
+}
 
 interface SaveData {
   readonly saveVersion: number;

@@ -16,6 +16,7 @@ export const paymentFix: ProjectDef = {
   tasks: [
     {
       id: 'reproduce',
+      kind: 'test',
       name: t.reproduce,
       deps: [],
       effort: 150,
@@ -26,6 +27,7 @@ export const paymentFix: ProjectDef = {
     },
     {
       id: 'spec',
+      kind: 'planning',
       name: t.spec,
       deps: ['reproduce'],
       effort: 120,
@@ -36,6 +38,7 @@ export const paymentFix: ProjectDef = {
     },
     {
       id: 'fix',
+      kind: 'code',
       name: t.fix,
       deps: ['spec'],
       effort: 360,
@@ -46,6 +49,7 @@ export const paymentFix: ProjectDef = {
     },
     {
       id: 'tests',
+      kind: 'test',
       name: t.tests,
       deps: ['fix'],
       effort: 240,
@@ -56,6 +60,7 @@ export const paymentFix: ProjectDef = {
     },
     {
       id: 'release',
+      kind: 'release',
       name: t.release,
       deps: ['tests'],
       effort: 90,

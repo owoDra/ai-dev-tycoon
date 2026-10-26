@@ -296,7 +296,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     const reduced = reducedMotion();
     const live = !vm.paused;
     const motion = live && !reduced;
-    stage.update(vm.islands, time, motion, (id) => squash.get(id));
+    stage.update(vm.islands, time, motion, (id) => squash.get(id), vm.lanes);
     const walking = actors.frame({ dt, time, live, reducedMotion: reduced });
     const sliding = packets.frame(dt, time, live, reduced);
     const effects = vfx.frame(dt, rig.camera);

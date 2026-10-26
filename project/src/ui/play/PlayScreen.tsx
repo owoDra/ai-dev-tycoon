@@ -1,7 +1,7 @@
 import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
-import { getTask } from '../../content/index';
+import { aiWorkers, getHarnessPart, getModel, getTask } from '../../content/index';
 import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
@@ -11,7 +11,8 @@ import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
-import { defaultWorkerFor } from '../../view/project';
+import { harnessForecast, harnessView } from '../../view/harness';
+import { defaultWorkerFor, workflowTasks } from '../../view/project';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
 import { keyAction, nextIsland } from '../keyboard';
@@ -21,6 +22,7 @@ import type { Selection } from '../selection';
 import { ContextSheet } from './ContextSheet';
 import { DetailSheet } from './DetailSheet';
 import { Dock } from './Dock';
+import { HarnessSheet } from './HarnessSheet';
 import { IslandLabels } from './IslandLabels';
 import { NoticeHost } from './NoticeHost';
 import { ProblemToasts } from './ProblemToasts';
@@ -116,6 +118,29 @@ export function PlayScreen(props: {
             tone: lost ? 'danger' : undefined,
           });
         }
+        if (e.type === 'HarnessChanged') {
+          const text =
+            e.change === 'model'
+              ? ja.notices.modelChanged(getModel(e.id).name)
+              : e.change === 'equip'
+                ? ja.notices.equipped(getHarnessPart(e.id).name)
+                : ja.notices.removed(getHarnessPart(e.id).name);
+          notices.push({
+            text,
+            icon: e.change === 'remove' ? 'tool' : 'success',
+            tone: e.change === 'remove' ? undefined : 'success',
+          });
+        }
+        if (e.type === 'HarnessAccident' && e.projectId === props.projectId) {
+          notices.push({
+            text: ja.notices.accident(getTask(e.projectId, e.taskId).name),
+            icon: 'warning',
+            tone: 'danger',
+          });
+        }
+        if (e.type === 'WorkflowAssigned' && e.projectId === props.projectId) {
+          notices.push({ text: ja.notices.workflow(e.taskIds.length), icon: 'workflow', tone: 'success' });
+        }
         if (e.type === 'FeatureUnlocked') {
           const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';
           notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
@@ -125,15 +150,30 @@ export function PlayScreen(props: {
     }),
   );
 
-  // Context のシート。詳細のシートと同じ場所に出すので、どちらか一方だけを開く
+  // Context と Harness Builder のシート。詳細のシートと同じ場所に出すので、どれか1つだけを開く
   const [contextOpen, setContextOpen] = createSignal(false);
   const context = createMemo(() => (contextOpen() ? contextView(props.store.state(), props.projectId) : null));
   const openContext = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setHarnessOpen(false);
     setContextOpen(true);
   };
+  const [harnessOpen, setHarnessOpen] = createSignal(false);
+  const harnessWorker = () => aiWorkers[0]?.id ?? '';
+  const harnessOn = () => isUnlocked(props.store.state(), 'harness');
+  const harness = createMemo(() =>
+    harnessOpen() && harnessOn() ? harnessView(props.store.state(), props.projectId, harnessWorker()) : null,
+  );
+  const openHarness = () => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setContextOpen(false);
+    setHarnessOpen(true);
+  };
   createEffect(() => {
-    if (props.selection.selected() !== null) setContextOpen(false);
+    if (props.selection.selected() !== null) {
+      setContextOpen(false);
+      setHarnessOpen(false);
+    }
   });
 
   const selected = () => props.selection.selected();
@@ -205,9 +245,10 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
-        if (contextOpen()) {
+        if (contextOpen() || harnessOpen()) {
           e.preventDefault();
           setContextOpen(false);
+          setHarnessOpen(false);
           return;
         }
         if (selected() === null) return;
@@ -267,6 +308,17 @@ export function PlayScreen(props: {
             viewHeight={view().height}
             onClose={close}
             onAssign={assign}
+            onHarness={harnessOn() ? openHarness : undefined}
+            workflow={(taskId) => workflowTasks(props.store.state(), props.projectId, taskId)}
+            onWorkflow={(taskIds) => {
+              props.store.dispatch({
+                type: 'AssignWorkflow',
+                projectId: props.projectId,
+                taskIds,
+                workerId: harnessWorker(),
+              });
+              if (!layout().flow.keepDetailAfterAssign) close();
+            }}
           />
         )}
       </Presence>
@@ -283,6 +335,19 @@ export function PlayScreen(props: {
           />
         )}
       </Presence>
+      <Presence when={harness()} enter={false} class="pointer-events-auto">
+        {(v) => (
+          <HarnessSheet
+            view={v()}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            forecast={(command) => harnessForecast(props.store.state(), props.projectId, v().workerId, command)}
+            dispatch={(c) => props.store.dispatch(c)}
+            onClose={() => setHarnessOpen(false)}
+          />
+        )}
+      </Presence>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -293,6 +358,7 @@ export function PlayScreen(props: {
           problemCount={problemsOn() ? problems().length : 0}
           onProblems={() => setDismissed(new Set<string>())}
           onContext={openContext}
+          onHarness={harnessOn() ? openHarness : undefined}
           onSettings={props.onSettings}
         />
       </div>

@@ -33,9 +33,14 @@ export interface AssignModeDef {
   readonly chains: boolean;
 }
 
+/** Task の種類。Harness 部品が効く範囲（HarnessPartDef.appliesTo）の判定に使う */
+export type TaskKind = 'planning' | 'research' | 'design' | 'content' | 'code' | 'test' | 'release';
+
 export interface TaskDef {
   readonly id: string;
   readonly name: string;
+  /** Task の種類。案件のデータでは必須（content/validate.ts が検査する） */
+  readonly kind?: TaskKind;
   /** 先に完了している必要がある Task の id */
   readonly deps: readonly string[];
   /** 標準的な人間（skill 1）がこなしたときの作業量（ゲーム内の分） */
@@ -139,7 +144,14 @@ export type FeatureId =
   | 'context:router'
   /** session: New Session と Handoff / session:artifacts: Artifact Driven Work */
   | 'session'
-  | 'session:artifacts';
+  | 'session:artifacts'
+  /** harness: Harness Builder（Model と Skill）/ harness:*: 部品のカテゴリごとの解放 */
+  | 'harness'
+  | 'harness:hook'
+  | 'harness:tool'
+  | 'harness:permission'
+  | 'harness:eval'
+  | 'harness:subagent';
 
 export interface UnlockDef {
   readonly id: string;
@@ -161,7 +173,13 @@ export type UnlockMessageId =
   | 'contextPick'
   | 'contextRouter'
   | 'session'
-  | 'artifacts';
+  | 'artifacts'
+  | 'harness'
+  | 'harnessHook'
+  | 'harnessTool'
+  | 'harnessPermission'
+  | 'harnessEval'
+  | 'harnessSubagent';
 
 /** 体験の後で名前を教える用語（企画書34章）。文言（名前・平易な説明）は i18n の ja.glossary */
 export type TermId =
@@ -294,4 +312,56 @@ export interface IncidentDef {
   readonly resolve: readonly IncidentAction[];
   /** 表示に使うアイコン */
   readonly icon: 'context' | 'warning' | 'session';
+}
+
+/** Harness 部品のカテゴリ（企画書13〜18章・10章の Context Router） */
+export type HarnessCategory = 'skill' | 'hook' | 'tool' | 'permission' | 'eval' | 'subagent' | 'contextRouter';
+
+/**
+ * Harness 部品が AI Worker の作業に与える補正。合算のしかたはカテゴリに関係なく項目ごとに balance.harness.combine で決める
+ * （add: 足す / mul: 掛ける / any: 独立な確率として「どれかが起きる」確率にする。どれも上限・下限付き）
+ */
+export interface HarnessModifiers {
+  /** 成功確率に足す量（add） */
+  readonly success: number;
+  /** AI の作業速度の倍率（mul） */
+  readonly speed: number;
+  /** Context の Noise の割合に足す量（add）。Tool の複雑さや、指示文に書いたお願いが占める分 */
+  readonly noise: number;
+  /** AI が関わる Task で人間がする指示出しと確認の時間の倍率（mul）。人間の介入の重さ */
+  readonly humanTime: number;
+  /** AI の費用の倍率（mul） */
+  readonly aiCost: number;
+  /** AI の作業1回ごとに事故（権限・Tool の誤用）が起きる確率（add） */
+  readonly risk: number;
+  /** AI の作業の直後に自動の検証が失敗を見つける確率（any）。見つけた失敗は AI が直して再び検証する */
+  readonly evalCatch: number;
+}
+
+export type HarnessModifierKey = keyof HarnessModifiers;
+
+/** Harness 部品（企画書13〜18章）。部品ごとの特別扱いは計算式に書かず、すべてこのデータで表す。文言は i18n の ja.harness.parts */
+export interface HarnessPartDef {
+  readonly id: string;
+  readonly category: HarnessCategory;
+  readonly name: string;
+  /** 導入コスト（円）。会社の資産になるので、一度払えば付け外ししても再び払わない */
+  readonly installCost: number;
+  /** ランニングコスト（AI が1分作業するごとの円） */
+  readonly runningCost: number;
+  /** appliesTo の種類の Task の作業にだけ効く補正 */
+  readonly modifiers: Partial<HarnessModifiers>;
+  /** 装着しているだけで、どの Task の作業にもかかる補正（Tool の複雑さ・権限の危うさ・AI の利用量） */
+  readonly burden: Partial<HarnessModifiers>;
+  /** 補正が効く Task の種類 */
+  readonly appliesTo: readonly TaskKind[];
+  /**
+   * 守られ方。system: システムとして強制する（Hook など。毎回効く）/
+   * request: AI へのお願い（指示文に書く。作業ごとに balance.harness.requestCompliance の確率でしか守られない）
+   */
+  readonly enforcement: 'system' | 'request';
+  /** 同じ group の部品は同時に1つしか付けられない（同じ内容の「お願い」と「Hook」） */
+  readonly group?: string;
+  /** この機能が解放されると選べる */
+  readonly unlock: FeatureId;
 }

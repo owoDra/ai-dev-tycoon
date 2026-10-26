@@ -68,3 +68,18 @@ export function bottleneckLabel(state: GameState): string | null {
   const task = getProject(projectId).tasks.find((t) => t.id === taskId);
   return ja.score.stage(task?.name ?? taskId, ja.stages[stage]);
 }
+
+/**
+ * 「ここから先を Workflow にまとめる」で一続きに任せる Task（企画書5章）。選んだ Task と、それに（間接的にでも）依存する Task のうち、
+ * まだ始まっていないもの。選んだ Task が始まっていたら空
+ */
+export function workflowTasks(state: GameState, projectId: string, taskId: string): string[] {
+  const tasks = getProject(projectId).tasks;
+  const run = state.projects[projectId];
+  if (run?.tasks[taskId]?.status !== 'waiting') return [];
+  const picked = new Set([taskId]);
+  for (const t of tasks) {
+    if (t.deps.some((d) => picked.has(d)) && run.tasks[t.id]?.status === 'waiting') picked.add(t.id);
+  }
+  return tasks.filter((t) => picked.has(t.id)).map((t) => t.id);
+}

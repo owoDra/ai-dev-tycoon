@@ -1,19 +1,10 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { content, getModel, getProject, humans } from '../content/index';
+import { content, getProject, humans } from '../content/index';
 import type { AssignModeId } from '../content/types';
 import { reduce } from '../core/commands';
-import { aiCostFactor, aiSuccessWithContext, aiWorkTime, expectedAiWorkMinutes } from '../core/contextWork';
-import {
-  aiCost,
-  deadlineMinutes,
-  escapedDefectCost,
-  escapedFixMinutes,
-  expectedHumanMinutes,
-  laborCost,
-  stepMinutes,
-  successProbability,
-} from '../core/formulas';
+import { expectTask } from '../core/expectation';
+import { deadlineMinutes, escapedDefectCost, escapedFixMinutes, laborCost } from '../core/formulas';
 import { type ProjectScore, scoreProject } from '../core/scoring';
 import { createInitialState, type GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
@@ -91,7 +82,7 @@ export function hudView(state: GameState, projectId: string): HudView | null {
  * 納品したときの Profit / Human Hour の見込み。今の担当のまま最後まで進めたと考え、
  * 完了した Task は実績、残りの Task は期待値（人間の工程の時間・AI の作業時間・レビューがなければ見逃しの損害と修正時間）で数える。
  * 担当が決まっていない Task は人間が担当するものとみなすので、AI に任せると見込みがすぐに動く。
- * 人間の時給はメンバーの平均、AI は最初の AI Worker の Model で見積もる。遅延損失はここまでの分だけを入れる。
+ * 人間の時給はメンバーの平均、AI は担当の AI Worker の Harness（Model と部品）で見積もる（core/expectation.ts）。遅延損失はここまでの分だけを入れる。
  * 資料のある案件では、AI の作業の成功確率・所要時間・費用に今の Context（Session と発生中の事件）の影響を入れる
  * （シミュレーションと同じ core/contextWork.ts の式。Session の履歴がこの先さらに溜まる分は入れない）
  */
@@ -100,12 +91,11 @@ export function projectedProfitPerHumanHour(state: GameState, projectId: string,
   const run = state.projects[projectId];
   const ai = content.workers.find((w) => w.kind === 'ai');
   if (!run || !ai || humans.length === 0) return 0;
-  const model = getModel(ai.modelId);
   const wage = humans.reduce((sum, h) => sum + h.hourlyWage, 0) / humans.length;
   const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;
 
   let human = score.aftercareMinutes;
-  let cost = score.reworkCost + score.delayLoss;
+  let cost = score.reworkCost + score.harnessCost + score.accidentCost + score.delayLoss;
   for (const task of def.tasks) {
     const t = run.tasks[task.id];
     if (!t) continue;
@@ -116,30 +106,14 @@ export function projectedProfitPerHumanHour(state: GameState, projectId: string,
     }
     const mode = getAssignMode(t.assignment?.mode ?? FALLBACK_MODE);
     const workerId = t.assignment?.workerId ?? ai.id;
-    const withContext = (p: number) => aiSuccessWithContext(state, workerId, projectId, task.id, p);
-    const time = aiWorkTime(state, workerId, projectId, task, model);
-    const expHuman = expectedHumanMinutes(task, mode, skill, model, withContext);
-    const expAi = mode.steps
-      .filter((s) => s.actor === 'ai')
-      .reduce((sum, s) => {
-        const minutes = stepMinutes(task, s, { kind: 'ai', model });
-        return sum + (s.phase === 'work' ? expectedAiWorkMinutes(minutes, time) : minutes);
-      }, 0);
-    let pOk = 1;
-    for (const s of mode.steps) {
-      if (s.phase !== 'work') continue;
-      pOk *=
-        s.actor === 'ai'
-          ? withContext(successProbability(task, { kind: 'ai', model }))
-          : successProbability(task, { kind: 'human', skill });
-    }
-    const pEscape = mode.steps.some((s) => s.phase === 'review') ? 0 : 1 - pOk;
-    const fix = pEscape * escapedFixMinutes(task);
-    human += Math.max(t.humanMinutes, expHuman) + fix;
+    const e = expectTask(state, projectId, task, mode, workerId, skill);
+    const fix = e.pEscape * escapedFixMinutes(task);
+    human += Math.max(t.humanMinutes, e.humanMinutes) + fix;
     cost +=
-      Math.max(t.laborCost, laborCost(expHuman, wage)) +
-      Math.max(t.aiCost, aiCost(expAi, model) * aiCostFactor(state, workerId, projectId, task.id)) +
-      pEscape * escapedDefectCost(task) +
+      Math.max(t.laborCost, laborCost(e.humanMinutes, wage)) +
+      Math.max(t.aiCost, e.aiCost) +
+      e.accidentCost +
+      e.pEscape * escapedDefectCost(task) +
       laborCost(fix, balance.score.escapedFixHourlyWage);
   }
   const hours = human / MINUTES_PER_HOUR;

@@ -48,6 +48,8 @@ export const balance = {
     evalShare: 0.1,
     /** AI → 自動テスト → 確認：自動テストの後の人間の最終確認（effort に対する割合）。レビューの 1/5 */
     finalCheckShare: 0.05,
+    /** Workflow にまとめて任せる Task の最小数（企画書5章「複数工程を自動的につなげる」） */
+    workflowMinTasks: 2,
   },
   quality: {
     /** 失敗を見逃して完了した Task の品質低下＝ escapedLossBase + escapedLossByReq × qualityReq */
@@ -109,6 +111,38 @@ export const balance = {
     },
     /** Artifact Driven Work：成果物（コード・テスト・Task State）に状態を保存するため、AI の作業に足す時間（effort に対する割合） */
     artifactShare: 0.04,
+  },
+  /** Harness（企画書7〜8章・13〜18章）。部品の補正（content/harness）の合算のしかた */
+  harness: {
+    /**
+     * 補正の項目ごとの合算のしかたと上限・下限。add: 足す / mul: 掛ける / any: 1 − Π(1 − 値)（どれかが起きる確率）。
+     * 上限があるので、同じ種類の部品を重ねるほど効き目は頭打ちになる
+     */
+    combine: {
+      success: { op: 'add', min: -0.5, max: 0.35 },
+      speed: { op: 'mul', min: 0.3, max: 3 },
+      noise: { op: 'add', min: 0, max: 1 },
+      humanTime: { op: 'mul', min: 0.25, max: 2 },
+      aiCost: { op: 'mul', min: 0.5, max: 5 },
+      risk: { op: 'add', min: 0, max: 0.6 },
+      evalCatch: { op: 'any', min: 0, max: 0.95 },
+    },
+    /**
+     * 同じカテゴリの部品の組ごとにかかる補正（n 個付けると n(n−1)/2 組）。数の2乗で増える調整コスト。
+     * subagent: Agent 間の通信と Coordination Cost（企画書15章）/ tool: Tool の組み合わせによる複雑さ（企画書16章）
+     */
+    pairs: {
+      subagent: { success: -0.06, aiCost: 1.08 },
+      tool: { noise: 0.012, risk: 0.004 },
+    },
+    /** AI へのお願い（指示文に書いたルール）が1回の作業で守られる確率（企画書14章） */
+    requestCompliance: 0.5,
+    /** Eval の自動検証1回にかかる AI の時間（effort に対する割合） */
+    evalShare: 0.06,
+    /** Eval → Repair → Eval を繰り返す上限。超えたら残った失敗のまま次の工程へ進む */
+    maxRepairLoops: 3,
+    /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる */
+    accidentCost: 50_000,
   },
 } as const;
 

@@ -55,11 +55,63 @@ export function repairMinutes(task: TaskDef, model: ModelDef): number {
   return (task.effort * balance.assign.reworkShare) / model.speed;
 }
 
+/** Eval → Repair → Eval のループの見込み（Generate の後の検証。企画書18章） */
+export interface EvalLoopOutcome {
+  /** ループを抜けたときに失敗が残っている確率 */
+  readonly defect: number;
+  /** 検証を行う回数の期待値 */
+  readonly evalRuns: number;
+  /** 修復を行う回数の期待値 */
+  readonly repairs: number;
+}
+
+/**
+ * 成功確率 p の作業の後に、失敗を catchRate の確率で見つける検証を行う。見つけたら直して（修復も確率 p で成功する）もう一度検証し、
+ * 修復が balance.harness.maxRepairLoops 回に達したら、残った失敗のまま抜ける。シミュレーション（core/taskFlow.ts）と同じ流れの期待値
+ */
+export function evalLoop(p: number, catchRate: number): EvalLoopOutcome {
+  if (catchRate <= 0) return { defect: 1 - p, evalRuns: 0, repairs: 0 };
+  let mass = 1;
+  let d = 1 - p;
+  let defect = 0;
+  let evalRuns = 0;
+  let repairs = 0;
+  for (let loop = 1; ; loop++) {
+    evalRuns += mass;
+    const caught = mass * d * catchRate;
+    defect += mass * d * (1 - catchRate);
+    if (caught === 0) break;
+    repairs += caught;
+    if (loop >= balance.harness.maxRepairLoops) {
+      defect += caught * (1 - p);
+      break;
+    }
+    mass = caught;
+    d = 1 - p;
+  }
+  return { defect, evalRuns, repairs };
+}
+
+/** Harness が人間の時間の見込みに与える補正（core/harness.ts の HarnessModifiers の一部） */
+export interface HumanTimeHarness {
+  /** AI が関わる Task の指示出しと確認の時間の倍率 */
+  readonly humanTime: number;
+  /** AI の作業の直後の自動検証が失敗を見つける確率 */
+  readonly evalCatch: number;
+}
+
+const NO_HARNESS: HumanTimeHarness = { humanTime: 1, evalCatch: 0 };
+
+/** 指示出しと確認は、Harness の人間の介入の補正を受ける */
+export const isIntervention = (step: ModeStep) =>
+  step.actor === 'human' && (step.phase === 'instruct' || step.phase === 'review');
+
 /**
  * 人間の拘束時間の見込み（分）。モードの人間の工程の合計に、
  * 人間のレビューでは、それまでに残っている失敗の確率 × 手戻り時間を足す。
  * AI の自動テストは失敗を見つけて AI が直すので、それ以降に残る失敗はなくなる（連鎖による指示出しの省略は考えない）。
- * aiSuccess で AI の作業の成功確率を補正できる（Context の影響。core/contextWork.ts）。
+ * aiSuccess で AI の作業の成功確率を補正できる（Context と Harness の影響。core/contextWork.ts・core/harness.ts）。
+ * harness を渡すと、指示出しと確認の時間を補正し、AI の作業の後の自動検証（Eval のループ）で残る失敗を減らす。
  */
 export function expectedHumanMinutes(
   task: TaskDef,
@@ -67,15 +119,20 @@ export function expectedHumanMinutes(
   skill: number,
   model: ModelDef,
   aiSuccess: (p: number) => number = (p) => p,
+  harness: HumanTimeHarness = NO_HARNESS,
 ): number {
   const human: ActorProfile = { kind: 'human', skill };
   const ai: ActorProfile = { kind: 'ai', model };
   let minutes = 0;
   let pAllOk = 1;
   for (const step of mode.steps) {
-    if (step.actor === 'human') minutes += stepMinutes(task, step, human);
+    if (step.actor === 'human') {
+      const m = stepMinutes(task, step, human);
+      minutes += isIntervention(step) && harness.humanTime !== 1 ? m * harness.humanTime : m;
+    }
     if (step.phase === 'work') {
-      pAllOk *= step.actor === 'human' ? successProbability(task, human) : aiSuccess(successProbability(task, ai));
+      const p = step.actor === 'human' ? successProbability(task, human) : aiSuccess(successProbability(task, ai));
+      pAllOk *= step.actor === 'ai' && harness.evalCatch > 0 ? 1 - evalLoop(p, harness.evalCatch).defect : p;
     }
     if (step.phase !== 'review') continue;
     if (step.actor === 'human') minutes += (1 - pAllOk) * reworkMinutes(task, skill);

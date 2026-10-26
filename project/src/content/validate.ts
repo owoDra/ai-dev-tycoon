@@ -42,6 +42,20 @@ export function validateContent(c: Content): string[] {
   }
   for (const p of c.projects) errors.push(...validateProject(p));
   errors.push(...validateDocuments(c));
+  errors.push(...validateHarness(c));
+  return errors;
+}
+
+/** Harness 部品の ID の重複と、group の部品どうしのカテゴリの一致を検査する（値の範囲は tests/content/harness.test.ts） */
+function validateHarness(c: Content): string[] {
+  const errors = duplicates(
+    'Harness 部品',
+    c.harnessParts.map((p) => p.id),
+  );
+  for (const p of c.harnessParts) {
+    const mates = c.harnessParts.filter((o) => p.group !== undefined && o.group === p.group);
+    if (mates.some((o) => o.category !== p.category)) errors.push(`Harness 部品 ${p.id}: group のカテゴリが違う`);
+  }
   return errors;
 }
 
@@ -81,6 +95,7 @@ function validateProject(p: ProjectDef): string[] {
       if (!(t[key] >= 0 && t[key] <= 1)) errors.push(`案件 ${p.id} の Task ${t.id}: ${key} が 0〜1 の範囲外`);
     }
     if (!(t.effort > 0)) errors.push(`案件 ${p.id} の Task ${t.id}: effort が正でない`);
+    if (t.kind === undefined) errors.push(`案件 ${p.id} の Task ${t.id}: kind がない`);
   }
   const cycle = findCycle(p);
   if (cycle) errors.push(`案件 ${p.id}: 依存が循環している（${cycle.join(' → ')}）`);

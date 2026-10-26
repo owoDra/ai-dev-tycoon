@@ -13,6 +13,7 @@ import {
 import type { Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
 import { type ActorProfile, reworkMinutes, stepMinutes } from '../core/formulas';
+import { equippedParts } from '../core/harness';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
 import { ja } from '../i18n/ja';
@@ -52,6 +53,28 @@ export interface IslandView {
 
 export type ActorActivity = 'idle' | 'work' | 'cheer';
 
+/**
+ * Agent に付く小物（装着している Harness 部品）。belt: Hook（強制するルール）のギアのベルト /
+ * shield: Eval のチェックの盾 / drones: 周りを回る Subagent の子機の数。人間は何も付けない
+ */
+export interface ActorGear {
+  readonly belt: boolean;
+  readonly shield: boolean;
+  readonly drones: number;
+}
+
+export const NO_GEAR: ActorGear = { belt: false, shield: false, drones: 0 };
+
+/** AI Worker の Harness から、Agent に付ける小物を決める */
+export function gearOf(state: GameState, workerId: string): ActorGear {
+  const parts = equippedParts(state, workerId);
+  return {
+    belt: parts.some((p) => p.category === 'hook' && p.enforcement === 'system'),
+    shield: parts.some((p) => p.category === 'eval'),
+    drones: parts.filter((p) => p.category === 'subagent').length,
+  };
+}
+
 export interface ActorView {
   readonly id: EntityId;
   readonly kind: 'human' | 'ai';
@@ -63,6 +86,7 @@ export interface ActorView {
   readonly expression: Expression;
   readonly bottleneck: number;
   readonly isBottleneck: boolean;
+  readonly gear: ActorGear;
 }
 
 export type PacketPlace =
@@ -92,12 +116,26 @@ export interface WorldViewModel {
   readonly packets: readonly PacketView[];
   /** 最大のボトルネック（強度が threshold 未満なら null） */
   readonly bottleneck: { readonly entityId: EntityId; readonly intensity: number } | null;
+  /** 自動化レーンに変わったコンベア（Workflow で前後の Task が AI どうしでつながる区間）の id */
+  readonly lanes: readonly string[];
+}
+
+/** 前後の Task がどちらも連鎖するモード（Agent Workflow）なら、その間のコンベアは自動化レーン */
+export function automatedLanes(state: GameState, projectId: string): string[] {
+  const tasks = state.projects[projectId]?.tasks;
+  const chains = (taskId: string) => {
+    const mode = tasks?.[taskId]?.assignment?.mode;
+    return mode !== undefined && getAssignMode(mode).chains;
+  };
+  return getProject(projectId).tasks.flatMap((t) =>
+    chains(t.id) ? t.deps.filter(chains).map((d) => conveyorId(d, t.id)) : [],
+  );
 }
 
 export type WorldViewLook = Pick<WorldLook, 'flow' | 'bottleneck' | 'character'>;
 
 /** 実行中の Task の進み具合（0〜1）。工程の数で等分し、現在の工程の中は残り時間で補う */
-export function taskProgress(projectId: string, taskId: string, run: TaskRun): number {
+export function taskProgress(state: GameState, projectId: string, taskId: string, run: TaskRun): number {
   if (run.status === 'done') return 1;
   if (run.status !== 'running' || !run.assignment) return 0;
   const steps = getAssignMode(run.assignment.mode).steps;
@@ -107,7 +145,7 @@ export function taskProgress(projectId: string, taskId: string, run: TaskRun): n
   let total = 0;
   if (run.phase === 'rework') total = reworkMinutes(task, skill);
   else if (step) {
-    const actor: ActorProfile = step.actor === 'ai' ? aiActor(run) : { kind: 'human', skill };
+    const actor: ActorProfile = step.actor === 'ai' ? aiActor(state, run, task) : { kind: 'human', skill };
     total = stepMinutes(task, step, actor);
   }
   const within = total > 0 ? Math.min(1, Math.max(0, 1 - run.remaining / total)) : 0;
@@ -204,7 +242,7 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
       deps: task.deps,
       status: row?.status ?? 'unassigned',
       stage: row?.stage ?? null,
-      progress: t ? taskProgress(projectId, task.id, t) : 0,
+      progress: t ? taskProgress(state, projectId, task.id, t) : 0,
       queueLength: stacks.get(id) ?? 0,
       bottleneck: strengthOf(id),
       isBottleneck: flagged(id),
@@ -230,6 +268,7 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
       expression,
       bottleneck: strengthOf(id),
       isBottleneck: flagged(id),
+      gear: NO_GEAR,
     };
   });
   if (run) {
@@ -252,6 +291,7 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
         expression: cheering ? 'joy' : aiWorking ? 'focus' : waitingHuman ? 'trouble' : 'normal',
         bottleneck: 0,
         isBottleneck: false,
+        gear: gearOf(state, t.assignment.workerId),
       });
     }
   }
@@ -265,6 +305,7 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
     packets,
     bottleneck:
       bottleneckEntity && intensity >= look.bottleneck.threshold ? { entityId: bottleneckEntity, intensity } : null,
+    lanes: automatedLanes(state, projectId),
   };
 }
 

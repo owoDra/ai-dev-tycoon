@@ -1,8 +1,11 @@
 import { createSignal, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
+import { balance } from '../../content/balance';
 import type { SheetLayout } from '../../content/look/layout';
 import type { AssignModeId, FeatureId } from '../../content/types';
+import { modeFeature } from '../../content/unlocks';
+import { isUnlocked } from '../../core/unlocks';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { DetailView } from '../../view/detail';
@@ -30,6 +33,11 @@ export function DetailSheet(props: {
   viewHeight: number;
   onClose: () => void;
   onAssign: (taskId: string, mode: AssignModeId) => void;
+  /** Harness Builder を開く（AI のキャラクターを選んだとき。解放前は渡さない） */
+  onHarness?: () => void;
+  /** Task から一続きの Workflow にまとめられる Task（企画書5章） */
+  workflow?: (taskId: string) => readonly string[];
+  onWorkflow?: (taskIds: readonly string[]) => void;
   ref?: (el: HTMLElement) => void;
 }) {
   const [drag, setDrag] = createSignal(0);
@@ -42,6 +50,11 @@ export function DetailSheet(props: {
   });
 
   const d = () => props.detail;
+  const workflowOn = () => isUnlocked(props.store.state(), modeFeature('agentWorkflow'));
+  const workflowIds = () => {
+    const id = d().row?.id;
+    return id && workflowOn() && props.workflow ? props.workflow(id) : [];
+  };
   return (
     <section
       ref={(e) => {
@@ -99,6 +112,32 @@ export function DetailSheet(props: {
         </button>
       </div>
       <Facts detail={d()} />
+      <Show when={d().kind === 'agent' && props.onHarness}>
+        {(open) => (
+          <button type="button" data-harness-open class={`${ghostButton} self-start`} onClick={() => open()()}>
+            <Icon name="ai" />
+            {ja.harness.open}
+          </button>
+        )}
+      </Show>
+      <Show when={workflowIds().length >= balance.assign.workflowMinTasks && props.onWorkflow}>
+        {(go) => (
+          <button
+            type="button"
+            data-workflow
+            class={`${ghostButton} flex-col items-start self-start`}
+            onClick={() => go()(workflowIds())}
+          >
+            <span class="flex items-center gap-1.5 font-bold">
+              <Icon name="workflow" />
+              {ja.harness.workflow}
+            </span>
+            <span class="text-[11px] font-normal text-ink-muted">
+              {ja.harness.workflowHint(workflowIds().length - 1)}
+            </span>
+          </button>
+        )}
+      </Show>
       <Show when={d().row}>
         {(row) => (
           <AssignCards

@@ -47,6 +47,8 @@ export function savedHumanHours(projectId: string, taskId: string, modeId: Assig
  * - 人間時間の見込みが大きく減る担当で作業が始まる → automation（減った時間を大きな数字で出す）
  * - 自動テストが失敗を発見 → autoRepair（AI がそのまま直す）
  * - 機能の解放 → unlock（「NEW」バッジと一緒に出す）
+ * - Harness の変更で人間時間の見込みが大きく減る → automation（企画書35章：効果が大きい場合は Tier 3）
+ * - Harness の事故 → incident
  * - 案件の納品 → projectComplete（同じ回のほかの大きな演出より優先されるのは director が決める）
  */
 export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSignal[] {
@@ -75,6 +77,14 @@ export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSigna
       case 'EvalCaught':
         if (e.projectId !== ctx.projectId) break;
         out.push({ kind: 'autoRepair', entityId: islandId(e.taskId) });
+        break;
+      case 'HarnessChanged':
+        if ((e.savedHumanHours ?? 0) >= fxRules.harnessMinSavedHours) {
+          out.push({ kind: 'automation', entityId: null, amount: e.savedHumanHours });
+        }
+        break;
+      case 'HarnessAccident':
+        if (e.projectId === ctx.projectId) out.push({ kind: 'incident', entityId: islandId(e.taskId) });
         break;
       case 'FeatureUnlocked':
         out.push({ kind: 'unlock', entityId: null });

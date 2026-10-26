@@ -17,8 +17,11 @@ import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
 import { hashSeed, type RngState } from './rng';
 
-/** Task の現在の工程。rework は人間のレビューで見つかった失敗の手戻り、repair は自動テストで見つかった失敗の AI による修復 */
-export type TaskPhase = ModePhase | 'rework' | 'repair';
+/**
+ * Task の現在の工程。rework は人間のレビューで見つかった失敗の手戻り、repair は自動テストで見つかった失敗の AI による修復。
+ * eval と evalRepair は Harness の Eval 部品による AI の作業の直後の検証と修復（Generate → Eval → Repair → Eval）
+ */
+export type TaskPhase = ModePhase | 'rework' | 'repair' | 'eval' | 'evalRepair';
 
 export interface Assignment {
   readonly mode: AssignModeId;
@@ -56,6 +59,14 @@ export interface TaskRun {
   readonly aiCost: number;
   /** 集計単位ごとのリードタイム（待ち時間を含む、分）。ボトルネック検出に使う */
   readonly lead: Readonly<Record<Stage, number>>;
+  /** 今回の AI の作業で守られなかったお願いの Harness 部品 */
+  readonly skipped: readonly string[];
+  /** Eval → Repair を繰り返した回数（今回の作業の分） */
+  readonly evalLoops: number;
+  /** 起きた事故（権限・Tool の誤用）の数 */
+  readonly accidents: number;
+  /** AI が関わる Task で人間が介入した（指示出し・確認・手戻りの工程に入った）回数 */
+  readonly interventions: number;
 }
 
 export interface ProjectRun {
@@ -101,6 +112,20 @@ export interface IncidentRun {
   /** 事件のきっかけになった Task（Context の読み取りに使う） */
   readonly taskId: string;
   readonly since: number;
+}
+
+/** AI Worker の Harness（企画書8章）。Model と装着している部品 */
+export interface HarnessRun {
+  readonly modelId: string;
+  /** 装着している部品の id（Context Router は Session の資料の渡し方で表すので含めない） */
+  readonly parts: readonly string[];
+}
+
+/** Harness 部品の導入コストの支払い */
+export interface HarnessLedgerEntry {
+  readonly partId: string;
+  readonly cost: number;
+  readonly at: number;
 }
 
 /** Context に関わる出来事の回数。解放と用語の条件（contextStat）に使う */
@@ -149,6 +174,12 @@ export interface GameState {
   /** 発生中の事件（発生した順） */
   readonly incidents: readonly IncidentRun[];
   readonly contextStats: ContextStats;
+  /** AI Worker ごとの Harness（AI Worker の id がキー。なければ既定の Model で部品なし） */
+  readonly harnesses: Readonly<Record<string, HarnessRun>>;
+  /** 導入コストを払い、会社の資産になった部品（付け直しても再び払わない） */
+  readonly ownedParts: readonly string[];
+  /** 導入コストの支払い（払った順） */
+  readonly harnessLedger: readonly HarnessLedgerEntry[];
 }
 
 export interface InitialStateOptions {
@@ -180,6 +211,9 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     sessions: createSessions(),
     incidents: [],
     contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
+    harnesses: {},
+    ownedParts: [],
+    harnessLedger: [],
   };
 }
 
@@ -219,6 +253,10 @@ export function createTaskRun(): TaskRun {
     laborCost: 0,
     aiCost: 0,
     lead: { work: 0, review: 0 },
+    skipped: [],
+    evalLoops: 0,
+    accidents: 0,
+    interventions: 0,
   };
 }
 

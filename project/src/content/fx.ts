@@ -245,4 +245,6 @@ export const fxRules = {
   comboWindowMs: 4000,
   /** 人間時間の見込みがこの時間（h）以上減る担当で作業が始まったら「自動化」の演出を出す */
   automationMinSavedHours: 2,
+  /** Harness の変更で、人間時間の見込みがこの時間（h）以上減ったら「自動化」の演出を出す（Tier 3）。小さな変更はトーストだけ */
+  harnessMinSavedHours: 1,
 } as const;

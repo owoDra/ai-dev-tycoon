@@ -18,6 +18,7 @@ export const ecRenewal: ProjectDef = {
   tasks: [
     {
       id: 'hearing',
+      kind: 'planning',
       name: t.hearing,
       deps: [],
       effort: 90,
@@ -28,6 +29,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'requirements',
+      kind: 'planning',
       name: t.requirements,
       deps: ['hearing'],
       effort: 120,
@@ -38,6 +40,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'uiDesign',
+      kind: 'design',
       name: t.uiDesign,
       deps: ['requirements'],
       effort: 150,
@@ -48,6 +51,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'research',
+      kind: 'research',
       name: t.research,
       deps: ['requirements'],
       effort: 120,
@@ -58,6 +62,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'implementation',
+      kind: 'code',
       name: t.implementation,
       deps: ['uiDesign', 'research'],
       effort: 480,
@@ -68,6 +73,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'qa',
+      kind: 'test',
       name: t.qa,
       deps: ['implementation'],
       effort: 180,
@@ -78,6 +84,7 @@ export const ecRenewal: ProjectDef = {
     },
     {
       id: 'release',
+      kind: 'release',
       name: t.release,
       deps: ['qa'],
       effort: 60,

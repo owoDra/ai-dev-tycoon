@@ -36,7 +36,22 @@ export type GameEvent =
       readonly projectId: string;
       readonly taskId: string;
     }
-  | { readonly type: 'IncidentResolved'; readonly incident: IncidentId; readonly workerId: string };
+  | { readonly type: 'IncidentResolved'; readonly incident: IncidentId; readonly workerId: string }
+  /**
+   * AI Worker の Harness を変えた（企画書35章）。change: equip 部品を付けた / remove 外した / model Model を変えた。id は部品か Model。
+   * savedHumanHours は、変更で減る人間時間の見込み（h、進行中の案件のこの AI Worker の仕事）。大きければ Tier 3 の演出
+   */
+  | {
+      readonly type: 'HarnessChanged';
+      readonly workerId: string;
+      readonly change: 'equip' | 'remove' | 'model';
+      readonly id: string;
+      readonly savedHumanHours?: number;
+    }
+  /** AI の作業で事故（権限・Tool の誤用）が起きた。作業は失敗扱いになる */
+  | { readonly type: 'HarnessAccident'; readonly projectId: string; readonly taskId: string; readonly workerId: string }
+  /** 複数の Task を Workflow にまとめて AI に任せた（企画書5章） */
+  | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] };
 
 /** 指定したゲーム内時刻（分）に発火させる予約済みの出来事 */
 export interface ScheduledEvent {

@@ -5,6 +5,8 @@ import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId } 
 import { allFeatures, modeFeature } from '../content/unlocks';
 import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
+import { workerHumanHours } from './expectation';
+import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
@@ -38,7 +40,22 @@ export type Command =
   /** Session を始め直す。履歴のノイズは 0 になり、Handoff で残さなかった項目は失われる */
   | { readonly type: 'NewSession'; readonly workerId: string }
   /** 事件の解決アクション（content/incidents.ts の resolve）を実行する */
-  | { readonly type: 'ResolveIncident'; readonly incident: IncidentId; readonly workerId: string };
+  | { readonly type: 'ResolveIncident'; readonly incident: IncidentId; readonly workerId: string }
+  /** AI Worker の Model を変える（Harness Builder） */
+  | { readonly type: 'SetModel'; readonly workerId: string; readonly modelId: string }
+  /** Harness 部品を装着する。同じ group の部品は付け替える。初めての部品は導入コストを払う */
+  | { readonly type: 'EquipPart'; readonly workerId: string; readonly partId: string }
+  | { readonly type: 'RemovePart'; readonly workerId: string; readonly partId: string }
+  /**
+   * 複数の Task を1つの Workflow にまとめて AI Worker に任せる（企画書5章）。どれも Agent Workflow の担当になり、
+   * 前の Task から指示出しなしで続けて実行する。まだ始まっていない Task が2件以上必要
+   */
+  | {
+      readonly type: 'AssignWorkflow';
+      readonly projectId: string;
+      readonly taskIds: readonly string[];
+      readonly workerId: string;
+    };
 
 export interface Transition {
   readonly state: GameState;
@@ -128,7 +145,51 @@ function apply(state: GameState, command: Command): Transition {
       const next = resolveIncident(state, command.incident, command.workerId, (e) => events.push(e));
       return { state: next, events };
     }
+    case 'SetModel': {
+      if (!isUnlocked(state, 'harness')) return unchanged(state);
+      const next = setModel(state, command.workerId, command.modelId);
+      return harnessChanged(state, next, command.workerId, 'model', command.modelId);
+    }
+    case 'EquipPart': {
+      const next = equipPart(state, command.workerId, command.partId, (p) => isUnlocked(state, p.unlock));
+      return harnessChanged(state, next, command.workerId, 'equip', command.partId);
+    }
+    case 'RemovePart': {
+      const next = removePart(state, command.workerId, command.partId);
+      return harnessChanged(state, next, command.workerId, 'remove', command.partId);
+    }
+    case 'AssignWorkflow': {
+      const { projectId, workerId } = command;
+      const taskIds = [...new Set(command.taskIds)];
+      const runs = taskIds.map((id) => state.projects[projectId]?.tasks[id]);
+      if (
+        taskIds.length < balance.assign.workflowMinTasks ||
+        !isAi(workerId) ||
+        !isUnlocked(state, modeFeature('agentWorkflow')) ||
+        runs.some((r) => r?.status !== 'waiting')
+      ) {
+        return unchanged(state);
+      }
+      let next = state;
+      for (const taskId of taskIds) {
+        next = updateTask(next, projectId, taskId, (r) => ({ ...r, assignment: { mode: 'agentWorkflow', workerId } }));
+      }
+      return { state: next, events: [{ type: 'WorkflowAssigned', projectId, taskIds }] };
+    }
   }
+}
+
+/** Harness を変えたときの出来事。変更で減る人間時間の見込みを添える（大きければ Tier 3 の演出） */
+function harnessChanged(
+  before: GameState,
+  after: GameState,
+  workerId: string,
+  change: 'equip' | 'remove' | 'model',
+  id: string,
+): Transition {
+  if (after === before) return unchanged(before);
+  const savedHumanHours = workerHumanHours(before, workerId) - workerHumanHours(after, workerId);
+  return { state: after, events: [{ type: 'HarnessChanged', workerId, change, id, savedHumanHours }] };
 }
 
 /** 資料の渡し方ごとに必要な機能 */

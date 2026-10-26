@@ -17,6 +17,7 @@ export const tutorialLp: ProjectDef = {
   tasks: [
     {
       id: 'wireframe',
+      kind: 'design',
       name: t.wireframe,
       deps: [],
       effort: 220,
@@ -27,6 +28,7 @@ export const tutorialLp: ProjectDef = {
     },
     {
       id: 'coding',
+      kind: 'code',
       name: t.coding,
       deps: ['wireframe'],
       effort: 120,
@@ -37,6 +39,7 @@ export const tutorialLp: ProjectDef = {
     },
     {
       id: 'form',
+      kind: 'code',
       name: t.form,
       deps: ['coding'],
       effort: 180,
@@ -47,6 +50,7 @@ export const tutorialLp: ProjectDef = {
     },
     {
       id: 'responsive',
+      kind: 'code',
       name: t.responsive,
       deps: ['form'],
       effort: 240,

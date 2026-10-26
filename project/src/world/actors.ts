@@ -1,8 +1,19 @@
 import { animate, type MotionValue, motionValue } from 'motion';
-import { type BufferGeometry, Group, Mesh, MeshBasicMaterial, PlaneGeometry, type Texture, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  type BufferGeometry,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  SphereGeometry,
+  type Texture,
+  TorusGeometry,
+  Vector3,
+} from 'three';
 import { type ModelId, modelAssets } from '../assets/catalog';
 import { type Expression, expressions, type WorldLook } from '../content/look/world';
-import type { ActorView } from '../view/world';
+import type { ActorGear, ActorView } from '../view/world';
 import type { WorldMaterials } from './materials';
 import { syncById } from './sync';
 
@@ -21,6 +32,8 @@ interface ActorObject {
   readonly body: Group;
   readonly face: Mesh | null;
   readonly shadow: Mesh;
+  /** 周りを回る Subagent の子機（Harness 部品の小物） */
+  readonly drones: Group | null;
   readonly pos: Vector3;
   readonly target: Vector3;
   /** 動きの位相をずらすための値（ID から決める） */
@@ -34,6 +47,19 @@ interface ActorObject {
 
 /** 演出のジャンプ1回の長さ（秒） */
 const HOP_SECONDS = 0.45;
+
+/** Harness の小物の置き場所（m、キャラクターの足元からの高さと体からの距離）と、子機の回る速さ（rad/秒） */
+const GEAR = {
+  beltY: 0.42,
+  beltRadius: 0.34,
+  shieldX: 0.42,
+  shieldY: 0.55,
+  droneY: 1.05,
+  droneRadius: 0.62,
+  droneSpin: 1.6,
+};
+
+const sameGear = (a: ActorGear, b: ActorGear) => a.belt === b.belt && a.shield === b.shield && a.drones === b.drones;
 
 export interface ActorFrame {
   readonly dt: number;
@@ -86,6 +112,46 @@ export function createActors(
     }),
   );
   const faceGeometries = new Map<ModelId, PlaneGeometry>();
+  const beltGeometry = new TorusGeometry(GEAR.beltRadius, 0.05, 8, 24).rotateX(Math.PI / 2);
+  const toothGeometry = new BoxGeometry(0.08, 0.08, 0.08);
+  const shieldGeometry = new BoxGeometry(0.06, 0.34, 0.28);
+  const checkGeometry = new BoxGeometry(0.02, 0.05, 0.14);
+  const droneGeometry = new SphereGeometry(0.09, 12, 8);
+
+  /**
+   * Harness 部品の小物（企画書35章：装着が見た目に出る）。Hook はベルトのギア、Eval はチェックの盾、
+   * Subagent は周りを回る子機
+   */
+  const addGear = (body: Group, gear: ActorGear): Group | null => {
+    if (gear.belt) {
+      const belt = new Mesh(beltGeometry, materials.gear.belt);
+      belt.position.y = GEAR.beltY;
+      body.add(belt);
+      for (let i = 0; i < 6; i++) {
+        const tooth = new Mesh(toothGeometry, materials.gear.belt);
+        const a = (i / 6) * Math.PI * 2;
+        tooth.position.set(Math.cos(a) * (GEAR.beltRadius + 0.05), GEAR.beltY, Math.sin(a) * (GEAR.beltRadius + 0.05));
+        body.add(tooth);
+      }
+    }
+    if (gear.shield) {
+      const shield = new Mesh(shieldGeometry, materials.gear.shield);
+      shield.position.set(GEAR.shieldX, GEAR.shieldY, 0);
+      const stroke = new Mesh(checkGeometry, materials.gear.check);
+      stroke.position.set(GEAR.shieldX + 0.04, GEAR.shieldY, 0);
+      stroke.rotation.x = Math.PI / 4;
+      body.add(shield, stroke);
+    }
+    if (gear.drones === 0) return null;
+    const drones = new Group();
+    for (let i = 0; i < gear.drones; i++) {
+      const drone = new Mesh(droneGeometry, materials.gear.drone);
+      const a = (i / gear.drones) * Math.PI * 2;
+      drone.position.set(Math.cos(a) * GEAR.droneRadius, GEAR.droneY, Math.sin(a) * GEAR.droneRadius);
+      drones.add(drone);
+    }
+    return drones;
+  };
 
   const build = (view: ActorView, pos: Vector3): ActorObject => {
     const geometry = models.get(view.model);
@@ -108,9 +174,11 @@ export function createActors(
       face.renderOrder = 2;
       body.add(face);
     }
+    const drones = addGear(body, view.gear);
     const shadow = new Mesh(shadowGeometry, materials.shadow);
     shadow.position.y = 0.01;
     group.add(body, shadow);
+    if (drones) group.add(drones);
     group.position.copy(pos);
     root.add(group);
     return {
@@ -119,6 +187,7 @@ export function createActors(
       body,
       face,
       shadow,
+      drones,
       pos: pos.clone(),
       target: pos.clone(),
       seed: hashSeed(view.id),
@@ -167,6 +236,10 @@ export function createActors(
     o.body.rotation.set(lean, 0, roll);
     const k = c.scale;
     o.body.scale.set(k / Math.sqrt(sy), k * c.stretch * sy, k / Math.sqrt(sy));
+    if (o.drones) {
+      o.drones.position.y = o.body.position.y;
+      if (!f.reducedMotion && f.live) o.drones.rotation.y = t * GEAR.droneSpin;
+    }
     o.shadow.scale.setScalar(look.shadow.size * k * 0.55 * Math.max(0.5, 1 - y * 1.5));
     if (o.reaction && o.reaction.until <= performance.now()) o.reaction = null;
     const expression = o.reaction?.expression ?? o.view.expression;
@@ -180,6 +253,13 @@ export function createActors(
       syncById(objects, views, {
         create: (view) => build(view, targetOf(view)),
         update: (o, view) => {
+          // 小物が変わったら作り直す（位置と演出の状態は引き継ぐ）
+          if (!sameGear(o.view.gear, view.gear)) {
+            root.remove(o.root);
+            const fresh = build(view, o.pos);
+            fresh.reaction = o.reaction;
+            Object.assign(o, { ...fresh, target: o.target });
+          }
           o.view = view;
           o.target.copy(targetOf(view));
         },
@@ -218,6 +298,7 @@ export function createActors(
     },
     dispose() {
       shadowGeometry.dispose();
+      for (const g of [beltGeometry, toothGeometry, shieldGeometry, checkGeometry, droneGeometry]) g.dispose();
       for (const g of faceGeometries.values()) g.dispose();
       for (const m of faceMaterials.values()) {
         m.map?.dispose();

@@ -6,7 +6,7 @@ import type { AssignForecast, ForecastMetrics } from '../../view/forecast';
 
 const t = ja.forecast;
 
-type Direction = 'better' | 'worse' | 'same';
+export type Direction = 'better' | 'worse' | 'same';
 
 /** 小さすぎる差は「変わらない」とみなす（表示の丸めと合わせる） */
 const EPSILON = { humanMinutes: 3, aiCost: 1, quality: 0.005 } as const;
@@ -79,7 +79,7 @@ export function ForecastPreview(props: { forecast: (AssignForecast & { mode: Ass
  * After の数字。予測が変わるたびに Before の値から After の値へ変形して見せる（企画書42章「Before → After が Morph」）。
  * 読み上げには最終的な値を渡す
  */
-function MorphValue(props: { from: number | undefined; to: number; format: (v: number) => string }) {
+export function MorphValue(props: { from: number | undefined; to: number; format: (v: number) => string }) {
   const to = createMemo(() => props.to);
   const [shown, setShown] = createSignal(props.to);
   let stop = () => {};
@@ -102,7 +102,7 @@ function MorphValue(props: { from: number | undefined; to: number; format: (v: n
   );
 }
 
-function Trend(props: { dir: Direction }) {
+export function Trend(props: { dir: Direction }) {
   return (
     <span
       class="inline-flex items-center gap-0.5 rounded-full px-1.5 text-[11px] font-bold"

@@ -32,6 +32,8 @@ export function Dock(props: {
   onProblems: () => void;
   /** Context のシートを開く */
   onContext?: () => void;
+  /** Harness Builder を開く（渡さなければボタンを出さない。解放前） */
+  onHarness?: () => void;
   /** 設定を開く（渡さなければボタンを出さない） */
   onSettings?: () => void;
   ref?: (el: HTMLElement) => void;
@@ -80,6 +82,20 @@ export function Dock(props: {
               </div>
             )}
           </For>
+        )}
+      </Show>
+      <Show when={props.onHarness}>
+        {(open) => (
+          <button
+            type="button"
+            data-harness-open
+            class="flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line bg-accent-200 px-2 text-sm font-bold whitespace-nowrap"
+            aria-label={ja.harness.open}
+            onClick={() => open()()}
+          >
+            <Icon name="ai" class="text-xl" />
+            <Show when={!props.compact}>{ja.harness.openShort}</Show>
+          </button>
         )}
       </Show>
       <Show when={props.onSettings}>

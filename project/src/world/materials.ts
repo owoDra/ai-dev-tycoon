@@ -28,6 +28,14 @@ export interface WorldMaterials {
   readonly packet: Material;
   /** 接地影 */
   readonly shadow: MeshBasicMaterial;
+  /** Agent の小物（Harness 部品）と自動化レーンの色 */
+  readonly gear: {
+    readonly belt: Material;
+    readonly shield: Material;
+    readonly check: Material;
+    readonly drone: Material;
+  };
+  readonly lane: Material;
   dispose(): void;
 }
 
@@ -77,6 +85,13 @@ export function createMaterials(
         depthWrite: false,
       }),
     ),
+    gear: {
+      belt: track(make({ color: scaleColor('neutral.400', visual) })),
+      shield: track(make({ color: scaleColor('primary.300', visual) })),
+      check: track(make({ color: scaleColor('success.500', visual) })),
+      drone: track(make({ color: scaleColor('accent.300', visual) })),
+    },
+    lane: track(make({ color: scaleColor('success.300', visual) })),
     solid(color) {
       let m = solids.get(color);
       if (!m) {

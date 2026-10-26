@@ -13,6 +13,10 @@ export interface ProjectScore {
   readonly aiCost: number;
   /** 見逃した失敗が納品後に起こす手戻りの費用（損害＋修正の人件費）。レビューで見つけた手戻りは人件費に含まれる */
   readonly reworkCost: number;
+  /** Harness 部品の導入コスト（案件の期間中に払ったもの） */
+  readonly harnessCost: number;
+  /** 事故（権限・Tool の誤用）の損害 */
+  readonly accidentCost: number;
   readonly delayLoss: number;
   readonly profit: number;
   /** 人間の総稼働時間（分）。見逃した失敗を納品後に直す時間を含む */
@@ -25,6 +29,14 @@ export interface ProjectScore {
   readonly humanIntervention: number;
   /** AI が人間なしで処理した時間 */
   readonly autonomousTime: number;
+  /** AI が関わる Task に人間が介入した回数（指示出し・確認・手戻りの工程に入った回数） */
+  readonly interventions: number;
+  /** 人間の介入間隔の平均（分）。AI が人間なしで処理した時間 ÷ 介入の回数（介入がなければ自律時間そのもの） */
+  readonly interventionInterval: number;
+  /** 事故の数 */
+  readonly accidents: number;
+  /** AI が関わって完了した Task 1件あたりの事故の数 */
+  readonly accidentRate: number;
   /** 完了した Task のうち、失敗して手戻りが発生した（レビューで発見 or 見逃し）割合 */
   readonly reworkRate: number;
   /** AI が関わって完了した Task 1件あたりの AI 費用 */
@@ -56,6 +68,8 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
   let aiWorks = 0;
   let qualitySum = 0;
   let effortSum = 0;
+  let interventions = 0;
+  let accidents = 0;
   for (const task of def.tasks) {
     const t = run.tasks[task.id];
     if (!t) continue;
@@ -65,6 +79,8 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     humanMinutes += t.humanMinutes;
     autonomousTime += t.aiMinutes;
     if (usesAi) humanIntervention += t.humanMinutes;
+    interventions += t.interventions;
+    accidents += t.accidents;
     if (t.escaped) {
       const fix = escapedFixMinutes(task);
       aftercareMinutes += fix;
@@ -81,12 +97,19 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
   humanMinutes += aftercareMinutes;
   const revenue = completed ? def.revenue : 0;
   const delay = delayLoss(elapsedMinutes, def);
-  const profit = revenue - laborCost - aiCost - reworkCost - delay;
+  const end = run.completedAt ?? state.clock;
+  const harnessCost = state.harnessLedger
+    .filter((e) => e.at >= run.startedAt && e.at <= end)
+    .reduce((sum, e) => sum + e.cost, 0);
+  const accidentCost = accidents * balance.harness.accidentCost;
+  const profit = revenue - laborCost - aiCost - reworkCost - harnessCost - accidentCost - delay;
   return {
     revenue,
     laborCost,
     aiCost,
     reworkCost,
+    harnessCost,
+    accidentCost,
     delayLoss: delay,
     profit,
     humanMinutes,
@@ -94,6 +117,10 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     profitPerHumanHour: humanMinutes > 0 ? profit / (humanMinutes / MINUTES_PER_HOUR) : 0,
     humanIntervention,
     autonomousTime,
+    interventions,
+    interventionInterval: interventions > 0 ? autonomousTime / interventions : autonomousTime,
+    accidents,
+    accidentRate: aiWorks > 0 ? accidents / aiWorks : 0,
     reworkRate: doneCount > 0 ? reworked / doneCount : 0,
     aiCostPerWork: aiWorks > 0 ? aiCost / aiWorks : 0,
     quality: effortSum > 0 ? qualitySum / effortSum : 1,

@@ -1,7 +1,9 @@
 import { assignModes } from './assignModes';
 import { documents } from './documents';
+import { harnessParts } from './harness/index';
 import { incidentDefs } from './incidents';
 import { models } from './models';
+import { corporateSite } from './projects/corporate-site';
 import { ecRenewal } from './projects/ec-renewal';
 import { paymentFix } from './projects/payment-fix';
 import { tutorialLp } from './projects/tutorial-lp';
@@ -9,6 +11,7 @@ import type {
   AiWorkerDef,
   AssignModeDef,
   DocumentDef,
+  HarnessPartDef,
   HumanWorkerDef,
   IncidentDef,
   ModelDef,
@@ -26,15 +29,17 @@ export interface Content {
   readonly assignModes: readonly AssignModeDef[];
   readonly documents: readonly DocumentDef[];
   readonly incidents: readonly IncidentDef[];
+  readonly harnessParts: readonly HarnessPartDef[];
 }
 
 export const content: Content = {
-  projects: [ecRenewal, paymentFix, tutorialLp],
+  projects: [ecRenewal, paymentFix, corporateSite, tutorialLp],
   workers,
   models,
   assignModes,
   documents,
   incidents: incidentDefs,
+  harnessParts,
 };
 
 export function getProject(id: string): ProjectDef {
@@ -69,6 +74,12 @@ export function getModel(id: string): ModelDef {
   const m = content.models.find((x) => x.id === id);
   if (!m) throw new Error(`未定義の Model: ${id}`);
   return m;
+}
+
+export function getHarnessPart(id: string): HarnessPartDef {
+  const p = content.harnessParts.find((x) => x.id === id);
+  if (!p) throw new Error(`未定義の Harness 部品: ${id}`);
+  return p;
 }
 
 export const humans: readonly HumanWorkerDef[] = content.workers.filter((w) => w.kind === 'human');

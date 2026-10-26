@@ -1,5 +1,6 @@
 import { stageOfPhase } from '../content/assignModes';
 import { balance } from '../content/balance';
+import { getTask } from '../content/index';
 import { contextApplies, updateSession } from './context';
 import { aiCostFactor } from './contextWork';
 import { aiCost } from './formulas';
@@ -24,7 +25,7 @@ export const taskSystem: System = (state, ctx) => {
       const stage = stageOfPhase[run.phase];
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, lead: { ...r.lead, [stage]: r.lead[stage] + tick } }));
       if (!isAiWorking(run)) continue;
-      let cost = aiCost(tick, aiActor(run).model);
+      let cost = aiCost(tick, aiActor(next, run, getTask(projectId, taskId)).model);
       // Context が働く案件では、Context の使用率に応じて費用が増え、Session の履歴が溜まる
       const workerId = run.assignment?.workerId ?? '';
       if (contextApplies(projectId)) {

@@ -2,8 +2,12 @@ import { primaryActor } from '../content/assignModes';
 import { balance, type GameSpeed } from '../content/balance';
 import { content, findWorker } from '../content/index';
 import type { AssignModeId } from '../content/types';
+import { allFeatures, modeFeature } from '../content/unlocks';
 import type { GameEvent } from './events';
+import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
+import { isAllowed } from './tutorial';
+import { isUnlocked } from './unlocks';
 
 /** プレイヤー操作。状態を変える唯一の入口 */
 export type Command =
@@ -20,7 +24,9 @@ export type Command =
       readonly taskId: string;
       readonly mode: AssignModeId;
       readonly workerId: string;
-    };
+    }
+  /** チュートリアルをやめる。残りの機能をすべて解放し、案件はそのまま続ける */
+  | { readonly type: 'SkipTutorial' };
 
 export interface Transition {
   readonly state: GameState;
@@ -29,8 +35,20 @@ export interface Transition {
 
 const unchanged = (state: GameState): Transition => ({ state, events: [] });
 
-/** Command を適用する。無効な Command は状態を変えず、events も出さない */
+/**
+ * Command を適用する。無効な Command（チュートリアルの今のステップで許していない操作・未解放のモードを含む）は
+ * 状態を変えず、events も出さない。状態が変わったら、解放とチュートリアルの進行を判定する。
+ */
 export function reduce(state: GameState, command: Command): Transition {
+  if (!isAllowed(state, command)) return unchanged(state);
+  const result = apply(state, command);
+  if (result.state === state) return result;
+  const events = [...result.events];
+  const settled = settleProgress(result.state, (e) => events.push(e));
+  return { state: settled, events };
+}
+
+function apply(state: GameState, command: Command): Transition {
   switch (command.type) {
     case 'SetSpeed': {
       if (command.speed === state.speed || !balance.time.speeds.includes(command.speed)) {
@@ -53,11 +71,24 @@ export function reduce(state: GameState, command: Command): Transition {
       const run = state.projects[command.projectId]?.tasks[command.taskId];
       const mode = content.assignModes.find((m) => m.id === command.mode);
       const worker = findWorker(command.workerId);
-      if (run?.status !== 'waiting' || !mode || worker?.kind !== primaryActor(mode)) {
+      if (
+        run?.status !== 'waiting' ||
+        !mode ||
+        !isUnlocked(state, modeFeature(mode.id)) ||
+        worker?.kind !== primaryActor(mode)
+      ) {
         return unchanged(state);
       }
       const assignment = { mode: mode.id, workerId: worker.id };
       return { state: updateTask(state, command.projectId, command.taskId, (r) => ({ ...r, assignment })), events: [] };
+    }
+    case 'SkipTutorial': {
+      if (!state.tutorial) return unchanged(state);
+      const events: GameEvent[] = allFeatures
+        .filter((f) => !state.unlocked.includes(f))
+        .map((feature) => ({ type: 'FeatureUnlocked', feature }));
+      events.push({ type: 'TutorialEnded', skipped: true });
+      return { state: { ...state, tutorial: null, unlocked: allFeatures }, events };
     }
   }
 }

@@ -1,12 +1,15 @@
 import { createEffect, createSignal, lazy, Match, on, onCleanup, Show, Switch } from 'solid-js';
 import { content } from '../content/index';
+import { uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
+import { tutorialScript } from '../content/tutorial';
 import { createInitialState } from '../core/state';
 import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
 import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
+import { TermCards } from '../ui/play/TermCards';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { ProjectSelect } from '../ui/screens/ProjectSelect';
 import { ResultScreen } from '../ui/screens/ResultScreen';
@@ -17,6 +20,7 @@ import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
+import { markTutorialDone, progress } from './progress';
 import { createScreens } from './screens';
 import { createGameStore, type GameStore } from './store';
 
@@ -31,6 +35,8 @@ const IDLE_SEED = 'title';
 /**
  * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → 案件選択 → プレイ → 結果）を重ねる。
  * 1回のプレイごとに新しい GameStore を作り、ゲームループを回す。案件が納品されたら結果画面へ進む。
+ * 初回起動（チュートリアルを終えていない）では、タイトルの「はじめる」でチュートリアル案件を直接始める。
+ * チュートリアルを終えるかスキップしたら記録し、以降は案件選択へ進む（タイトルから再挑戦できる）。
  */
 export function App(props: { tweak: boolean }) {
   const screens = createScreens();
@@ -49,13 +55,20 @@ export function App(props: { tweak: boolean }) {
     return s.id === 'play' || s.id === 'result' ? s.projectId : (content.projects[0]?.id ?? '');
   };
 
-  /** 新しいゲームを始める（案件の開始も Command で行う） */
+  /** 新しいゲームを始める（案件の開始も Command で行う）。チュートリアル案件はチュートリアルとして始める */
   const newGame = (projectId: string | null) => {
     plays++;
-    const store = createGameStore(createInitialState(projectId ? `play-${plays}` : IDLE_SEED));
+    const tutorial = projectId === tutorialScript.projectId;
+    const seed = tutorial ? tutorialScript.seed : projectId ? `play-${plays}` : IDLE_SEED;
+    const store = createGameStore(createInitialState(seed, { tutorial }));
     if (projectId) store.dispatch({ type: 'StartProject', projectId });
     selection.dispatch({ type: 'SelectEntity', entityId: null });
     setGame(store);
+  };
+
+  const startTutorial = () => {
+    newGame(tutorialScript.projectId);
+    screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
 
   createEffect(
@@ -63,6 +76,7 @@ export function App(props: { tweak: boolean }) {
       onCleanup(startLoop(store));
       onCleanup(
         store.onEvents((events) => {
+          if (events.some((e) => e.type === 'TutorialEnded')) markTutorialDone();
           if (events.some((e) => e.type === 'ProjectCompleted')) {
             selection.dispatch({ type: 'SelectEntity', entityId: null });
             screens.go({ type: 'Complete' });
@@ -83,7 +97,11 @@ export function App(props: { tweak: boolean }) {
       />
       <Switch>
         <Match when={screens.screen().id === 'title'}>
-          <TitleScreen onStart={() => screens.go({ type: 'Open' })} onSettings={openSettings} />
+          <TitleScreen
+            onStart={() => (progress().tutorialDone ? screens.go({ type: 'Open' }) : startTutorial())}
+            onTutorial={progress().tutorialDone ? startTutorial : undefined}
+            onSettings={openSettings}
+          />
         </Match>
         <Match when={screens.screen().id === 'select'}>
           <ProjectSelect
@@ -136,6 +154,7 @@ export function App(props: { tweak: boolean }) {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
+      <TermCards store={game()} durationMs={uiLayout.flow.termCardMs} />
       <Show when={settingsOpen()}>
         <SettingsSheet onClose={() => setSettingsOpen(false)} />
       </Show>

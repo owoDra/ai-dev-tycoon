@@ -1,10 +1,13 @@
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { assignModes } from '../../content/assignModes';
-import type { AssignModeId } from '../../content/types';
+import type { AssignModeId, FeatureId } from '../../content/types';
+import { modeFeature } from '../../content/unlocks';
+import { isAllowed } from '../../core/tutorial';
+import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { forecastAssign } from '../../view/forecast';
-import type { TaskRowView } from '../../view/project';
+import { defaultWorkerFor, type TaskRowView } from '../../view/project';
 import { Icon } from '../Icon';
 import { modeIcon, primaryButton } from '../parts';
 import { ForecastPreview } from './ForecastPreview';
@@ -18,14 +21,29 @@ const t = ja.assign;
  * - キーボード：矢印キーでカードを移ると予測が出て、Enter / Space で決定
  * - タッチ：1回目のタップで予測を出し、同じカードをもう一度タップ（または決定ボタン）で決定
  * 予測は view/forecast.ts（core のヘッドレス実行）で出す。決定は onAssign から AssignTask の Command になる。
+ * 解放済みのモードだけを並べ（isUnlocked）、チュートリアルの今のステップで許していないモードは押せない表示にする。
+ * 解放されたばかりのモードには「NEW」バッジを付ける（fresh）。
  */
 export function AssignCards(props: {
   store: GameStore;
   projectId: string;
   row: TaskRowView;
   scroll: boolean;
+  /** 解放されたばかりで、まだ使っていない機能 */
+  fresh?: ReadonlySet<FeatureId>;
   onAssign: (mode: AssignModeId) => void;
 }) {
+  const modes = createMemo(() => assignModes.filter((m) => isUnlocked(props.store.state(), modeFeature(m.id))));
+  /** そのモードを今選べるか（開始前で、チュートリアル中なら今のステップで許している） */
+  const selectable = (mode: AssignModeId) =>
+    props.row.editable &&
+    isAllowed(props.store.state(), {
+      type: 'AssignTask',
+      projectId: props.projectId,
+      taskId: props.row.id,
+      mode,
+      workerId: defaultWorkerFor(mode),
+    });
   const [preview, setPreview] = createSignal<AssignModeId | null>(null);
   const [touch, setTouch] = createSignal(false);
   let pointer = '';
@@ -33,13 +51,18 @@ export function AssignCards(props: {
 
   const forecast = createMemo(() => {
     const mode = preview();
-    if (!mode || !props.row.editable) return null;
+    if (!mode || !selectable(mode)) return null;
     return { mode, ...forecastAssign(props.store.state(), props.projectId, props.row.id, mode) };
   });
 
   const focusable = () => {
     const p = preview() ?? props.row.mode;
-    return p ? assignModes.findIndex((m) => m.id === p) : 0;
+    return p
+      ? Math.max(
+          0,
+          modes().findIndex((m) => m.id === p),
+        )
+      : 0;
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -57,7 +80,7 @@ export function AssignCards(props: {
   const onClick = (mode: AssignModeId) => {
     const byTouch = pointer === 'touch';
     pointer = '';
-    if (!props.row.editable) return;
+    if (!selectable(mode)) return;
     if (byTouch && preview() !== mode) {
       setPreview(mode);
       return;
@@ -86,13 +109,12 @@ export function AssignCards(props: {
         data-assign-cards
         aria-labelledby={`assign-${props.row.id}`}
         class={
-          props.scroll
-            ? '-mx-4 flex min-w-0 snap-x gap-2 overflow-x-auto px-4 pt-1 pb-2'
-            : 'grid min-w-0 grid-cols-5 gap-2 pt-1'
+          props.scroll ? '-mx-4 flex min-w-0 snap-x gap-2 overflow-x-auto px-4 pt-1 pb-2' : 'grid min-w-0 gap-2 pt-1'
         }
+        style={props.scroll ? undefined : { 'grid-template-columns': `repeat(${modes().length}, minmax(0, 1fr))` }}
         onKeyDown={onKeyDown}
       >
-        <For each={assignModes}>
+        <For each={modes()}>
           {(m, i) => (
             <button
               ref={(el) => {
@@ -101,7 +123,7 @@ export function AssignCards(props: {
               type="button"
               data-mode={m.id}
               aria-pressed={props.row.mode === m.id}
-              aria-disabled={!props.row.editable}
+              aria-disabled={!selectable(m.id)}
               tabindex={i() === focusable() ? 0 : -1}
               class="relative flex min-h-11 shrink-0 snap-start flex-col items-center gap-1 rounded-lg border-[3px] border-line bg-surface p-3 text-center shadow-pop transition-transform active:translate-y-1 active:shadow-none aria-pressed:bg-accent-300 aria-disabled:opacity-50 aria-disabled:shadow-none"
               classList={{ 'w-32': props.scroll, 'ring-4 ring-primary-300': preview() === m.id }}
@@ -123,6 +145,14 @@ export function AssignCards(props: {
               </span>
               <span class="font-heading text-sm leading-tight text-balance">{m.name}</span>
               <span class="text-[11px] leading-snug text-ink-muted">{t.hints[m.id]}</span>
+              <Show when={props.fresh?.has(modeFeature(m.id)) && props.row.mode !== m.id}>
+                <span
+                  data-new-badge
+                  class="absolute -top-2.5 -right-1.5 rounded-full border-2 border-line bg-danger-500 px-1.5 font-heading text-[10px] text-white"
+                >
+                  {ja.unlocks.badge}
+                </span>
+              </Show>
               <Show when={props.row.mode === m.id}>
                 <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full border-2 border-line bg-surface px-1.5 text-[10px] font-bold whitespace-nowrap">
                   {t.current}

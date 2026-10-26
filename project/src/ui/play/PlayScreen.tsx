@@ -4,7 +4,9 @@ import { audio } from '../../audio/index';
 import { getTask } from '../../content/index';
 import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
 import { eventSfx } from '../../content/sfx';
-import type { AssignModeId } from '../../content/types';
+import type { AssignModeId, FeatureId } from '../../content/types';
+import { modeFeature, unlockDefs } from '../../content/unlocks';
+import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
 import { detailView } from '../../view/detail';
@@ -20,6 +22,7 @@ import { Dock } from './Dock';
 import { IslandLabels } from './IslandLabels';
 import { NoticeHost } from './NoticeHost';
 import { ProblemToasts } from './ProblemToasts';
+import { TutorialCoach } from './TutorialCoach';
 
 /** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
 const SHEET_OVERLAP = 3;
@@ -28,6 +31,7 @@ const SHEET_OVERLAP = 3;
  * プレイ画面の UI（3D ワールドの上に重ねる）。D3「ゲームのドック」の構成で、
  * 下部のドック（HUD）・上のトースト（次に対応すべき問題）・下から出るシート（詳細と担当変更）・島のラベル・お知らせを置く。
  * state は読むだけで、変更は store.dispatch（Command）で行う。選択は UI の state（Selection）。
+ * チュートリアル中はコーチマークを重ね、「次に対応すべき問題」は解放されるまで出さない。
  */
 export function PlayScreen(props: {
   store: GameStore;
@@ -60,7 +64,10 @@ export function PlayScreen(props: {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
   const [dismissed, setDismissed] = createSignal<ReadonlySet<string>>(new Set());
-  const shownProblems = () => problems().filter((p) => !dismissed().has(p.id));
+  const problemsOn = () => isUnlocked(props.store.state(), 'problems');
+  const shownProblems = () => (problemsOn() ? problems().filter((p) => !dismissed().has(p.id)) : []);
+  /** 解放されたばかりで、まだ使っていない機能（担当カードの「NEW」バッジ） */
+  const [fresh, setFresh] = createSignal<ReadonlySet<FeatureId>>(new Set());
   // 問題のトーストが新しく出たら警告音を添える（トーストのアイコンと文言が本体で、音は補助）
   let heard = new Set<string>();
   createEffect(() => {
@@ -88,6 +95,14 @@ export function PlayScreen(props: {
             icon: 'review',
             tone: 'warning',
           });
+        }
+        if (e.type === 'EvalCaught' && e.projectId === props.projectId) {
+          notices.push({ text: ja.notices.evalCaught(getTask(e.projectId, e.taskId).name), icon: 'eval' });
+        }
+        if (e.type === 'FeatureUnlocked') {
+          const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';
+          notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
+          setFresh((s) => new Set([...s, e.feature]));
         }
       }
     }),
@@ -129,6 +144,7 @@ export function PlayScreen(props: {
   };
 
   const assign = (taskId: string, mode: AssignModeId) => {
+    setFresh((s) => new Set([...s].filter((f) => f !== modeFeature(mode))));
     props.store.dispatch({
       type: 'AssignTask',
       projectId: props.projectId,
@@ -207,6 +223,7 @@ export function PlayScreen(props: {
             detail={d()}
             layout={form().form.sheet}
             scrollCards={form().form.assignCards === 'scroll'}
+            fresh={fresh()}
             bottom={sheetBottom()}
             viewHeight={view().height}
             onClose={close}
@@ -221,11 +238,12 @@ export function PlayScreen(props: {
           projectId={props.projectId}
           layout={form().form.dock}
           compact={form().compact}
-          problemCount={problems().length}
+          problemCount={problemsOn() ? problems().length : 0}
           onProblems={() => setDismissed(new Set<string>())}
           onSettings={props.onSettings}
         />
       </div>
+      <TutorialCoach store={props.store} padding={layout().flow.coachPadding} />
     </div>
   );
 }

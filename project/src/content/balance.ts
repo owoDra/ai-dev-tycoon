@@ -42,8 +42,12 @@ export const balance = {
     reviewShare: 0.25,
     /** Human → AI で人間が行う重要判断（effort に対する割合）。残りを AI が処理する */
     judgementShare: 0.3,
-    /** レビューで失敗が見つかったときの手戻り（effort に対する割合） */
+    /** レビューで失敗が見つかったときの手戻り（effort に対する割合）。AI の修復も同じ量を AI の速度で処理する */
     reworkShare: 0.3,
+    /** AI → 自動テスト → 確認：自動テスト（AI の工程、effort に対する割合） */
+    evalShare: 0.1,
+    /** AI → 自動テスト → 確認：自動テストの後の人間の最終確認（effort に対する割合）。レビューの 1/5 */
+    finalCheckShare: 0.05,
   },
   quality: {
     /** 失敗を見逃して完了した Task の品質低下＝ escapedLossBase + escapedLossByReq × qualityReq */

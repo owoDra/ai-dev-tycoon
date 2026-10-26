@@ -2,7 +2,7 @@ import { createSignal, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import type { SheetLayout } from '../../content/look/layout';
-import type { AssignModeId } from '../../content/types';
+import type { AssignModeId, FeatureId } from '../../content/types';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { DetailView } from '../../view/detail';
@@ -22,6 +22,8 @@ export function DetailSheet(props: {
   detail: DetailView;
   layout: SheetLayout;
   scrollCards: boolean;
+  /** 解放されたばかりの機能（担当カードの「NEW」バッジ） */
+  fresh?: ReadonlySet<FeatureId>;
   /** シートの下端（px）。ドックのすぐ上 */
   bottom: number;
   /** 画面の高さ（px） */
@@ -50,6 +52,7 @@ export function DetailSheet(props: {
       aria-modal="false"
       aria-label={d().label}
       data-detail-sheet
+      data-task={d().row?.id}
       class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-1 pb-4`}
       style={{
         'max-width': `${props.layout.maxWidth}px`,
@@ -103,6 +106,7 @@ export function DetailSheet(props: {
             projectId={props.projectId}
             row={row()}
             scroll={props.scrollCards}
+            fresh={props.fresh}
             onAssign={(mode) => props.onAssign(row().id, mode)}
           />
         )}

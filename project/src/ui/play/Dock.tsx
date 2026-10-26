@@ -3,6 +3,8 @@ import type { GameStore } from '../../app/store';
 import { balance } from '../../content/balance';
 import { getProject } from '../../content/index';
 import type { DockLayout, HudItemId } from '../../content/look/layout';
+import { dockFeature } from '../../content/unlocks';
+import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type HudView, hudView } from '../../view/hud';
 import { Icon } from '../Icon';
@@ -17,6 +19,7 @@ const PROFIT_CHIP_MIN = 100;
  * 下部のドック（D3「ゲームのドック」）。先頭に案件名（見出しで、常時表示の項目には数えない）、
  * 続けて dock.items の項目を並べる。スマホ（compact）では画面幅いっぱいの2段にする。
  * 値は view/hud.ts から読み、操作は Command（TogglePause / SetSpeed）で行う。
+ * 解放の対象になっている項目（content/unlocks.ts の dockFeature）は、解放されるまで出さない。
  */
 export function Dock(props: {
   store: GameStore;
@@ -30,6 +33,12 @@ export function Dock(props: {
   ref?: (el: HTMLElement) => void;
 }) {
   const hud = createMemo(() => hudView(props.store.state(), props.projectId));
+  const items = createMemo(() =>
+    props.layout.items.filter((id) => {
+      const feature = dockFeature[id];
+      return feature === undefined || isUnlocked(props.store.state(), feature);
+    }),
+  );
   return (
     <nav
       ref={props.ref}
@@ -51,7 +60,7 @@ export function Dock(props: {
       </Show>
       <Show when={hud()}>
         {(h) => (
-          <For each={props.layout.items}>
+          <For each={items()}>
             {(id) => (
               <div data-hud-item={id} class="flex min-w-0 items-center">
                 <HudItem

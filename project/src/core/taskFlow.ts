@@ -1,9 +1,17 @@
 import { getAssignMode } from '../content/assignModes';
 import { getAiWorker, getHuman, getModel, getProject, getTask, humans } from '../content/index';
 import type { ModeStep } from '../content/types';
-import { type ActorProfile, escapedQuality, reworkMinutes, stepMinutes, successProbability } from './formulas';
+import {
+  type ActorProfile,
+  escapedQuality,
+  repairMinutes,
+  reworkMinutes,
+  stepMinutes,
+  successProbability,
+} from './formulas';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
+import { forcedAiOutcome } from './tutorial';
 
 /*
  * Task の工程を進める共通処理。taskSystem（開始・AI の工程）と humanQueueSystem（人間の工程）から呼ぶ。
@@ -15,10 +23,15 @@ function runOf(state: GameState, projectId: string, taskId: string): TaskRun {
   return run;
 }
 
-/** 現在の工程の定義。手戻り中や実行中でなければ null */
+/** 現在の工程の定義。手戻り・修復の最中や、実行中でなければ null */
 export function currentStep(run: TaskRun): ModeStep | null {
-  if (!run.assignment || run.status !== 'running' || run.phase === 'rework') return null;
+  if (!run.assignment || run.status !== 'running' || run.phase === 'rework' || run.phase === 'repair') return null;
   return getAssignMode(run.assignment.mode).steps[run.stepIndex] ?? null;
+}
+
+/** AI が手を動かしているか（AI の工程か、自動テストで見つかった失敗の修復中） */
+export function isAiWorking(run: TaskRun): boolean {
+  return run.status === 'running' && (run.phase === 'repair' || currentStep(run)?.actor === 'ai');
 }
 
 /** AI の工程を担う Model */
@@ -100,14 +113,29 @@ export function enterStep(
 
 /**
  * 現在の工程を終えたときの処理。
- * 作業は成功確率で判定し、失敗は defect として隠れたまま次へ進む。
- * レビューは隠れた失敗を発見し、同じ人がすぐに手戻りする（人間の時間を消費）。
+ * 作業は成功確率で判定し、失敗は defect として隠れたまま次へ進む（チュートリアルでは AI の作業の成否をシナリオで決める）。
+ * 人間のレビューは隠れた失敗を発見し、同じ人がすぐに手戻りする（人間の時間を消費）。
+ * AI の自動テストは隠れた失敗を発見し、AI がそのまま修復する（人間の時間を使わない）。
  */
 export function finishStep(state: GameState, projectId: string, taskId: string, ctx: SystemContext): GameState {
   const run = runOf(state, projectId, taskId);
-  if (run.phase === 'rework') return enterStep(state, projectId, taskId, run.stepIndex + 1, ctx);
+  if (run.phase === 'rework' || run.phase === 'repair') {
+    return enterStep(state, projectId, taskId, run.stepIndex + 1, ctx);
+  }
   const step = currentStep(run);
   if (!step) return state;
+
+  if (step.phase === 'review' && run.defect && step.actor === 'ai') {
+    ctx.emit({ type: 'EvalCaught', projectId, taskId });
+    const remaining = repairMinutes(getTask(projectId, taskId), aiActor(run).model);
+    return updateTask(state, projectId, taskId, (r) => ({
+      ...r,
+      phase: 'repair',
+      remaining,
+      defect: false,
+      reworks: r.reworks + 1,
+    }));
+  }
 
   if (step.phase === 'review' && run.defect && run.humanId) {
     const humanId = run.humanId;
@@ -127,7 +155,9 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
   if (step.phase === 'work') {
     const actor: ActorProfile =
       step.actor === 'ai' ? aiActor(run) : { kind: 'human', skill: getHuman(run.humanId ?? '').skill };
-    if (!ctx.rng.chance(successProbability(getTask(projectId, taskId), actor))) {
+    const forced = step.actor === 'ai' ? forcedAiOutcome(state, projectId, taskId) : null;
+    const ok = forced === null ? ctx.rng.chance(successProbability(getTask(projectId, taskId), actor)) : forced;
+    if (!ok) {
       ctx.emit({ type: 'TaskFailed', projectId, taskId });
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, defect: true, failures: r.failures + 1 }));
     }

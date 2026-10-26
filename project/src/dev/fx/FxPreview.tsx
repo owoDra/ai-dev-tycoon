@@ -90,6 +90,8 @@ export function FxPreview() {
           return { kind: 'autonomyStreak', entityId };
         case 'projectComplete':
           return { kind: 'projectComplete', entityId: null };
+        case 'featureUnlocked':
+          return { kind: 'unlock', entityId: null };
       }
     };
     const s = signal();

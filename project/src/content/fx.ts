@@ -21,7 +21,8 @@ export type FxSignalKind =
   | 'incident'
   | 'autoRepair'
   | 'autonomyStreak'
-  | 'projectComplete';
+  | 'projectComplete'
+  | 'unlock';
 
 /**
  * 演出の部品。world（3D）と ui/fx（DOM）がそれぞれ担当する部品を再生する。
@@ -89,7 +90,8 @@ export type FxId =
   | 'incident'
   | 'autoRepair'
   | 'autonomyStreak'
-  | 'projectComplete';
+  | 'projectComplete'
+  | 'featureUnlocked';
 
 export interface FxDef {
   readonly id: FxId;
@@ -166,7 +168,7 @@ export const fxTable: readonly FxDef[] = [
     label: { key: 'automation', tone: 'accent' },
     sfx: ['automation'],
   },
-  // 事件・自動修復・Autonomy Streak は Phase 10・12 で GameEvent とつなぐ。いまは演出のプレビューと D4 のデモ再生から起動する
+  // 事件・Autonomy Streak は Phase 10・12 で GameEvent とつなぐ。自動修復は簡易 Eval（自動テスト）の EvalCaught から起動する
   {
     id: 'incident',
     tier: 2,
@@ -205,6 +207,16 @@ export const fxTable: readonly FxDef[] = [
     label: { key: 'projectComplete', tone: 'success' },
     sfx: ['fanfare'],
     expression: 'joy',
+  },
+  {
+    // 機能の解放（Phase 09）。担当カードの「NEW」バッジと一緒に出す。画面の中心に小さく出し、操作は止めない
+    id: 'featureUnlocked',
+    tier: 2,
+    signal: 'unlock',
+    parts: ['sparkle', 'popLabel'],
+    reducedAlternative: ['fadeLabel'],
+    label: { key: 'featureUnlocked', tone: 'accent' },
+    sfx: ['autoRepair'],
   },
 ];
 

@@ -1,11 +1,12 @@
 import { For, onMount } from 'solid-js';
 import { content } from '../../content/index';
+import { tutorialScript } from '../../content/tutorial';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
 import { ghostButton, panel, primaryButton } from '../parts';
 
-/** 案件選択。今は案件が1件だけなので、カードを1枚並べる（content.projects に足せば増える） */
+/** 案件選択。content.projects のうち、チュートリアル案件（タイトルから始める）以外を並べる */
 export function ProjectSelect(props: { onChoose: (projectId: string) => void; onBack: () => void }) {
   let el!: HTMLDivElement;
   onMount(() => {
@@ -17,7 +18,7 @@ export function ProjectSelect(props: { onChoose: (projectId: string) => void; on
       <div ref={el} class={`${panel} flex w-full max-w-xl flex-col gap-4 p-4 sm:p-6`}>
         <h1 class="font-heading text-2xl">{ja.screens.select.title}</h1>
         <ul class="flex flex-col gap-3">
-          <For each={content.projects}>
+          <For each={content.projects.filter((p) => p.id !== tutorialScript.projectId)}>
             {(p) => (
               <li class="flex flex-col gap-3 rounded-lg border-[3px] border-line bg-sunken p-4 sm:flex-row sm:items-center">
                 <div class="flex min-w-0 flex-1 items-center gap-3">

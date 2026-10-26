@@ -14,6 +14,7 @@ export const ja = {
   },
   projects: {
     ecRenewal: 'ECサイトリニューアル',
+    tutorialLp: '小さなLP制作',
   },
   tasks: {
     ecRenewal: {
@@ -24,6 +25,12 @@ export const ja = {
       implementation: '実装',
       qa: 'QA',
       release: 'リリース',
+    },
+    tutorialLp: {
+      wireframe: '構成案',
+      coding: 'ページ実装',
+      form: '問い合わせフォーム',
+      responsive: 'スマホ対応',
     },
   },
   workers: {
@@ -38,6 +45,7 @@ export const ja = {
     human: '人間',
     ai: 'AI',
     aiThenHumanReview: 'AI → 人間レビュー',
+    aiThenEval: 'AI → 自動テスト → 確認',
     humanThenAi: '人間 → AI',
     agentWorkflow: 'Agent Workflow',
   },
@@ -84,6 +92,7 @@ export const ja = {
     title: {
       tagline: '人間を、人間にしかできない仕事へ',
       start: 'はじめる',
+      retryTutorial: 'チュートリアルをもう一度',
       keyVisual: 'オフィスの島で人間と AI が働くイラスト',
     },
     select: {
@@ -97,6 +106,8 @@ export const ja = {
       title: '納品完了',
       lead: '結果（仮）',
       profitPerHumanHour: 'Profit / Human Hour',
+      baseline: '人間だけの見込み',
+      gain: (ratio: number) => `×${ratio.toFixed(1)}`,
       retry: 'もう一度',
       toTitle: 'タイトルへ',
     },
@@ -163,6 +174,7 @@ export const ja = {
       human: '人間がすべて行う',
       ai: 'AI に任せる。人間は指示だけ',
       aiThenHumanReview: 'AI が作り、人間が確かめる',
+      aiThenEval: '自動テストが見つけたミスを AI が直す。人間は最後に確認',
       humanThenAi: '人間が判断し、AI が仕上げる',
       agentWorkflow: 'AI 同士で次の仕事へつなぐ',
     },
@@ -190,6 +202,7 @@ export const ja = {
     taskDone: (task: string) => `${task} 完了`,
     taskDefect: (task: string) => `${task} 完了（品質低下）`,
     rework: (task: string) => `${task}：レビューで手戻りを発見`,
+    evalCaught: (task: string) => `${task}：自動テストがミスを発見、AI が修正`,
   },
   fx: {
     /** 演出の文字（content/fx.ts の label.key） */
@@ -204,6 +217,7 @@ export const ja = {
       autoRepair: '自動で修復',
       autonomyStreak: 'AUTONOMY STREAK!',
       projectComplete: '納品完了！',
+      featureUnlocked: 'NEW!',
     },
     combo: (n: number) => `コンボ ×${n}`,
     savedHours: (hours: number) => `-${hours.toFixed(1)} 人間時間`,
@@ -229,6 +243,7 @@ export const ja = {
         autoRepair: '自動修復',
         autonomyStreak: 'Autonomy Streak',
         projectComplete: '案件完了',
+        featureUnlocked: '機能の解放',
       },
     },
     intensities: { calm: '控えめ', standard: '標準', flashy: '派手' },
@@ -311,6 +326,49 @@ export const ja = {
       arp: 'アルペジオ',
       snare: 'スネア',
       sparkle: 'きらめき（上物）',
+    },
+  },
+  /** 機能の解放（content/unlocks.ts の message） */
+  unlocks: {
+    badge: 'NEW',
+    basic: '担当を選べるようになった',
+    speed: '早送りできるようになった',
+    utilization: '人間と AI の稼働が見えるようになった',
+    review: '「AI → 人間レビュー」が使えるようになった',
+    eval: '「AI → 自動テスト → 確認」が使えるようになった',
+    advanced: '新しい担当の任せ方が使えるようになった',
+    problems: '「次に対応すべき問題」が出るようになった',
+  },
+  /** 体験の後で明かす用語（content/glossary.ts） */
+  glossary: {
+    title: 'この仕組みの名前',
+    close: '閉じる',
+    delegation: { term: 'Delegation（委任）', plain: '人間は指示を出し、作業そのものを AI に任せること' },
+    humanInTheLoop: {
+      term: 'Human in the Loop（AIレビュー）',
+      plain: 'AI の成果物を、人間が確かめてから先へ進める仕組み',
+    },
+    eval: { term: 'Eval', plain: 'AI の成果物を自動テストで確かめ、人間より先に失敗を見つける仕組み' },
+    harnessEngineering: {
+      term: 'Harness Engineering',
+      plain: 'レビューや自動テストのように、AI が失敗しにくく、失敗しても止まれる仕組みを周りに作ること',
+    },
+  },
+  tutorial: {
+    label: 'チュートリアル',
+    skip: 'スキップ',
+    /** content/tutorial.ts のステップの say */
+    say: {
+      choose: 'この作業を誰に任せる？ 島を押して「人間」か「AI」を選ぼう',
+      aiWorking: 'AI が作業中… 人間は最初に指示を出すだけ',
+      humanWorking: '人間が作業中… 時間がかかりそう。ドックの ×2・×4 で早送りもできる',
+      aiFast: 'AI ならあっという間！ 人間の時間がほとんど浮いた。次の作業も AI に任せよう',
+      humanSlow: '人間は確実だけど時間がかかる…。次は AI に任せてみよう',
+      aiAgain: 'AI が作業中… さっきと同じく、すぐ終わるはず',
+      needReview: '品質が下がった！ AI は速いけど、結果の確認が必要みたい。次は「AI → 人間レビュー」で',
+      reviewing: 'AI の成果物を人間がレビュー中。ミスがあれば見つけて直す',
+      tryEval: '毎回人間が確認するのは大変…。自動テストに先に確かめてもらおう。「AI → 自動テスト → 確認」で',
+      evaluating: '自動テストがミスを見つけたら AI が直す。人間は最後に軽く確認するだけ',
     },
   },
   keys: {
@@ -492,6 +550,7 @@ export const ja = {
         human: '人間がすべて行う',
         ai: 'AI に任せる。人間は指示だけ',
         aiThenHumanReview: 'AI が作り、人間が確かめる',
+        aiThenEval: '自動テストが見つけたミスを AI が直す。人間は最後に確認',
         humanThenAi: '人間が判断し、AI が仕上げる',
         agentWorkflow: 'AI 同士で次の仕事へつなぐ',
       },
@@ -551,6 +610,7 @@ export const ja = {
         automation: '自動化（-6.4 人間時間）',
         autonomyStreak: 'Autonomy Streak',
         projectComplete: '案件完了',
+        unlock: '機能の解放',
       },
       timeline: 'タイムライン',
     },

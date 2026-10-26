@@ -1,14 +1,15 @@
-import { onMount } from 'solid-js';
+import { onMount, Show } from 'solid-js';
 import { textureSrcset, textureUrl } from '../../assets/registry';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import { iconButton, panel, primaryButton, SettingsIcon } from '../parts';
+import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../parts';
 
 /**
  * タイトル画面。後ろでは 3D ワールドがアイドル表示で動き（App が描く）、手前にキービジュアル（WebP）と
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
+ * チュートリアルを終えた後は「チュートリアルをもう一度」を出す（onTutorial を渡したときだけ）。
  */
-export function TitleScreen(props: { onStart: () => void; onSettings: () => void }) {
+export function TitleScreen(props: { onStart: () => void; onTutorial?: () => void; onSettings: () => void }) {
   let el!: HTMLDivElement;
   let start!: HTMLButtonElement;
   onMount(() => {
@@ -29,6 +30,13 @@ export function TitleScreen(props: { onStart: () => void; onSettings: () => void
         <button ref={start} type="button" class={`${primaryButton} min-w-48 text-lg`} onClick={() => props.onStart()}>
           {ja.screens.title.start}
         </button>
+        <Show when={props.onTutorial}>
+          {(retry) => (
+            <button type="button" data-retry-tutorial class={ghostButton} onClick={() => retry()()}>
+              {ja.screens.title.retryTutorial}
+            </button>
+          )}
+        </Show>
         <button type="button" class={iconButton} aria-label={ja.settings.open} onClick={() => props.onSettings()}>
           <SettingsIcon />
         </button>

@@ -14,6 +14,15 @@ describe('画面遷移', () => {
     expect(nextScreen(s, { type: 'ToTitle' })).toEqual(titleScreen);
   });
 
+  it('チュートリアルはタイトルから案件選択を飛ばしてプレイへ進む', () => {
+    expect(nextScreen(titleScreen, { type: 'StartTutorial', projectId: 'tutorialLp' })).toEqual({
+      id: 'play',
+      projectId: 'tutorialLp',
+    });
+    const select: Screen = { id: 'select' };
+    expect(nextScreen(select, { type: 'StartTutorial', projectId: 'tutorialLp' })).toBe(select);
+  });
+
   it('その画面で受け付けないきっかけでは遷移しない', () => {
     expect(nextScreen(titleScreen, { type: 'Complete' })).toBe(titleScreen);
     expect(nextScreen(titleScreen, { type: 'Choose', projectId: 'ecRenewal' })).toBe(titleScreen);

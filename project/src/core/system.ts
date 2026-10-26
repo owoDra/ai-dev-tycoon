@@ -1,6 +1,7 @@
 import { bottleneckSystem } from './bottleneck';
 import type { GameEvent } from './events';
 import { humanQueueSystem } from './humanQueueSystem';
+import { progressSystem } from './progress';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
 import { taskSystem, taskUnlockSystem } from './taskSystem';
@@ -32,4 +33,5 @@ export const defaultSystems: readonly System[] = [
   humanQueueSystem,
   taskUnlockSystem,
   bottleneckSystem,
+  progressSystem,
 ];

@@ -2,6 +2,7 @@ import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { content, getModel, getProject, humans } from '../content/index';
 import type { AssignModeId } from '../content/types';
+import { reduce } from '../core/commands';
 import {
   aiCost,
   deadlineMinutes,
@@ -13,7 +14,7 @@ import {
   successProbability,
 } from '../core/formulas';
 import { type ProjectScore, scoreProject } from '../core/scoring';
-import type { GameState } from '../core/state';
+import { createInitialState, type GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
 import { MINUTES_PER_HOUR } from '../core/units';
 
@@ -131,4 +132,14 @@ export function projectedProfitPerHumanHour(state: GameState, projectId: string,
   }
   const hours = human / MINUTES_PER_HOUR;
   return hours > 0 ? (def.revenue - cost) / hours : 0;
+}
+
+/**
+ * 案件を人間だけで進めた場合の Profit / Human Hour の見込み（開始直後の HUD と同じ値）。
+ * 結果画面で「人間だけの見込み → 結果」の伸びを示すのに使う
+ */
+export function baselineProfitPerHumanHour(projectId: string): number {
+  const state = reduce(createInitialState(projectId), { type: 'StartProject', projectId }).state;
+  const score = scoreProject(state, projectId);
+  return score ? projectedProfitPerHumanHour(state, projectId, score) : 0;
 }

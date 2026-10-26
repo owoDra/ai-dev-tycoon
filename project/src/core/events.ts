@@ -1,5 +1,5 @@
 import type { GameSpeed } from '../content/balance';
-import type { AssignModeId } from '../content/types';
+import type { AssignModeId, FeatureId, TermId } from '../content/types';
 import type { BottleneckRef } from './bottleneck';
 
 /**
@@ -14,8 +14,18 @@ export type GameEvent =
   /** 作業が失敗した（この時点では誰も気付いていない。レビューがあれば後で ReworkDetected になる） */
   | { readonly type: 'TaskFailed'; readonly projectId: string; readonly taskId: string }
   | { readonly type: 'ReworkDetected'; readonly projectId: string; readonly taskId: string; readonly humanId: string }
+  /** AI の自動テストが失敗を見つけた（AI がそのまま修復する） */
+  | { readonly type: 'EvalCaught'; readonly projectId: string; readonly taskId: string }
   | { readonly type: 'ProjectCompleted'; readonly projectId: string }
-  | { readonly type: 'BottleneckChanged'; readonly bottleneck: BottleneckRef | null };
+  | { readonly type: 'BottleneckChanged'; readonly bottleneck: BottleneckRef | null }
+  /** 機能が解放された（Tier 2 の演出と「NEW」バッジ） */
+  | { readonly type: 'FeatureUnlocked'; readonly feature: FeatureId }
+  /** 用語の名前を明かした（体験の後に短いカードで知らせる） */
+  | { readonly type: 'TermRevealed'; readonly term: TermId }
+  /** チュートリアルのステップが進んだ */
+  | { readonly type: 'TutorialStepChanged'; readonly stepId: string }
+  /** チュートリアルが終わった（skipped: スキップした） */
+  | { readonly type: 'TutorialEnded'; readonly skipped: boolean };
 
 /** 指定したゲーム内時刻（分）に発火させる予約済みの出来事 */
 export interface ScheduledEvent {

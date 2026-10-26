@@ -18,6 +18,7 @@ export const modeIcon: Record<AssignModeId, IconName> = {
   human: 'human',
   ai: 'ai',
   aiThenHumanReview: 'review',
+  aiThenEval: 'eval',
   humanThenAi: 'handoff',
   agentWorkflow: 'workflow',
 };

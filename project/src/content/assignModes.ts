@@ -2,7 +2,7 @@ import { ja } from '../i18n/ja';
 import { balance } from './balance';
 import type { AssignModeDef, AssignModeId, ModePhase, Stage } from './types';
 
-const { instructShare, reviewShare, judgementShare } = balance.assign;
+const { instructShare, reviewShare, judgementShare, evalShare, finalCheckShare } = balance.assign;
 
 /** 担当モード（企画書5章）。並び順は UI の選択肢の順 */
 export const assignModes: readonly AssignModeDef[] = [
@@ -32,6 +32,19 @@ export const assignModes: readonly AssignModeDef[] = [
     chains: false,
   },
   {
+    // 簡易 Eval：AI の自動テストが先に失敗を見つけて AI が直すので、人間は最後に軽く確かめるだけになる
+    // （Phase 11 で Harness 部品の Eval に置き換える）
+    id: 'aiThenEval',
+    name: ja.modes.aiThenEval,
+    steps: [
+      { actor: 'human', phase: 'instruct', effortShare: instructShare },
+      { actor: 'ai', phase: 'work', effortShare: 1 },
+      { actor: 'ai', phase: 'review', effortShare: evalShare },
+      { actor: 'human', phase: 'review', effortShare: finalCheckShare },
+    ],
+    chains: false,
+  },
+  {
     id: 'humanThenAi',
     name: ja.modes.humanThenAi,
     steps: [
@@ -52,12 +65,13 @@ export const assignModes: readonly AssignModeDef[] = [
   },
 ];
 
-/** 工程がどのボトルネック集計単位に入るか。手戻りはレビューで見つかるのでレビュー側に数える */
-export const stageOfPhase: Readonly<Record<ModePhase | 'rework', Stage>> = {
+/** 工程がどのボトルネック集計単位に入るか。手戻り（人間）と修復（AI）は確認で見つかるのでレビュー側に数える */
+export const stageOfPhase: Readonly<Record<ModePhase | 'rework' | 'repair', Stage>> = {
   instruct: 'work',
   work: 'work',
   review: 'review',
   rework: 'review',
+  repair: 'review',
 };
 
 export function getAssignMode(id: AssignModeId): AssignModeDef {

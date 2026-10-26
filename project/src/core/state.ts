@@ -1,12 +1,14 @@
 import { balance, type GameSpeed } from '../content/balance';
+import { glossary } from '../content/glossary';
 import { humans } from '../content/index';
-import type { AssignModeId, ModePhase, Stage } from '../content/types';
+import type { AssignModeId, FeatureId, ModePhase, Stage, TermId } from '../content/types';
+import { allFeatures, unlockDefs } from '../content/unlocks';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
 import { hashSeed, type RngState } from './rng';
 
-/** Task の現在の工程。rework はレビューで見つかった失敗の手戻り */
-export type TaskPhase = ModePhase | 'rework';
+/** Task の現在の工程。rework は人間のレビューで見つかった失敗の手戻り、repair は自動テストで見つかった失敗の AI による修復 */
+export type TaskPhase = ModePhase | 'rework' | 'repair';
 
 export interface Assignment {
   readonly mode: AssignModeId;
@@ -61,6 +63,12 @@ export interface QueueItem {
   readonly queuedAt: number;
 }
 
+/** 進行中のチュートリアル（台本は content/tutorial.ts） */
+export interface TutorialRun {
+  /** 今のステップの添字 */
+  readonly step: number;
+}
+
 /**
  * ゲームの全状態。JSON にそのままシリアライズできる値（数値・文字列・真偽値・配列・素のオブジェクト）だけを持つ。
  * Map・class・関数・undefined は入れない。
@@ -87,9 +95,25 @@ export interface GameState {
   readonly bottleneck: BottleneckRef | null;
   /** 発火時刻待ちの出来事（at の昇順） */
   readonly pendingEvents: readonly ScheduledEvent[];
+  /** 解放済みの機能（解放した順） */
+  readonly unlocked: readonly FeatureId[];
+  /** 名前を明かした用語（明かした順） */
+  readonly revealed: readonly TermId[];
+  /** 進行中のチュートリアル。チュートリアルでなければ null */
+  readonly tutorial: TutorialRun | null;
 }
 
-export function createInitialState(seed: string): GameState {
+export interface InitialStateOptions {
+  /** チュートリアルとして始める。start の機能だけを解放し、用語はまだ明かさない */
+  readonly tutorial?: boolean;
+}
+
+/**
+ * ゲームの初期状態。チュートリアル以外は、解放の進み具合を持ち越す仕組み（Phase 13）ができるまで、
+ * すべての機能を解放し、すべての用語を明かした状態で始める。
+ */
+export function createInitialState(seed: string, options: InitialStateOptions = {}): GameState {
+  const tutorial = options.tutorial === true;
   return {
     seed,
     rng: hashSeed(seed),
@@ -102,6 +126,9 @@ export function createInitialState(seed: string): GameState {
     humanQueues: createHumanQueues(),
     bottleneck: null,
     pendingEvents: [],
+    unlocked: tutorial ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature) : allFeatures,
+    revealed: tutorial ? [] : glossary.map((g) => g.id),
+    tutorial: tutorial ? { step: 0 } : null,
   };
 }
 

@@ -1,6 +1,6 @@
 import { type Accessor, createSignal } from 'solid-js';
 
-/** 画面。タイトル → 案件選択 → プレイ → 結果（仮）の順に進む */
+/** 画面。タイトル → 案件選択 → プレイ → 結果（仮）の順に進む。チュートリアルはタイトルから直接プレイへ進む */
 export type Screen =
   | { readonly id: 'title' }
   | { readonly id: 'select' }
@@ -12,6 +12,7 @@ export type ScreenAction =
   | { readonly type: 'Open' }
   | { readonly type: 'Back' }
   | { readonly type: 'Choose'; readonly projectId: string }
+  | { readonly type: 'StartTutorial'; readonly projectId: string }
   | { readonly type: 'Complete' }
   | { readonly type: 'Retry' }
   | { readonly type: 'ToTitle' };
@@ -27,6 +28,8 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
       return screen.id === 'select' ? titleScreen : screen;
     case 'Choose':
       return screen.id === 'select' ? { id: 'play', projectId: action.projectId } : screen;
+    case 'StartTutorial':
+      return screen.id === 'title' ? { id: 'play', projectId: action.projectId } : screen;
     case 'Complete':
       return screen.id === 'play' ? { id: 'result', projectId: screen.projectId } : screen;
     case 'Retry':

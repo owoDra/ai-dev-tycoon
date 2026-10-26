@@ -1,10 +1,11 @@
 import { assignModes } from './assignModes';
 import { models } from './models';
 import { ecRenewal } from './projects/ec-renewal';
+import { tutorialLp } from './projects/tutorial-lp';
 import type { AiWorkerDef, AssignModeDef, HumanWorkerDef, ModelDef, ProjectDef, TaskDef, WorkerDef } from './types';
 import { workers } from './workers';
 
-/** ゲームデータ一式。新しい案件は projects に足す */
+/** ゲームデータ一式。新しい案件は projects に足す（先頭はタイトル画面の後ろに映す案件） */
 export interface Content {
   readonly projects: readonly ProjectDef[];
   readonly workers: readonly WorkerDef[];
@@ -13,7 +14,7 @@ export interface Content {
 }
 
 export const content: Content = {
-  projects: [ecRenewal],
+  projects: [ecRenewal, tutorialLp],
   workers,
   models,
   assignModes,

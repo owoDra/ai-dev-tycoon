@@ -3,10 +3,10 @@ import { balance } from '../content/balance';
 import { aiCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
-import { aiActor, currentStep, finishStep, startReadyTasks } from './taskFlow';
+import { aiActor, finishStep, isAiWorking, startReadyTasks } from './taskFlow';
 
 /**
- * Task の進行。担当が決まった時点で依存が解決している Task を開始し、実行中の Task のリードタイムを数え、AI の工程を進めて完了を判定する。
+ * Task の進行。担当が決まった時点で依存が解決している Task を開始し、実行中の Task のリードタイムを数え、AI の工程（と修復）を進めて完了を判定する。
  * AI Worker は複数の Task を同時に処理できる（同時実行数の制限は Phase 13 の Seat で入れる）。
  * 人間の工程は humanQueueSystem が進める。
  */
@@ -21,7 +21,7 @@ export const taskSystem: System = (state, ctx) => {
       if (run?.status !== 'running' || !run.phase) continue;
       const stage = stageOfPhase[run.phase];
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, lead: { ...r.lead, [stage]: r.lead[stage] + tick } }));
-      if (currentStep(run)?.actor !== 'ai') continue;
+      if (!isAiWorking(run)) continue;
       const cost = aiCost(tick, aiActor(run).model);
       next = updateTask(next, projectId, taskId, (r) => ({
         ...r,

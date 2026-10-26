@@ -85,6 +85,10 @@ export interface LayoutFlow {
   toastDismissible: boolean;
   /** シートを閉じる操作 */
   dismiss: readonly DismissGesture[];
+  /** 用語のカード（体験の後に名前を明かす）を出しておく時間（ms）。閉じるボタンでも閉じられる */
+  termCardMs: number;
+  /** チュートリアルのスポットライトの、照らす対象からの余白（px） */
+  coachPadding: number;
 }
 
 export interface UiLayout {
@@ -120,6 +124,8 @@ export const uiLayout: UiLayout = {
     focusZoom: 1.4,
     toastDismissible: true,
     dismiss: ['esc', 'closeButton', 'emptyClick', 'swipeDown'],
+    termCardMs: 9000,
+    coachPadding: 10,
   },
 };
 

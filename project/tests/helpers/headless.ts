@@ -17,6 +17,8 @@ export interface HeadlessOptions {
   readonly until: number;
   /** 既定は core の defaultSystems */
   readonly systems?: readonly System[];
+  /** 始める state。既定は createInitialState(seed) */
+  readonly initial?: GameState;
 }
 
 export interface HeadlessResult {
@@ -28,9 +30,15 @@ export interface HeadlessResult {
  * 画面なしでゲームを進める。Command は指定時刻に到達した時点で適用する。
  * 一時停止したままだと時計が進まないため、その時点で打ち切る。
  */
-export function runHeadless({ seed, commands = [], until, systems = defaultSystems }: HeadlessOptions): HeadlessResult {
+export function runHeadless({
+  seed,
+  commands = [],
+  until,
+  systems = defaultSystems,
+  initial,
+}: HeadlessOptions): HeadlessResult {
   const queue = commands.map((c, i) => ({ ...c, i })).sort((a, b) => a.at - b.at || a.i - b.i);
-  let state = createInitialState(seed);
+  let state = initial ?? createInitialState(seed);
   const events: GameEvent[] = [];
   let q = 0;
 

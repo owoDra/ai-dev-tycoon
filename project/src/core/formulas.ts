@@ -50,9 +50,15 @@ export function reworkMinutes(task: TaskDef, skill: number): number {
   return (task.effort * balance.assign.reworkShare) / skill;
 }
 
+/** 自動テストで失敗が見つかったときに AI が修復する時間（分）。手戻りと同じ量を AI の速度で処理する */
+export function repairMinutes(task: TaskDef, model: ModelDef): number {
+  return (task.effort * balance.assign.reworkShare) / model.speed;
+}
+
 /**
  * 人間の拘束時間の見込み（分）。モードの人間の工程の合計に、
- * レビューがあるモードでは AI の失敗確率 × 手戻り時間を足す（連鎖による指示出しの省略は考えない）。
+ * 人間のレビューでは、それまでに残っている失敗の確率 × 手戻り時間を足す。
+ * AI の自動テストは失敗を見つけて AI が直すので、それ以降に残る失敗はなくなる（連鎖による指示出しの省略は考えない）。
  */
 export function expectedHumanMinutes(task: TaskDef, mode: AssignModeDef, skill: number, model: ModelDef): number {
   const human: ActorProfile = { kind: 'human', skill };
@@ -62,7 +68,9 @@ export function expectedHumanMinutes(task: TaskDef, mode: AssignModeDef, skill: 
   for (const step of mode.steps) {
     if (step.actor === 'human') minutes += stepMinutes(task, step, human);
     if (step.phase === 'work') pAllOk *= successProbability(task, step.actor === 'human' ? human : ai);
-    if (step.phase === 'review') minutes += (1 - pAllOk) * reworkMinutes(task, skill);
+    if (step.phase !== 'review') continue;
+    if (step.actor === 'human') minutes += (1 - pAllOk) * reworkMinutes(task, skill);
+    pAllOk = 1;
   }
   return minutes;
 }

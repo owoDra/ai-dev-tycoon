@@ -1,19 +1,22 @@
-import { agentModels, humanModels, type ModelId } from '../assets/catalog';
+import { agentModels, humanModels, incidentModels, type ModelId } from '../assets/catalog';
 import { getAssignMode } from '../content/assignModes';
 import { getHuman, getProject, getTask, humans } from '../content/index';
 import {
   type AgentRole,
   agentRoleByTask,
+  defaultWorldLookId,
   type Expression,
   fallbackAgentRole,
   humanLookByWorker,
   humanLooks,
   type WorldLook,
+  type WorldRewardLook,
+  worldLooks,
 } from '../content/look/world';
-import type { Stage } from '../content/types';
+import type { IncidentId, Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
 import { type ActorProfile, reworkMinutes, stepMinutes } from '../core/formulas';
-import { equippedParts } from '../core/harness';
+import { equippedParts, harnessModifiers } from '../core/harness';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
 import { ja } from '../i18n/ja';
@@ -107,6 +110,14 @@ export interface PacketView {
   readonly place: PacketPlace;
 }
 
+/** 事件の「バグ生物」。事件の起きた Task の島に出る */
+export interface IncidentBugView {
+  readonly id: EntityId;
+  readonly incident: IncidentId;
+  readonly islandId: EntityId;
+  readonly model: ModelId;
+}
+
 export interface WorldViewModel {
   readonly projectId: string;
   readonly started: boolean;
@@ -118,6 +129,56 @@ export interface WorldViewModel {
   readonly bottleneck: { readonly entityId: EntityId; readonly intensity: number } | null;
   /** 自動化レーンに変わったコンベア（Workflow で前後の Task が AI どうしでつながる区間）の id */
   readonly lanes: readonly string[];
+  /** 発生中の事件のバグ生物 */
+  readonly incidents: readonly IncidentBugView[];
+  /** 整理度（0〜1、企画書61章）。良い業務設計ほどオフィスが明るく整う */
+  readonly tidiness: number;
+}
+
+/** 発生中の事件のうち、この案件のもの */
+export function incidentBugs(state: GameState, projectId: string): IncidentBugView[] {
+  return state.incidents
+    .filter((r) => r.projectId === projectId)
+    .map((r) => ({
+      id: `incident:${r.id}:${r.workerId}`,
+      incident: r.id,
+      islandId: islandId(r.taskId),
+      model: incidentModels[r.id],
+    }));
+}
+
+/**
+ * 整理度（0〜1、企画書61章「良い業務設計をすると画面自体が綺麗になる」）。
+ * 人間の仕事が減って（AI に任せた仕事の割合）、AI の仕事がレビューや Eval で守られている（確認のある割合）ほど高く、
+ * 発生中の事件があると下がる。割合は Task の作業量で数え、担当が決まっていない Task は人間の仕事とみなす
+ */
+export function tidinessOf(
+  state: GameState,
+  projectId: string,
+  reward: Pick<WorldRewardLook, 'automatedWeight' | 'validatedWeight' | 'incidentPenalty'>,
+): number {
+  const run = state.projects[projectId];
+  if (!run) return 0;
+  let total = 0;
+  let automated = 0;
+  let validated = 0;
+  for (const task of getProject(projectId).tasks) {
+    total += task.effort;
+    const assignment = run.tasks[task.id]?.assignment;
+    if (!assignment) continue;
+    const mode = getAssignMode(assignment.mode);
+    if (!mode.steps.some((s) => s.actor === 'ai')) continue;
+    automated += task.effort;
+    const checked =
+      mode.steps.some((s) => s.phase === 'review') || harnessModifiers(state, assignment.workerId, task).evalCatch > 0;
+    if (checked) validated += task.effort;
+  }
+  if (total === 0) return 0;
+  const incidents = state.incidents.filter((r) => r.projectId === projectId).length;
+  const score =
+    (reward.automatedWeight * automated + reward.validatedWeight * validated) / total -
+    reward.incidentPenalty * incidents;
+  return Math.min(1, Math.max(0, score));
 }
 
 /** 前後の Task がどちらも連鎖するモード（Agent Workflow）なら、その間のコンベアは自動化レーン */
@@ -132,7 +193,7 @@ export function automatedLanes(state: GameState, projectId: string): string[] {
   );
 }
 
-export type WorldViewLook = Pick<WorldLook, 'flow' | 'bottleneck' | 'character'>;
+export type WorldViewLook = Pick<WorldLook, 'flow' | 'bottleneck' | 'character'> & Partial<Pick<WorldLook, 'reward'>>;
 
 /** 実行中の Task の進み具合（0〜1）。工程の数で等分し、現在の工程の中は残り時間で補う */
 export function taskProgress(state: GameState, projectId: string, taskId: string, run: TaskRun): number {
@@ -306,6 +367,8 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
     bottleneck:
       bottleneckEntity && intensity >= look.bottleneck.threshold ? { entityId: bottleneckEntity, intensity } : null,
     lanes: automatedLanes(state, projectId),
+    incidents: incidentBugs(state, projectId),
+    tidiness: tidinessOf(state, projectId, look.reward ?? worldLooks[defaultWorldLookId].reward),
   };
 }
 

@@ -285,33 +285,72 @@ export type ContextStatId = 'resets' | 'handoffResets' | 'incidents' | 'resolved
 /** Context の読み取り値（core/context.ts の ContextReading）のうち、事件の発生条件に使える値 */
 export type ContextMetric = 'fill' | 'noise' | 'stale' | 'conflicts';
 
-export type IncidentId = 'contextOverflow' | 'staleContext' | 'instructionConflict';
+/**
+ * 事件の発生条件に使える読み取り値（core/incidents.ts の IncidentReading）。Context の値に加えて、
+ * retries: 今の Task で失敗を見つけて直した回数（Task が終われば 0）/ streak: AI Worker の Autonomy Streak（分）/
+ * unvalidated: AI の作業の後に確認が何もない（レビューの工程も Eval もない）なら 1 / subagents: 装着している Subagent の数 /
+ * humanQueue: この AI Worker の仕事で、人間の手が空くのを待っている件数
+ */
+export type IncidentMetric = ContextMetric | 'retries' | 'streak' | 'unvalidated' | 'subagents' | 'humanQueue';
 
-/** 事件の解決アクション。ResolveIncident の Command で、事件の起きた AI Worker の Session に順に適用する */
+/**
+ * 事件の発生を判定する時点。aiWork: AI が作業を始める / repair: AI が見つかった失敗の修復を始める /
+ * humanCheck: AI の仕事が人間の指示出し・確認に回る
+ */
+export type IncidentMoment = 'aiWork' | 'repair' | 'humanCheck';
+
+export type IncidentId =
+  | 'contextOverflow'
+  | 'staleContext'
+  | 'instructionConflict'
+  | 'retrySpiral'
+  | 'agentDrift'
+  | 'missingValidation'
+  | 'coordinationExplosion'
+  | 'humanBottleneck';
+
+/** 事件の解決アクション。ResolveIncident の Command で、事件の起きた AI Worker の Session と Harness に順に適用する */
 export type IncidentAction =
   | { readonly type: 'SetContextFeed'; readonly feed: ContextFeed }
   | { readonly type: 'NewSession' }
   /** stale: 古い仕様を外す / conflicting: 矛盾するルールを外す */
-  | { readonly type: 'DropDocs'; readonly which: 'stale' | 'conflicting' };
+  | { readonly type: 'DropDocs'; readonly which: 'stale' | 'conflicting' }
+  /** 部品を装着する。parts のうち事件の Task に効く最初の部品（どれも効かなければ先頭）。初めてなら導入コストを払う */
+  | { readonly type: 'EquipPart'; readonly parts: readonly string[] }
+  /** カテゴリの部品を keep 個まで減らす（後から付けたものから外す） */
+  | { readonly type: 'TrimParts'; readonly category: HarnessCategory; readonly keep: number };
 
 /**
- * 事件（企画書19章）。AI が作業を始めるたびに、その Session の Context の読み取り値から発生確率を計算する。
- * 発生した事件は、解決するまで（または条件を満たさなくなるまで）その Session の AI の作業に影響する。文言は i18n の ja.incidents
+ * 事件（企画書19章）。moment の時点で、読み取り値から発生確率を計算する。
+ * 発生した事件は、解決するまで（または条件を満たさなくなるまで）その AI Worker の作業に影響する。文言は i18n の ja.incidents
  */
 export interface IncidentDef {
   readonly id: IncidentId;
+  readonly moment: IncidentMoment;
   /** 発生確率 = min(max, perUnit × (読み取り値 metric − threshold))。metric が threshold 以下なら起きず、起きていれば解消する */
   readonly trigger: {
-    readonly metric: ContextMetric;
+    readonly metric: IncidentMetric;
     readonly threshold: number;
     readonly perUnit: number;
     readonly max: number;
   };
-  /** 影響。成功確率から引く量と、AI の作業時間の倍率 */
-  readonly effect: { readonly successPenalty: number; readonly aiTimeFactor: number };
+  /**
+   * 防ぐ部品のカテゴリ。これらのカテゴリの、強制する（お願いでない）部品が事件の Task に効いていれば起きず、起きていれば解消する
+   */
+  readonly guard?: readonly HarnessCategory[];
+  /**
+   * 影響。成功確率から引く量、AI の作業時間の倍率、AI の仕事での人間の指示出し・確認の時間の倍率
+   */
+  readonly effect: {
+    readonly successPenalty: number;
+    readonly aiTimeFactor: number;
+    readonly humanTimeFactor: number;
+  };
   readonly resolve: readonly IncidentAction[];
+  /** この機能が解放されるまでは起きない（チュートリアルや、まだ解決の手段を持たないうちは出さない） */
+  readonly unlock: FeatureId;
   /** 表示に使うアイコン */
-  readonly icon: 'context' | 'warning' | 'session';
+  readonly icon: 'context' | 'warning' | 'session' | 'eval' | 'hook' | 'subagent' | 'review' | 'bottleneck';
 }
 
 /** Harness 部品のカテゴリ（企画書13〜18章・10章の Context Router） */

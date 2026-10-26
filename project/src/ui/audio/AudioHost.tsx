@@ -6,7 +6,7 @@ import { momentum } from '../../audio/music/intensity';
 import { screenPan } from '../../audio/notes';
 import { musicMomentum, type SongId } from '../../content/music';
 import { audioRules, eventSfx } from '../../content/sfx';
-import { momentumInput } from '../../view/audio';
+import { momentumInput, streakActive } from '../../view/audio';
 import { islandId } from '../../view/world';
 import type { World } from '../../world/index';
 import { installUiSounds } from './uiSounds';
@@ -73,8 +73,10 @@ export function AudioHost(props: {
     const projectId = props.projectId;
     if (!projectId) {
       audio.setMomentum(0);
+      audio.setStreak(false);
       return;
     }
+    audio.setStreak(streakActive(props.store.state()));
     const now = performance.now();
     recent = recent.filter((t) => now - t <= musicMomentum.recentWindowMs);
     audio.setMomentum(

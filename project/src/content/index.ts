@@ -6,6 +6,7 @@ import { models } from './models';
 import { corporateSite } from './projects/corporate-site';
 import { ecRenewal } from './projects/ec-renewal';
 import { paymentFix } from './projects/payment-fix';
+import { saasFeature } from './projects/saas-feature';
 import { tutorialLp } from './projects/tutorial-lp';
 import type {
   AiWorkerDef,
@@ -33,7 +34,7 @@ export interface Content {
 }
 
 export const content: Content = {
-  projects: [ecRenewal, paymentFix, corporateSite, tutorialLp],
+  projects: [ecRenewal, paymentFix, corporateSite, saasFeature, tutorialLp],
   workers,
   models,
   assignModes,

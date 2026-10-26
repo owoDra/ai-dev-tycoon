@@ -1,5 +1,5 @@
 {
-  "inputHash": "74380e5ad42164007c9c6378e2b50250c078333fad8862338fdf73b7cfe792ba",
+  "inputHash": "1657a9339375d718870108d5d638cb69e22ea4942ad9ec85191c5e4bfb1ba49e",
   "outputs": {
     "src/styles/tokens.css": "149be1ab0007b21d00bba832a911d32cd97dbf72df38c381ebd7f09d3ae2d40f",
     "src/assets/generated/title-key@1x.webp": "84513c85edf6afe39d99ade1dddaa8d36cdf6f65366623be9f54d6787aeeb203",
@@ -28,6 +28,14 @@
     "src/assets/generated/conveyor.glb": "5e9e15559ba844475c38dc83dfe3de89e68751c30e87885c86ce66c91cb19c23",
     "src/assets/generated/packet.glb": "ddb9400fc49fba99193316b2c792f93fd940f3033f858e62250daab092db89a0",
     "src/assets/generated/plant.glb": "81737d94b6497e8b94b59513561dca20f7582e24eb725882efa1354f5ffbd96f",
-    "src/assets/generated/server-rack.glb": "049b16a98ffcb80d694c650bb5a4e704ffb703ee09447a4c828253bb3f008819"
+    "src/assets/generated/server-rack.glb": "049b16a98ffcb80d694c650bb5a4e704ffb703ee09447a4c828253bb3f008819",
+    "src/assets/generated/bug-context-overflow.glb": "021a81274512a1cf8223d4721a6c8d10a673966ed6d1fb4f8af732975945a471",
+    "src/assets/generated/bug-stale-context.glb": "a17b5377d007d7e72452bad0efb99ef2668eb7fb24467ef91e4816766f181e3e",
+    "src/assets/generated/bug-instruction-conflict.glb": "3beedc264e355ef402d0a5322992b3527eddb280e8619529efd3edbeca4c0dbc",
+    "src/assets/generated/bug-retry-spiral.glb": "39bb7532fdf4555ff3680ccd01ca4af2d2ebd262cb7a54888f931c5c30b9071a",
+    "src/assets/generated/bug-agent-drift.glb": "fa4098d4f87b46c97ed176ae0f294e2a0c2cca1a08bfb5090aa3ddf94063ddff",
+    "src/assets/generated/bug-missing-validation.glb": "b0c31939d98717e885bf4d7f132fb61b544582ab6194c6d7429073e6c5e7b8c7",
+    "src/assets/generated/bug-coordination-explosion.glb": "a719ac6d93375b7cc04b6ec876af7926a6f5759489764c1144cefade342cd79d",
+    "src/assets/generated/bug-human-bottleneck.glb": "3dcb8bf0f5f9d35c60198fbf46777befa7a146a7195be39dd33b5a2308c1307f"
   }
 }

@@ -6,9 +6,12 @@ import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layou
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature, unlockDefs } from '../../content/unlocks';
+import type { BottleneckRef } from '../../core/bottleneck';
+import { getIncidentDef } from '../../core/incidents';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
+import { type BottleneckMove, bottleneckMove, stageRows } from '../../view/bottleneck';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
@@ -19,6 +22,7 @@ import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
 import type { Selection } from '../selection';
+import { BottleneckGuide } from './BottleneckGuide';
 import { ContextSheet } from './ContextSheet';
 import { DetailSheet } from './DetailSheet';
 import { Dock } from './Dock';
@@ -105,8 +109,9 @@ export function PlayScreen(props: {
         }
         if (e.type === 'IncidentStarted' && e.projectId === props.projectId) {
           const name = ja.incidents[e.incident].name;
-          notices.push({ text: ja.notices.incident(name), icon: 'warning', tone: 'danger' });
+          notices.push({ text: ja.notices.incident(name), icon: getIncidentDef(e.incident).icon, tone: 'danger' });
         }
+        if (e.type === 'BottleneckChanged') showBottleneckMove(e.bottleneck);
         if (e.type === 'IncidentResolved') {
           notices.push({ text: ja.notices.incidentResolved(ja.incidents[e.incident].name), icon: 'success' });
         }
@@ -149,6 +154,27 @@ export function PlayScreen(props: {
       }
     }),
   );
+
+  // ボトルネックの移動の案内（企画書20章）。core の BottleneckChanged で移った先を覚え、
+  // ワールドでその場所に輪が出る（目立たせる大きさになる）ときに案内する。小さな詰まりでは出さない
+  const [move, setMove] = createSignal<BottleneckMove | null>(null);
+  const [compare, setCompare] = createSignal(false);
+  let guided: BottleneckRef | null = null;
+  let pending: BottleneckRef | null = null;
+  const showBottleneckMove = (to: BottleneckRef | null) => {
+    pending = to;
+  };
+  const ringAt = createMemo(() => props.vm()?.bottleneck?.entityId ?? null);
+  createEffect(() => {
+    const entity = ringAt();
+    const state = props.store.state();
+    if (!entity || !pending || state.tutorial || !isUnlocked(state, 'problems')) return;
+    const next = bottleneckMove(props.projectId, guided, pending);
+    if (!next || next.entityId !== entity) return;
+    guided = pending;
+    setMove(next);
+  });
+  const rows = createMemo(() => (move() && compare() ? stageRows(props.store.state(), props.projectId) : []));
 
   // Context と Harness Builder のシート。詳細のシートと同じ場所に出すので、どれか1つだけを開く
   const [contextOpen, setContextOpen] = createSignal(false);
@@ -289,8 +315,29 @@ export function PlayScreen(props: {
             props.store.dispatch({ type: 'ResolveIncident', incident: p.incident.id, workerId: p.incident.workerId });
           }
         }}
-        onContext={openContext}
+        onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
       />
+      <Show when={move()}>
+        {(m) => (
+          <BottleneckGuide
+            move={m()}
+            rows={rows()}
+            world={props.world?.()}
+            compact={form().compact}
+            bottom={sheetBottom() + SHEET_OVERLAP + 8}
+            compare={compare()}
+            onCompare={setCompare}
+            onGo={(entityId) => {
+              select(entityId);
+              focusCamera(entityId);
+            }}
+            onClose={() => {
+              setMove(null);
+              setCompare(false);
+            }}
+          />
+        )}
+      </Show>
       <NoticeHost notices={notices.list()} compact={form().compact} />
       <Presence when={detail()} enter={false} class="pointer-events-auto">
         {(d) => (

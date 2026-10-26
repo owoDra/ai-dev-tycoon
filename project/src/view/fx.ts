@@ -23,6 +23,11 @@ export interface FxContext {
   readonly projectId: string;
   /** いまボトルネックとして示している島やキャラクター（WorldViewModel.bottleneck） */
   readonly bottleneckEntity: EntityId | null;
+  /**
+   * 解決の直前まで出ていた事件の島（`<事件>:<AI Worker>` → 島）。IncidentResolved には島がないので、直前の ViewModel から引く。
+   * この案件の事件だけが載る
+   */
+  readonly incidentIslands?: Readonly<Record<string, EntityId>>;
 }
 
 /**
@@ -48,7 +53,9 @@ export function savedHumanHours(projectId: string, taskId: string, modeId: Assig
  * - 自動テストが失敗を発見 → autoRepair（AI がそのまま直す）
  * - 機能の解放 → unlock（「NEW」バッジと一緒に出す）
  * - Harness の変更で人間時間の見込みが大きく減る → automation（企画書35章：効果が大きい場合は Tier 3）
- * - Harness の事故 → incident
+ * - Harness の事故・事件の発生 → incident（事件の起きた島）
+ * - 事件の解決 → incidentResolved（島のバグ生物が弾けて消える）
+ * - Autonomy Streak がしきい値を越えた → autonomyStreak（Tier 4。越えた分数を大きな数字で出す）
  * - 案件の納品 → projectComplete（同じ回のほかの大きな演出より優先されるのは director が決める）
  */
 export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSignal[] {
@@ -85,6 +92,17 @@ export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSigna
         break;
       case 'HarnessAccident':
         if (e.projectId === ctx.projectId) out.push({ kind: 'incident', entityId: islandId(e.taskId) });
+        break;
+      case 'IncidentStarted':
+        if (e.projectId === ctx.projectId) out.push({ kind: 'incident', entityId: islandId(e.taskId) });
+        break;
+      case 'IncidentResolved': {
+        const at = ctx.incidentIslands?.[`${e.incident}:${e.workerId}`];
+        if (at) out.push({ kind: 'incidentResolved', entityId: at });
+        break;
+      }
+      case 'AutonomyMilestone':
+        out.push({ kind: 'autonomyStreak', entityId: null, amount: e.minutes });
         break;
       case 'FeatureUnlocked':
         out.push({ kind: 'unlock', entityId: null });

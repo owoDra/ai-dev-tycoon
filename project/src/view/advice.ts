@@ -50,11 +50,12 @@ export function adviseProblems(
     .filter((r) => r.projectId === projectId)
     .map((r) => {
       const text = ja.incidents[r.id];
+      const def = getIncidentDef(r.id);
       return {
         id: `incident:${r.id}:${r.workerId}`,
         kind: 'incident',
         severity: 'danger',
-        icon: getIncidentDef(r.id).icon,
+        icon: def.icon,
         entityId: islandId(r.taskId),
         problem: text.problem,
         cause: text.cause,
@@ -85,6 +86,13 @@ export function adviseProblems(
     });
   }
   return out;
+}
+
+/** 事件を詳しく見るシート。解決アクションが Harness 部品を変えるなら Harness Builder、それ以外は Context */
+export function incidentSheet(id: IncidentId): 'context' | 'harness' {
+  return getIncidentDef(id).resolve.some((a) => a.type === 'EquipPart' || a.type === 'TrimParts')
+    ? 'harness'
+    : 'context';
 }
 
 /** 最も重要な問題を1つ。なければ null */

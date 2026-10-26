@@ -2,6 +2,7 @@ import { getAssignMode, primaryActor } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { getAiWorker, getHuman, getProject, getTask, humans } from '../content/index';
 import type { HarnessModifiers, ModeStep, TaskDef } from '../content/types';
+import { intervene } from './autonomy';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
 import { aiSuccessWithContext, aiWorkTime } from './contextWork';
 import {
@@ -14,7 +15,7 @@ import {
   successProbability,
 } from './formulas';
 import { evalMinutes, harnessModel, harnessModifiers, harnessSuccess, harnessToolMiss, requestParts } from './harness';
-import { rollIncidents } from './incidents';
+import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
 import { forcedAiOutcome } from './tutorial';
@@ -58,12 +59,14 @@ export function aiActor(state: GameState, run: TaskRun, task: TaskDef): ActorPro
 }
 
 /**
- * AI の作業の成功確率。Model の能力に、Context（資料のある案件）と Harness の補正を入れる。
+ * AI の作業の成功確率。Model の能力に、Context（資料のある案件）・発生中の事件と Harness の補正を入れる。
  */
 function aiSuccess(state: GameState, run: TaskRun, projectId: string, task: TaskDef): number {
-  let p = successProbability(task, aiActor(state, run, task));
-  if (contextApplies(projectId)) p = aiSuccessWithContext(state, run.assignment?.workerId ?? '', projectId, task.id, p);
-  return harnessSuccess(p, runModifiers(state, run, task));
+  const p = successProbability(task, aiActor(state, run, task));
+  return harnessSuccess(
+    aiSuccessWithContext(state, run.assignment?.workerId ?? '', projectId, task.id, p),
+    runModifiers(state, run, task),
+  );
 }
 
 /** 今回の作業で、お願いの部品が守られるかを確率で決める（企画書14章）。お願いがなければ乱数を引かない */
@@ -141,17 +144,23 @@ export function enterStep(
     const current = runOf(next, projectId, taskId);
     let remaining = stepMinutes(task, step, aiActor(next, current, task));
     if (step.phase === 'work') {
-      if (contextApplies(projectId)) next = rollIncidents(next, run.assignment.workerId, projectId, taskId, ctx);
+      next = rollIncidents(next, 'aiWork', run.assignment.workerId, projectId, taskId, ctx);
       remaining = contextWorkMinutes(next, current, projectId, task, remaining, ctx);
     }
     return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining }));
   }
   const humanId = chooseHuman(state, run);
   let remaining = stepMinutes(task, step, { kind: 'human', skill: getHuman(humanId).skill });
-  // AI が関わる Task の指示出しと確認は、人間の介入。Harness の補正で軽くなる（重くもなる）
+  // AI が関わる Task の指示出しと確認は、人間の介入（Autonomy Streak が途切れる）。Harness の補正で軽くなり（重くもなり）、
+  // 人間の確認待ちの事件（Human Bottleneck）が起きていれば重くなる
   const intervention = isIntervention(step) && usesAi(run);
-  if (intervention) remaining *= harnessModifiers(state, run.assignment.workerId, task).humanTime;
-  const next = updateTask(state, projectId, taskId, (r) => ({
+  let base = state;
+  if (intervention) {
+    const workerId = run.assignment.workerId;
+    remaining *= harnessModifiers(state, workerId, task).humanTime * incidentEffects(state, workerId).humanTimeFactor;
+    base = intervene(state, workerId);
+  }
+  let next = updateTask(base, projectId, taskId, (r) => ({
     ...r,
     stepIndex: i,
     phase: step.phase,
@@ -159,7 +168,8 @@ export function enterStep(
     humanId,
     interventions: r.interventions + (intervention ? 1 : 0),
   }));
-  return enqueue(next, humanId, projectId, taskId, false);
+  next = enqueue(next, humanId, projectId, taskId, false);
+  return intervention ? rollIncidents(next, 'humanCheck', run.assignment.workerId, projectId, taskId, ctx) : next;
 }
 
 const usesAi = (run: TaskRun) => run.assignment !== null && primaryActor(getAssignMode(run.assignment.mode)) === 'ai';
@@ -179,7 +189,7 @@ function contextWorkMinutes(
   const model = aiActor(state, run, task).model;
   const time = aiWorkTime(state, run.assignment?.workerId ?? '', projectId, task, model);
   const harnessMiss = harnessToolMiss(runModifiers(state, run, task));
-  if (!contextApplies(projectId) && harnessMiss === 0) return minutes;
+  if (!contextApplies(projectId) && harnessMiss === 0) return minutes * time.factor;
   const chance = harnessMiss === 0 ? time.toolMissChance : 1 - (1 - time.toolMissChance) * (1 - harnessMiss);
   const toolMiss = ctx.rng.chance(chance) ? 1 + balance.context.toolMissExtra : 1;
   return minutes * toolMiss * time.factor + time.extraMinutes;
@@ -218,15 +228,7 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
 
   if (step.phase === 'review' && run.defect && step.actor === 'ai') {
     ctx.emit({ type: 'EvalCaught', projectId, taskId });
-    const task = getTask(projectId, taskId);
-    const remaining = repairMinutes(task, aiActor(state, run, task).model);
-    return updateTask(state, projectId, taskId, (r) => ({
-      ...r,
-      phase: 'repair',
-      remaining,
-      defect: false,
-      reworks: r.reworks + 1,
-    }));
+    return enterRepair(state, projectId, taskId, 'repair', ctx);
   }
 
   if (step.phase === 'review' && run.defect && run.humanId) {
@@ -234,7 +236,8 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     ctx.emit({ type: 'ReworkDetected', projectId, taskId, humanId });
     const intervention = usesAi(run) ? 1 : 0;
     const remaining = reworkMinutes(getTask(projectId, taskId), getHuman(humanId).skill);
-    const next = updateTask(state, projectId, taskId, (r) => ({
+    const base = intervention && run.assignment ? intervene(state, run.assignment.workerId) : state;
+    const next = updateTask(base, projectId, taskId, (r) => ({
       ...r,
       phase: 'rework',
       remaining,
@@ -296,14 +299,33 @@ function finishEval(state: GameState, projectId: string, taskId: string, ctx: Sy
   const catchRate = runModifiers(state, run, task).evalCatch;
   if (!run.defect || !ctx.rng.chance(catchRate)) return enterStep(state, projectId, taskId, run.stepIndex + 1, ctx);
   ctx.emit({ type: 'EvalCaught', projectId, taskId });
-  const remaining = repairMinutes(task, aiActor(state, run, task).model);
-  return updateTask(state, projectId, taskId, (r) => ({
+  return enterRepair(state, projectId, taskId, 'evalRepair', ctx);
+}
+
+/**
+ * AI が見つかった失敗の修復に入る（自動テストの後の repair、Eval の後の evalRepair）。
+ * 修復を繰り返すと事件（Retry Spiral）が起きることがあり、発生中の事件は修復も遅くする
+ */
+function enterRepair(
+  state: GameState,
+  projectId: string,
+  taskId: string,
+  phase: 'repair' | 'evalRepair',
+  ctx: SystemContext,
+): GameState {
+  const run = runOf(state, projectId, taskId);
+  const task = getTask(projectId, taskId);
+  const workerId = run.assignment?.workerId ?? '';
+  const remaining =
+    repairMinutes(task, aiActor(state, run, task).model) * incidentEffects(state, workerId).aiTimeFactor;
+  const next = updateTask(state, projectId, taskId, (r) => ({
     ...r,
-    phase: 'evalRepair',
+    phase,
     remaining,
     defect: false,
     reworks: r.reworks + 1,
   }));
+  return rollIncidents(next, 'repair', workerId, projectId, taskId, ctx);
 }
 
 /** 修復を終えた。修復も失敗しうるので、上限まではもう一度検証する（Repair → Eval） */

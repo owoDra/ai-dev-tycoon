@@ -1,5 +1,13 @@
 import type { SoundPalette } from '../../content/look/sound';
-import { type MusicLayerId, musicEnvelopes, musicRules, type Song, type SongId, songs } from '../../content/music';
+import {
+  type MusicLayerId,
+  musicEnvelopes,
+  musicRules,
+  type Song,
+  type SongId,
+  songLayers,
+  songs,
+} from '../../content/music';
 import type { SfxEnvelope } from '../../content/sfx';
 import { midiToHz, type VoiceNote } from '../notes';
 import { playVoice } from '../synth/index';
@@ -16,6 +24,8 @@ export interface MusicPlayer {
   /** いまの（滑らかにした後の）勢いと段階 */
   readonly momentum: () => number;
   readonly stage: () => number;
+  /** AUTONOMY STREAK の間だけのレイヤーを足すか */
+  setStreak(on: boolean): void;
   /** 開発用：段階を固定する（null で勢いに従う） */
   forceStage(stage: number | null): void;
   /** 開発用：鳴らさないレイヤー */
@@ -38,7 +48,7 @@ export function swingOffset(step: number, stepDur: number, swing: number): numbe
 
 /** 楽曲の1音を鳴らせる形にする */
 function toVoice(note: MusicNote, song: Song, palette: SoundPalette, gain: number, pan: number, send: number) {
-  const shape = musicEnvelopes[song.layers.find((l) => l.id === note.layer)?.kind ?? 'drum'];
+  const shape = musicEnvelopes[songLayers(song).find((l) => l.id === note.layer)?.kind ?? 'drum'];
   const seconds = note.len * stepSeconds(songTempo(song, palette), song.stepsPerBeat);
   const hold = Math.max(0, seconds - shape.attack - shape.decay);
   const env: SfxEnvelope = { ...shape, hold: shape.sustain > 0 ? hold : 0 };
@@ -74,6 +84,7 @@ export function createMusicPlayer(
   let tempo = 0;
   const layerGains = new Map<MusicLayerId, GainNode>();
   let active = new Set<MusicLayerId>();
+  let streak = false;
 
   const layerGain = (id: MusicLayerId) => {
     let g = layerGains.get(id);
@@ -95,7 +106,7 @@ export function createMusicPlayer(
   /** 段階に合わせてレイヤーの音量をフェードする */
   const updateLayers = () => {
     const song = songId ? songs[songId] : null;
-    const next = new Set(song ? activeLayers(song, stage()).filter((id) => !muted.has(id)) : []);
+    const next = new Set(song ? activeLayers(song, stage(), streak).filter((id) => !muted.has(id)) : []);
     const now = ctx.currentTime;
     for (const id of new Set([...active, ...next])) {
       const on = next.has(id);
@@ -116,7 +127,7 @@ export function createMusicPlayer(
       const p = palette();
       const at = time + swingOffset(step, stepSeconds(songTempo(song, p), song.stepsPerBeat), p.music.swing);
       for (const note of stepNotes(song, step, active)) {
-        const layer = song.layers.find((l) => l.id === note.layer);
+        const layer = songLayers(song).find((l) => l.id === note.layer);
         if (!layer) continue;
         const voice = toVoice(note, song, p, layer.gain, layer.pan ?? 0, layer.send ?? 0);
         playVoice(ctx, { dry: layerGain(note.layer), send: reverb }, voice, at);
@@ -155,6 +166,11 @@ export function createMusicPlayer(
     },
     setMomentum(v) {
       target = Math.min(1, Math.max(0, v));
+    },
+    setStreak(on) {
+      if (on === streak) return;
+      streak = on;
+      updateLayers();
     },
     momentum: () => value,
     stage,

@@ -13,6 +13,30 @@ export interface Bottleneck {
   readonly minutes: number;
 }
 
+export type StageRef = Extract<BottleneckRef, { readonly kind: 'stage' }>;
+
+/** 工程（Task の作業 / レビュー）ごとの時間 */
+export interface StageTime {
+  readonly ref: StageRef;
+  /** 待ち時間を含むリードタイムの累計（分） */
+  readonly minutes: number;
+}
+
+/**
+ * 案件の工程ごとの時間（企画書20章の「Implementation 8h / QA 3h / Human Review 4h」）。Task の定義順に、作業・レビューの順で並べる。
+ * レビューには、人間のレビューと手戻り、AI の自動テスト・Eval の検証と修復を含む（content/assignModes.ts の stageOfPhase）
+ */
+export function stageTimes(state: GameState, projectId: string): StageTime[] {
+  const project = state.projects[projectId];
+  if (!project) return [];
+  return Object.entries(project.tasks).flatMap(([taskId, run]) =>
+    (['work', 'review'] as const).map((stage) => ({
+      ref: { kind: 'stage', projectId, taskId, stage } as const,
+      minutes: run.lead[stage],
+    })),
+  );
+}
+
 /**
  * 最大のボトルネックを返す。何も動いていなければ null。
  * - Task の工程：待ち時間を含むリードタイムの累計（企画書20章の「Implementation 8h / QA 3h」）
@@ -24,11 +48,8 @@ export function findBottleneck(state: GameState): Bottleneck | null {
   const consider = (ref: BottleneckRef, minutes: number) => {
     if (minutes > 0 && (!best || minutes > best.minutes)) best = { ref, minutes };
   };
-  for (const [projectId, project] of Object.entries(state.projects)) {
-    for (const [taskId, run] of Object.entries(project.tasks)) {
-      for (const stage of ['work', 'review'] as const)
-        consider({ kind: 'stage', projectId, taskId, stage }, run.lead[stage]);
-    }
+  for (const projectId of Object.keys(state.projects)) {
+    for (const s of stageTimes(state, projectId)) consider(s.ref, s.minutes);
   }
   for (const [humanId, queue] of Object.entries(state.humanQueues)) {
     consider(

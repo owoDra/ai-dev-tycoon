@@ -3,7 +3,7 @@ import { allFeatures } from '../content/unlocks';
 import { createHumanQueues, createSessions, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -32,6 +32,8 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // v5: AI Worker の Harness と導入コストの記録、Task の Harness の記録を追加（Phase 11）
   { from: 4, migrate: (s) => migrateHarness(s as V4State) },
+  // v6: AI Worker の自律の記録（Autonomy Streak と介入間隔）を追加（Phase 12）
+  { from: 5, migrate: (s) => ({ ...(s as object), autonomy: {} }) },
 ];
 
 interface V4State {
@@ -113,7 +115,8 @@ function isGameState(v: unknown): v is GameState {
     (v.tutorial === null || isRecord(v.tutorial)) &&
     isRecord(v.sessions) &&
     Array.isArray(v.incidents) &&
-    isRecord(v.contextStats)
+    isRecord(v.contextStats) &&
+    isRecord(v.autonomy)
   );
 }
 

@@ -144,6 +144,11 @@ export const balance = {
     /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる */
     accidentCost: 50_000,
   },
+  /** Autonomy（企画書23章）。人間が介入せずに AI が処理を続けた時間 */
+  autonomy: {
+    /** Streak がこの時間（分）を越えるたびに AutonomyMilestone を出す（AUTONOMY STREAK の演出）。昇順 */
+    milestones: [30, 60, 120, 240],
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

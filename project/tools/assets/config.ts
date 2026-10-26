@@ -49,6 +49,14 @@ export const modelBudgetBytes: Record<ModelId, number> = {
   packet: 12 * 1024,
   plant: 16 * 1024,
   serverRack: 28 * 1024,
+  bugContextOverflow: 18 * 1024,
+  bugStaleContext: 18 * 1024,
+  bugInstructionConflict: 18 * 1024,
+  bugRetrySpiral: 18 * 1024,
+  bugAgentDrift: 18 * 1024,
+  bugMissingValidation: 18 * 1024,
+  bugCoordinationExplosion: 18 * 1024,
+  bugHumanBottleneck: 18 * 1024,
 };
 
 /**

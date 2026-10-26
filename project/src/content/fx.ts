@@ -19,6 +19,7 @@ export type FxSignalKind =
   | 'bottleneckCleared'
   | 'automation'
   | 'incident'
+  | 'incidentResolved'
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
@@ -43,6 +44,8 @@ export type FxPart =
   | 'rays'
   | 'cameraShake'
   | 'hitStop'
+  /** Agent たちが跳び上がってハイタッチする（AUTONOMY STREAK） */
+  | 'highFive'
   /** 床の輪を拡大せずにふっと出して消す（reduced-motion の代替） */
   | 'glow'
   // DOM
@@ -70,6 +73,7 @@ export const KINETIC_PARTS: ReadonlySet<FxPart> = new Set<FxPart>([
   'rays',
   'cameraShake',
   'hitStop',
+  'highFive',
   'popLabel',
   'comboLabel',
   'bigNumber',
@@ -88,6 +92,7 @@ export type FxId =
   | 'bottleneckCleared'
   | 'automation'
   | 'incident'
+  | 'incidentResolved'
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
@@ -110,6 +115,8 @@ export interface FxDef {
   readonly sfx: readonly SfxId[];
   /** キャラクターの表情を変える演出の表情（actorExpression） */
   readonly expression?: 'joy' | 'focus' | 'trouble';
+  /** 大きな数字（bigNumber）の書き方（i18n の ja.fx の関数）。既定は savedHours（減った人間時間） */
+  readonly amount?: 'savedHours' | 'streakMinutes';
 }
 
 export const fxTable: readonly FxDef[] = [
@@ -168,7 +175,8 @@ export const fxTable: readonly FxDef[] = [
     label: { key: 'automation', tone: 'accent' },
     sfx: ['automation'],
   },
-  // 事件・Autonomy Streak は Phase 10・12 で GameEvent とつなぐ。自動修復は簡易 Eval（自動テスト）の EvalCaught から起動する
+  // 事件は発生（IncidentStarted と Harness の事故）と解決（IncidentResolved。島のバグ生物が弾けて消える）で起動する。
+  // 自動修復は簡易 Eval（自動テスト）の EvalCaught から起動する
   {
     id: 'incident',
     tier: 2,
@@ -178,6 +186,15 @@ export const fxTable: readonly FxDef[] = [
     label: { key: 'incident', tone: 'danger' },
     sfx: ['warning'],
     expression: 'trouble',
+  },
+  {
+    id: 'incidentResolved',
+    tier: 2,
+    signal: 'incidentResolved',
+    parts: ['sparkle', 'ring', 'islandBounce', 'popLabel'],
+    reducedAlternative: ['glow', 'fadeLabel'],
+    label: { key: 'incidentResolved', tone: 'success' },
+    sfx: ['autoRepair'],
   },
   {
     id: 'autoRepair',
@@ -190,13 +207,16 @@ export const fxTable: readonly FxDef[] = [
     expression: 'joy',
   },
   {
+    // 最大の報酬（企画書23章）。「AUTONOMY STREAK 74 MIN」の大きなタイポグラフィと、Agent たちのハイタッチ
     id: 'autonomyStreak',
-    tier: 3,
+    tier: 4,
     signal: 'autonomyStreak',
-    parts: ['packetRush', 'sparkle', 'ring', 'confetti', 'bigType'],
-    reducedAlternative: ['glow', 'fadeBigType'],
+    parts: ['flash', 'rays', 'confetti', 'highFive', 'actorExpression', 'bigType', 'bigNumber'],
+    reducedAlternative: ['fadeBigType', 'fadeBigNumber', 'actorExpression'],
     label: { key: 'autonomyStreak', tone: 'accent' },
     sfx: ['streak'],
+    expression: 'joy',
+    amount: 'streakMinutes',
   },
   {
     id: 'projectComplete',

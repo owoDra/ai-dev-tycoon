@@ -16,8 +16,9 @@ const LABEL_ICON: Record<FxId, IconName> = {
   bottleneckCleared: 'bottleneck',
   automation: 'automation',
   incident: 'warning',
+  incidentResolved: 'success',
   autoRepair: 'hook',
-  autonomyStreak: 'subagent',
+  autonomyStreak: 'automation',
   projectComplete: 'release',
   featureUnlocked: 'success',
 };
@@ -229,8 +230,9 @@ function BigMoment(props: { cue: FxCue }) {
           class="font-heading text-3xl whitespace-nowrap text-ink tabular-nums [text-shadow:0_3px_0_var(--color-surface)] sm:text-display"
           ref={(el) => {
             const amount = cue.amount ?? 0;
-            el.textContent = ja.fx.savedHours(fade ? amount : 0);
-            if (!fade) countUp(el, 0, amount, ja.fx.savedHours, cue.durationMs * 0.4);
+            const format = ja.fx[cue.def.amount ?? 'savedHours'];
+            el.textContent = format(fade ? amount : 0);
+            if (!fade) countUp(el, 0, amount, format, cue.durationMs * 0.4);
           }}
         />
       </Show>

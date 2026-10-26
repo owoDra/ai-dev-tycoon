@@ -1,4 +1,4 @@
-import { type MusicLayerId, musicMomentum, musicStageThresholds, type Song } from '../../content/music';
+import { type MusicLayerId, musicMomentum, musicStageThresholds, type Song, songLayers } from '../../content/music';
 
 /** BGM の勢いを決める、いまのゲームの様子（UI が state と演出の director から集める） */
 export interface MomentumInput {
@@ -49,7 +49,11 @@ export function songStage(song: Song, value: number): number {
   return song.fixedStage ?? musicStage(value);
 }
 
-/** その段階で鳴らすレイヤー。段階が上がるほどレイヤーが増える（減ることはない） */
-export function activeLayers(song: Song, stage: number): MusicLayerId[] {
-  return song.layers.filter((l) => l.fromStage <= stage).map((l) => l.id);
+/**
+ * その段階で鳴らすレイヤー。段階が上がるほどレイヤーが増える（減ることはない）。
+ * AUTONOMY STREAK の間（streak が true）は、曲の streakLayers も足す
+ */
+export function activeLayers(song: Song, stage: number, streak = false): MusicLayerId[] {
+  const layers = streak ? songLayers(song) : song.layers;
+  return layers.filter((l) => l.fromStage <= stage).map((l) => l.id);
 }

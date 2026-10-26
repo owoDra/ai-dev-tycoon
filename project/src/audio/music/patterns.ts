@@ -1,5 +1,5 @@
 import type { VoiceSlot } from '../../content/look/sound';
-import type { MusicLayer, MusicLayerId, Song } from '../../content/music';
+import { type MusicLayer, type MusicLayerId, type Song, songLayers } from '../../content/music';
 
 /** 楽曲の1音（予約する前の、時刻を持たない形） */
 export interface MusicNote {
@@ -44,7 +44,7 @@ export function stepNotes(song: Song, step: number, layers: ReadonlySet<MusicLay
   const pos = step % song.stepsPerBar;
   const degree = song.progression[bar % song.progression.length] ?? 0;
   const out: MusicNote[] = [];
-  for (const layer of song.layers) {
+  for (const layer of songLayers(song)) {
     if (!layers.has(layer.id)) continue;
     const v = patternAt(layer, pos);
     if (v === null) continue;

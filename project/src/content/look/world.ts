@@ -111,6 +111,41 @@ export interface WorldEnvironmentLook {
   props: number;
 }
 
+/**
+ * Visual Reward（企画書61章）。人間の仕事が減り、AI の仕事が Eval で守られた配置になるほど（整理度 0〜1）、
+ * オフィスが明るく整っていく（床の模様・照明・植物）
+ */
+export interface WorldRewardLook {
+  /** 整理度の重み。AI に任せた仕事の割合と、そのうち確認（レビュー・Eval）で守られた割合（作業量で数える） */
+  automatedWeight: number;
+  validatedWeight: number;
+  /** 発生中の事件1件ごとに整理度から引く量 */
+  incidentPenalty: number;
+  /** 整理度 1 での環境光・太陽光の増える割合 */
+  ambientBoost: number;
+  sunBoost: number;
+  /** 整理度 1 での床の色（0 では environment.floorTint） */
+  floorTint: ScaleRef;
+  /** 島の下に敷く模様の色と、整理度 1 での濃さ */
+  rugColor: ScaleRef;
+  rugOpacity: number;
+  /** 整理度に応じて増える観葉植物の最大数 */
+  plants: number;
+  /** 整理度の変化に追従する速さ（1秒あたり） */
+  followRate: number;
+}
+
+/** 事件の「バグ生物」の見せ方 */
+export interface WorldIncidentLook {
+  /** 大きさ（1 で生成したモデルのまま） */
+  scale: number;
+  /** 跳ねる高さ（m）と速さ（回/秒） */
+  hop: number;
+  hopHz: number;
+  /** 出てくるとき・弾けて消えるときの時間（秒） */
+  popSeconds: number;
+}
+
 export interface WorldLook {
   camera: WorldCameraLook;
   shading: WorldShadingLook;
@@ -120,6 +155,8 @@ export interface WorldLook {
   flow: WorldFlowLook;
   bottleneck: WorldBottleneckLook;
   environment: WorldEnvironmentLook;
+  reward: WorldRewardLook;
+  incident: WorldIncidentLook;
 }
 
 /**
@@ -169,6 +206,19 @@ const standard: WorldLook = {
     islandDone: 'success.100',
     props: 0.35,
   },
+  reward: {
+    automatedWeight: 0.5,
+    validatedWeight: 0.5,
+    incidentPenalty: 0.15,
+    ambientBoost: 0.25,
+    sunBoost: 0.15,
+    floorTint: 'success.50',
+    rugColor: 'success.200',
+    rugOpacity: 0.7,
+    plants: 10,
+    followRate: 0.6,
+  },
+  incident: { scale: 1.7, hop: 0.12, hopHz: 1.6, popSeconds: 0.35 },
 };
 
 export const worldLooks = { standard } as const satisfies Record<string, WorldLook>;
@@ -206,6 +256,11 @@ export const agentRoleByTask: Readonly<Record<string, AgentRole>> = {
   spec: 'research',
   fix: 'code',
   tests: 'qa',
+  // SaaS の新機能追加
+  api: 'code',
+  ui: 'code',
+  migration: 'code',
+  helpDoc: 'research',
 };
 
 export const fallbackAgentRole: AgentRole = 'code';

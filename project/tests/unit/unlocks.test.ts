@@ -70,7 +70,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('v2 のセーブデータは、すべて解放済み・チュートリアルなしとして読み込む', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     const s = deserialize(JSON.stringify({ saveVersion: 2, state: v2 }));
-    expect(SAVE_VERSION).toBe(5);
+    expect(SAVE_VERSION).toBe(6);
     expect(s.unlocked).toEqual(allFeatures);
     expect(s.tutorial).toBeNull();
   });

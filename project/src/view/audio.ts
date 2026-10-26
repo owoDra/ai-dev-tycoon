@@ -1,4 +1,7 @@
 import type { MomentumInput } from '../audio/music/intensity';
+import { balance } from '../content/balance';
+import { aiWorkers } from '../content/index';
+import { autonomyOf } from '../core/autonomy';
 import type { GameState } from '../core/state';
 
 /** 作業中の Task の数（BGM の勢いの入力） */
@@ -25,4 +28,10 @@ export function momentumInput(
     combo,
     recent: recentDone.filter((t) => now - t <= windowMs).length,
   };
+}
+
+/** AUTONOMY STREAK の間か（どれかの AI Worker の Streak が最初の節目を越えている）。BGM のレイヤーを足す */
+export function streakActive(state: GameState): boolean {
+  const first = balance.autonomy.milestones[0];
+  return first !== undefined && aiWorkers.some((w) => autonomyOf(state, w.id).streak >= first);
 }

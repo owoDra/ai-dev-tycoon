@@ -21,6 +21,8 @@ import { PARTICLE_TOTAL } from '../../world/vfx/particles';
 const t = ja.fx.preview;
 /** 自動化の演出で見せる数字（企画書43章の例） */
 const SAMPLE_HOURS = 6.4;
+/** Autonomy Streak の演出で見せる分数（企画書23章の例） */
+const SAMPLE_STREAK_MINUTES = 74;
 /** コンボのボタンで続ける Task 完了の数と間隔（ms） */
 const COMBO_COUNT = 6;
 const COMBO_GAP = 350;
@@ -86,8 +88,10 @@ export function FxPreview() {
           const actorId = human();
           return { kind: id, entityId, ...(actorId ? { actorId } : {}) };
         }
+        case 'incidentResolved':
+          return { kind: 'incidentResolved', entityId };
         case 'autonomyStreak':
-          return { kind: 'autonomyStreak', entityId };
+          return { kind: 'autonomyStreak', entityId: null, amount: SAMPLE_STREAK_MINUTES };
         case 'projectComplete':
           return { kind: 'projectComplete', entityId: null };
         case 'featureUnlocked':

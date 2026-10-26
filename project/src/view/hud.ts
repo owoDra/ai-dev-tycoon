@@ -1,7 +1,8 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { content, getProject, humans } from '../content/index';
+import { aiWorkers, content, getProject, humans } from '../content/index';
 import type { AssignModeId } from '../content/types';
+import { autonomyOf } from '../core/autonomy';
 import { reduce } from '../core/commands';
 import { expectTask } from '../core/expectation';
 import { deadlineMinutes, escapedDefectCost, escapedFixMinutes, laborCost } from '../core/formulas';
@@ -30,6 +31,30 @@ export interface HudView {
   /** AI が関わる実行中の Task のうち、AI が作業している割合（0〜1） */
   readonly ai: number;
   readonly completed: boolean;
+  /** AI Worker の Autonomy Streak（企画書23章）。HUD の小さなメーター */
+  readonly streak: StreakView;
+}
+
+/** Autonomy Streak のメーター */
+export interface StreakView {
+  /** 今の Streak（分） */
+  readonly minutes: number;
+  /** 次の節目（分）。すべて越えていれば null */
+  readonly next: number | null;
+  /** 前の節目から次の節目までの進み具合（0〜1） */
+  readonly progress: number;
+  /** 越えた節目の数。1 以上で「燃え上がる」 */
+  readonly level: number;
+}
+
+/** AI Worker の Autonomy Streak のメーター（AI Worker がいなければ 0 のまま） */
+export function streakView(state: GameState, workerId: string = aiWorkers[0]?.id ?? ''): StreakView {
+  const minutes = autonomyOf(state, workerId).streak;
+  const thresholds = balance.autonomy.milestones;
+  const level = thresholds.filter((t) => minutes >= t).length;
+  const next = thresholds[level] ?? null;
+  const prev = level > 0 ? (thresholds[level - 1] ?? 0) : 0;
+  return { minutes, next, progress: next === null ? 1 : (minutes - prev) / (next - prev), level };
 }
 
 const hhmm = (minutes: number) => {
@@ -75,6 +100,7 @@ export function hudView(state: GameState, projectId: string): HudView | null {
     human: humans.length > 0 ? humanBusy / humans.length : 0,
     ai: aiTasks > 0 ? aiBusy / aiTasks : 0,
     completed: score.completed,
+    streak: streakView(state),
   };
 }
 

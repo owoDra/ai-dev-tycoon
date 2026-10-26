@@ -128,6 +128,22 @@ export interface HarnessLedgerEntry {
   readonly at: number;
 }
 
+/**
+ * AI Worker の自律の記録（企画書23章）。人間が介入せずに AI が処理を続けた時間（Streak）と、人間の介入間隔
+ */
+export interface AutonomyRun {
+  /** 今の Streak（分）。AI がこの Worker の仕事を処理していた時間で、人間の介入で 0 に戻る */
+  readonly streak: number;
+  /** 今の Streak で越えたしきい値（balance.autonomy.milestones）の数 */
+  readonly milestones: number;
+  /** 記録した介入間隔の数（AI が処理を進めた後に人間が介入した回数） */
+  readonly intervals: number;
+  /** 記録した介入間隔の合計（分） */
+  readonly intervalTotal: number;
+  /** 最長の介入間隔（分）。今の Streak を含む */
+  readonly longest: number;
+}
+
 /** Context に関わる出来事の回数。解放と用語の条件（contextStat）に使う */
 export type ContextStats = Readonly<Record<ContextStatId, number>>;
 
@@ -180,6 +196,8 @@ export interface GameState {
   readonly ownedParts: readonly string[];
   /** 導入コストの支払い（払った順） */
   readonly harnessLedger: readonly HarnessLedgerEntry[];
+  /** AI Worker ごとの自律の記録（AI Worker の id がキー。なければまだ何も処理していない） */
+  readonly autonomy: Readonly<Record<string, AutonomyRun>>;
 }
 
 export interface InitialStateOptions {
@@ -214,6 +232,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     harnesses: {},
     ownedParts: [],
     harnessLedger: [],
+    autonomy: {},
   };
 }
 

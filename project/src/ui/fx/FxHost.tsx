@@ -51,6 +51,12 @@ export function FxHost(props: {
     }
   };
 
+  // 事件の島を覚えておく（解決の出来事には島がなく、解決した後の ViewModel からは事件が消えているため）
+  const incidentIslands: Record<string, string> = {};
+  createEffect(() => {
+    for (const bug of props.vm()?.incidents ?? []) incidentIslands[bug.id.replace(/^incident:/, '')] = bug.islandId;
+  });
+
   createEffect(
     on(
       () => [props.store, props.projectId] as const,
@@ -58,7 +64,13 @@ export function FxHost(props: {
         if (!projectId) return;
         onCleanup(
           store.onEvents((events) =>
-            trigger(fxSignals(events, { projectId, bottleneckEntity: props.vm()?.bottleneck?.entityId ?? null })),
+            trigger(
+              fxSignals(events, {
+                projectId,
+                bottleneckEntity: props.vm()?.bottleneck?.entityId ?? null,
+                incidentIslands,
+              }),
+            ),
           ),
         );
       },

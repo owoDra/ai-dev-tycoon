@@ -30,6 +30,8 @@ export interface AudioEngine {
   readonly paletteId: () => SoundPaletteId;
   setSong(id: SongId | null): void;
   setMomentum(value: number): void;
+  /** AUTONOMY STREAK の間だけ BGM にレイヤーを足す */
+  setStreak(on: boolean): void;
   setPaused(paused: boolean): void;
   /** 開発用（サウンドテスト）：BGM の段階の固定とレイヤーのミュート、事前レンダリングの状況 */
   readonly music: () => MusicPlayer | null;
@@ -83,6 +85,7 @@ export function createAudioEngine(): AudioEngine {
   let palette: SoundPalette = soundPalettes[defaultSoundPaletteId];
   let songId: SongId | null = null;
   let momentum = 0;
+  let streak = false;
   let paused = false;
   let player: MusicPlayer | null = null;
   let mutedLayers: ReadonlySet<MusicLayerId> = new Set();
@@ -168,6 +171,7 @@ export function createAudioEngine(): AudioEngine {
     player.muteLayers(mutedLayers);
     player.forceStage(forcedStage);
     player.setMomentum(momentum);
+    player.setStreak(streak);
     player.setSong(songId);
     applyVolumes();
     applyPaused();
@@ -277,6 +281,10 @@ export function createAudioEngine(): AudioEngine {
     setMomentum(value) {
       momentum = value;
       player?.setMomentum(value);
+    },
+    setStreak(on) {
+      streak = on;
+      player?.setStreak(on);
     },
     setPaused(p) {
       paused = p;

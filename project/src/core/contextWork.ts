@@ -7,7 +7,7 @@ import type { GameState } from './state';
 /*
  * Context が AI の作業に与える影響を、Session と発生中の事件からまとめて計算する。
  * シミュレーション（core/taskFlow.ts・taskSystem.ts）と、HUD の見込み（view/hud.ts）で同じ式を使う。
- * 資料を持たない案件では影響がない（成功確率はそのまま、時間と費用の倍率は 1、追加の時間は 0）。
+ * 資料を持たない案件では Context の影響はなく、発生中の事件（Harness 由来のものはどの案件でも起きる）の影響だけが残る。
  */
 
 /** AI の作業の所要時間に掛かる影響 */
@@ -33,12 +33,12 @@ export function aiSuccessWithContext(
   taskId: string,
   p: number,
 ): number {
-  if (!contextApplies(projectId)) return p;
+  const incident = incidentEffects(state, workerId).successPenalty;
+  const { min, max } = balance.success;
+  if (!contextApplies(projectId)) return incident === 0 ? p : Math.min(max, Math.max(min, p - incident));
   const session = getSession(state, workerId);
   const effects = contextEffects(readContext(session, projectId, taskId));
-  const penalty =
-    effects.successPenalty + lossEffects(session).successPenalty + incidentEffects(state, workerId).successPenalty;
-  const { min, max } = balance.success;
+  const penalty = effects.successPenalty + lossEffects(session).successPenalty + incident;
   return Math.min(max, Math.max(min, p - penalty)) * (1 - effects.staleChance);
 }
 
@@ -50,12 +50,13 @@ export function aiWorkTime(
   task: TaskDef,
   model: ModelDef,
 ): ContextWorkTime {
-  if (!contextApplies(projectId)) return NONE;
+  const factor = incidentEffects(state, workerId).aiTimeFactor;
+  if (!contextApplies(projectId)) return factor === 1 ? NONE : { ...NONE, factor };
   const session = getSession(state, workerId);
   const effects = contextEffects(readContext(session, projectId, task.id));
   const extraShare = lossEffects(session).relearnShare + (session.artifacts ? balance.handoff.artifactShare : 0);
   return {
-    factor: incidentEffects(state, workerId).aiTimeFactor,
+    factor,
     toolMissChance: effects.toolMissChance,
     extraMinutes: (task.effort * extraShare) / model.speed,
   };

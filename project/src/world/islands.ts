@@ -67,6 +67,8 @@ export interface Stage {
     fx?: (entityId: string) => { sx: number; sy: number; lift: number },
     lanes?: readonly string[],
   ): void;
+  /** 整理度（0〜1）に合わせて、島の下の模様の濃さと観葉植物の数を変える（Visual Reward、企画書61章） */
+  setTidiness(tidiness: number): void;
   dispose(): void;
 }
 
@@ -247,6 +249,32 @@ export function createStage(parts: StageParts): Stage {
     place(spot.id, spot.x, 0, spot.z, spot.id === 'plant' ? 0.9 : 1.3);
   }
 
+  // Visual Reward：島の下の模様（整理度で濃くなる）と、整理度で増える観葉植物（床の手前と奥の縁に並べる）
+  const reward = look.reward;
+  const rugMaterial = new MeshBasicMaterial({
+    color: scaleColor(reward.rugColor, visual),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const rugGeometry = own(new RingGeometry(size * 0.62, size * 0.8, 4, 1).rotateX(-Math.PI / 2).rotateY(Math.PI / 4));
+  const rugs = layout.islands.map((p) => {
+    const rug = new Mesh(rugGeometry, rugMaterial);
+    rug.position.set(p.center.x, 0.015, p.center.z);
+    rug.visible = false;
+    root.add(rug);
+    return rug;
+  });
+  const plantRow = Math.max(1, Math.ceil(reward.plants / 2));
+  const rewardPlants = Array.from({ length: reward.plants }, (_, i) => {
+    const row = i % 2;
+    const k = Math.floor(i / 2);
+    const x = b.minX - 1 + ((b.maxX - b.minX + 2) * (k + 0.5)) / plantRow;
+    const g = place('plant', x, 0, row === 0 ? b.maxZ + 2.2 : b.minZ - 2.2, 0.9);
+    g.visible = false;
+    return g;
+  });
+
   return {
     root,
     islands,
@@ -268,8 +296,17 @@ export function createStage(parts: StageParts): Stage {
         island.group.position.y = f.lift;
       }
     },
+    setTidiness(tidiness) {
+      rugMaterial.opacity = reward.rugOpacity * tidiness;
+      for (const rug of rugs) rug.visible = tidiness > 0.02;
+      const shown = Math.round(tidiness * rewardPlants.length);
+      rewardPlants.forEach((g, i) => {
+        g.visible = i < shown;
+      });
+    },
     dispose() {
       for (const g of geometries) g.dispose();
+      rugMaterial.dispose();
       belt.dispose();
     },
   };

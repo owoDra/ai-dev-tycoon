@@ -2,7 +2,7 @@ import { Index, onMount, Show } from 'solid-js';
 import type { ToastLayout } from '../../content/look/layout';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import type { Advice } from '../../view/advice';
+import { type Advice, incidentSheet } from '../../view/advice';
 import { Icon } from '../Icon';
 import { panel, primaryButton, smallButton } from '../parts';
 
@@ -21,8 +21,8 @@ export function ProblemToasts(props: {
   onLater: (advice: Advice) => void;
   /** 事件の解決ボタン */
   onResolve: (advice: Advice) => void;
-  /** 事件の「Context を見る」 */
-  onContext: () => void;
+  /** 事件の「Context を見る」「Harness を見る」 */
+  onView: (sheet: 'context' | 'harness') => void;
 }) {
   return (
     <section
@@ -38,7 +38,7 @@ export function ProblemToasts(props: {
             onGo={props.onGo}
             onLater={props.onLater}
             onResolve={props.onResolve}
-            onContext={props.onContext}
+            onView={props.onView}
           />
         )}
       </Index>
@@ -52,10 +52,11 @@ function ProblemCard(props: {
   onGo: (advice: Advice) => void;
   onLater: (advice: Advice) => void;
   onResolve: (advice: Advice) => void;
-  onContext: () => void;
+  onView: (sheet: 'context' | 'harness') => void;
 }) {
   let el!: HTMLElement;
   onMount(() => enter(el, 'above'));
+  const sheet = () => (props.advice.incident ? incidentSheet(props.advice.incident.id) : 'context');
   return (
     <article
       ref={el}
@@ -100,8 +101,8 @@ function ProblemCard(props: {
           >
             {ja.incidents.resolve}
           </button>
-          <button type="button" class={smallButton} onClick={() => props.onContext()}>
-            {ja.incidents.view}
+          <button type="button" class={smallButton} onClick={() => props.onView(sheet())}>
+            {sheet() === 'harness' ? ja.incidents.viewHarness : ja.incidents.view}
           </button>
         </Show>
         <Show when={props.dismissible}>

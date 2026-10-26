@@ -15,6 +15,8 @@ export interface CueTarget {
   islandSize: number;
   /** 表情を変えるキャラクター（actorId がない演出では全員） */
   actorIds(): readonly string[];
+  /** キャラクターの頭上の位置 */
+  headOf(actorId: string): Vector3 | null;
   shake(amplitudePx: number, durationMs: number): void;
   hitStop(durationMs: number, timeScale: number): void;
 }
@@ -23,6 +25,8 @@ export interface CueTarget {
 const LIFT = 0.16;
 /** 盾の大きさ（島の大きさに対する割合） */
 const SHIELD = 0.62;
+/** ハイタッチで跳ぶ高さ（m） */
+const HIGH_FIVE_HOP = 0.6;
 
 /**
  * 演出1回分を 3D の部品に割り振って再生する。DOM の部品（文字・フラッシュ）は ui/fx が受け持つので、ここでは何もしない。
@@ -85,6 +89,16 @@ export function playCue(cue: FxCue, target: CueTarget): void {
       case 'hitStop':
         target.hitStop(cue.feel.hitStop.durationMs, cue.feel.hitStop.timeScale);
         break;
+      case 'highFive': {
+        // Agent たちが高く跳び、隣どうしの頭上の間で手を合わせた火花を散らす。Agent がいなければ全員で跳ぶ
+        const agents = target.actorIds().filter((id) => id.startsWith('agent:'));
+        const crew = agents.length > 0 ? agents : target.actorIds();
+        for (const id of crew) target.actors?.react(id, { hop: HIGH_FIVE_HOP * cue.intensity });
+        const heads = crew.map((id) => target.headOf(id)).filter((p): p is Vector3 => p !== null);
+        const claps = heads.length > 1 ? heads.slice(1).map((p, i) => p.clone().lerp(heads[i] ?? p, 0.5)) : heads;
+        for (const p of claps) target.vfx.sparkle(p.add(new Vector3(0, HIGH_FIVE_HOP, 0)), Math.max(6, count / 4), 0.6);
+        break;
+      }
       default:
         // DOM の部品（popLabel・bigType・flash など）は ui/fx/FxLayer が再生する
         break;

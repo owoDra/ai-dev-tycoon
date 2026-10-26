@@ -14,7 +14,7 @@ import type { VoiceSlot } from './look/sound';
 
 export type MusicLayerKind = 'chord' | 'bass' | 'arp' | 'melody' | 'drum';
 
-export type MusicLayerId = 'pad' | 'bass' | 'kick' | 'hat' | 'arp' | 'snare' | 'sparkle';
+export type MusicLayerId = 'pad' | 'bass' | 'kick' | 'hat' | 'arp' | 'snare' | 'sparkle' | 'streak';
 
 export interface MusicLayer {
   readonly id: MusicLayerId;
@@ -45,6 +45,11 @@ export interface Song {
   /** 1小節ごとの和音（音階の度数。0 = I） */
   readonly progression: readonly number[];
   readonly layers: readonly MusicLayer[];
+  /**
+   * AUTONOMY STREAK の間だけ足すレイヤー（企画書23章）。勢いの段階に関係なく、Streak が最初の節目を越えている間だけ鳴らす。
+   * fromStage の段階以上のときだけ足す
+   */
+  readonly streakLayers?: readonly MusicLayer[];
   /** 指定すると勢いに関係なくこの段階で鳴らす（結果画面の曲） */
   readonly fixedStage?: number;
 }
@@ -139,6 +144,21 @@ const play: Song = {
       send: 0.5,
     },
   ],
+  streakLayers: [
+    {
+      // AUTONOMY STREAK：高いところできらきら上っていくアルペジオ（人間なしで回り続けている高揚感）
+      id: 'streak',
+      kind: 'arp',
+      voice: 'bell',
+      fromStage: 0,
+      pattern: '0.2.4.7.4.7.9.7.',
+      len: 1,
+      octave: 2,
+      gain: 0.07,
+      pan: -0.2,
+      send: 0.45,
+    },
+  ],
 };
 
 /** 結果画面の曲：ゆったりと振り返る（I → iii → IV → V。テンポを落としてドラムは軽く） */
@@ -199,6 +219,11 @@ const result: Song = {
 };
 
 export const songs: Readonly<Record<SongId, Song>> = { play, result };
+
+/** 曲のすべてのレイヤー（Streak の間だけのものを含む） */
+export function songLayers(song: Song): readonly MusicLayer[] {
+  return song.streakLayers ? [...song.layers, ...song.streakLayers] : song.layers;
+}
 
 /** 強度の段階の境目（勢い 0〜1）。i 番目の値以上で段階 i になる。段階の数はこの配列の長さ */
 export const musicStageThresholds = [0, 0.15, 0.35, 0.58, 0.8] as const;

@@ -50,6 +50,10 @@ export type GameEvent =
     }
   /** AI の作業で事故（権限・Tool の誤用）が起きた。作業は失敗扱いになる */
   | { readonly type: 'HarnessAccident'; readonly projectId: string; readonly taskId: string; readonly workerId: string }
+  /**
+   * AI Worker の Autonomy Streak（人間が介入せずに AI が処理を続けた時間）がしきい値 minutes（分）を越えた（企画書23章。Tier 4 の演出）
+   */
+  | { readonly type: 'AutonomyMilestone'; readonly workerId: string; readonly minutes: number }
   /** 複数の Task を Workflow にまとめて AI に任せた（企画書5章） */
   | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] };
 

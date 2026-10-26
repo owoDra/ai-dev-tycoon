@@ -1,4 +1,5 @@
 import type { AgentRole, HumanLookId } from '../content/look/world';
+import type { IncidentId } from '../content/types';
 
 /**
  * 生成アセットの一覧（ID → `assets/generated/` のファイル）。ランタイムのレジストリ（registry.ts）と
@@ -87,6 +88,15 @@ export const modelAssets = {
   plant: { file: 'plant.glb' },
   /** サーバーラック */
   serverRack: { file: 'server-rack.glb' },
+  /** 事件の「バグ生物」（tools/assets/models/incidents）。丸い体と大きな目で、事件ごとに色と目印が違う */
+  bugContextOverflow: { file: 'bug-context-overflow.glb' },
+  bugStaleContext: { file: 'bug-stale-context.glb' },
+  bugInstructionConflict: { file: 'bug-instruction-conflict.glb' },
+  bugRetrySpiral: { file: 'bug-retry-spiral.glb' },
+  bugAgentDrift: { file: 'bug-agent-drift.glb' },
+  bugMissingValidation: { file: 'bug-missing-validation.glb' },
+  bugCoordinationExplosion: { file: 'bug-coordination-explosion.glb' },
+  bugHumanBottleneck: { file: 'bug-human-bottleneck.glb' },
 } as const satisfies Record<string, ModelAsset>;
 
 /** 人間の見た目の種類 → モデル */
@@ -104,6 +114,18 @@ export const agentModels = {
   qa: 'agentQa',
   release: 'agentRelease',
 } as const satisfies Record<AgentRole, ModelId>;
+
+/** 事件 → バグ生物のモデル */
+export const incidentModels = {
+  contextOverflow: 'bugContextOverflow',
+  staleContext: 'bugStaleContext',
+  instructionConflict: 'bugInstructionConflict',
+  retrySpiral: 'bugRetrySpiral',
+  agentDrift: 'bugAgentDrift',
+  missingValidation: 'bugMissingValidation',
+  coordinationExplosion: 'bugCoordinationExplosion',
+  humanBottleneck: 'bugHumanBottleneck',
+} as const satisfies Record<IncidentId, ModelId>;
 
 export type TextureId = keyof typeof textureAssets;
 export type ModelId = keyof typeof modelAssets;

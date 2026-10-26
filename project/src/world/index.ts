@@ -21,6 +21,7 @@ import type { ActorView, PacketView, WorldViewModel } from '../view/world';
 import { type Actors, createActors } from './actors';
 import { createCameraRig } from './camera';
 import { loadModelGeometries } from './geometry';
+import { createIncidentBugs, type IncidentBugs } from './incidents';
 import { BELT_TOP, createMarkerRing, createStage, DESK_OFFSET, DESK_TOP, PAD_HEIGHT, type Stage } from './islands';
 import { layoutProject, pointAlong, type WorldLayout } from './layout';
 import { createMaterials, scaleColor, type WorldMaterials } from './materials';
@@ -117,6 +118,9 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
   let stage: Stage | null = null;
   let actors: Actors | null = null;
   let packets: Packets | null = null;
+  let bugs: IncidentBugs | null = null;
+  /** 描いている整理度（ViewModel の値へゆっくり追従する） */
+  let tidiness = 0;
   let layout: WorldLayout | null = null;
   let layoutKey = '';
   let vm: WorldViewModel | null = null;
@@ -161,6 +165,11 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     else {
       actors = createActors(models, textures.face, { materials, look });
       scene.add(actors.root);
+    }
+    if (bugs) bugs.rebuild(materials, look);
+    else {
+      bugs = createIncidentBugs(models, { materials, look });
+      scene.add(bugs.root);
     }
     if (packets) {
       scene.remove(packets.root);
@@ -257,6 +266,29 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     }
     actors?.sync(next.actors, (a) => actorTarget(a, next.actors));
     packets?.sync(next.packets, packetTarget);
+    bugs?.sync(next.incidents, (id) => positionOf(id)?.pos ?? null);
+  }
+
+  /** 整理度を ViewModel の値へ近づけ、照明・床の色・島の下の模様・観葉植物に反映する。変化していれば true */
+  function applyTidiness(dt: number, reduced: boolean): boolean {
+    if (!vm || !stage || !floorMaterial) return false;
+    const target = vm.tidiness;
+    const step = look.reward.followRate * dt;
+    const next = reduced
+      ? target
+      : target > tidiness
+        ? Math.min(target, tidiness + step)
+        : Math.max(target, tidiness - step);
+    const changed = next !== tidiness;
+    tidiness = next;
+    const r = look.reward;
+    ambient.intensity = look.shading.ambient * (1 + r.ambientBoost * tidiness);
+    sun.intensity = look.shading.sun * (1 + r.sunBoost * tidiness);
+    floorMaterial.color
+      .set(scaleColor(look.environment.floorTint, visual))
+      .lerp(new Color(scaleColor(r.floorTint, visual)), tidiness);
+    stage.setTidiness(tidiness);
+    return changed;
   }
 
   function positionOf(entityId: string): { pos: Vector3; radius: number; height: number } | null {
@@ -299,6 +331,8 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     stage.update(vm.islands, time, motion, (id) => squash.get(id), vm.lanes);
     const walking = actors.frame({ dt, time, live, reducedMotion: reduced });
     const sliding = packets.frame(dt, time, live, reduced);
+    const bugging = bugs?.frame(time, motion) ?? false;
+    const brightening = applyTidiness(realDt, reduced);
     const effects = vfx.frame(dt, rig.camera);
     const elapsed = now - shaking.start;
     const shakingNow = elapsed < shaking.durationMs;
@@ -311,7 +345,9 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
         look.bottleneck.ringOpacity * pulse * (0.4 + 0.6 * bn.intensity);
     }
     // 進行中は毎フレーム描く。一時停止中（や動きを減らす設定）では、歩行・パケット・カメラが落ち着いたら止まる
-    return motion || walking || sliding || effects || shakingNow || squash.active() || rig.moving();
+    return (
+      motion || walking || sliding || bugging || brightening || effects || shakingNow || squash.active() || rig.moving()
+    );
   }
 
   // 入力：ドラッグでパン、ホイールとピンチでズーム、動かさずに離したら選択
@@ -349,7 +385,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     if (!wasSingle || moved > CLICK_SLOP || !stage || !actors || !packets) return;
     const rect = canvas.getBoundingClientRect();
     const mesh = packets.mesh;
-    const targets: Object3D[] = [...stage.pickables, ...actors.pickables(), mesh];
+    const targets: Object3D[] = [...stage.pickables, ...actors.pickables(), ...(bugs?.pickables() ?? []), mesh];
     const entityId = pickEntity(
       e.clientX - rect.left,
       e.clientY - rect.top,
@@ -418,6 +454,10 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
           return at ? at.pos.clone() : null;
         },
         actorIds: () => vm?.actors.map((a) => a.id) ?? [],
+        headOf: (actorId) => {
+          const at = positionOf(actorId);
+          return at ? at.pos.clone().setY(at.pos.y + at.height) : null;
+        },
         shake(amplitude, durationMs) {
           Object.assign(shaking, { start: performance.now(), durationMs, amplitude });
         },
@@ -443,6 +483,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       canvas.removeEventListener('wheel', onWheel);
       stage?.dispose();
       actors?.dispose();
+      bugs?.dispose();
       packets?.dispose();
       vfx.dispose();
       squash.dispose();

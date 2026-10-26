@@ -1,13 +1,15 @@
-import { createMemo, For, type JSX, Match, Show, Switch } from 'solid-js';
+import { animate } from 'motion';
+import { createEffect, createMemo, For, type JSX, Match, onCleanup, Show, Switch } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { balance } from '../../content/balance';
 import { getProject } from '../../content/index';
 import type { DockLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
 import { isUnlocked } from '../../core/unlocks';
+import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
 import { contextView } from '../../view/context';
-import { type HudView, hudView } from '../../view/hud';
+import { type HudView, hudView, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
 import { iconButton, Meter, PlayPauseIcon, panel, SettingsIcon } from '../parts';
@@ -145,6 +147,9 @@ function HudItem(props: {
           <div class="flex items-center gap-1.5">
             <Bar label={t.ai} icon="ai" ratio={props.hud.ai} color="bg-success-400" dense={props.dense} />
             <ContextBadge store={props.store} projectId={props.projectId} onOpen={props.onContext} />
+            <Show when={isUnlocked(props.store.state(), 'harness')}>
+              <StreakBadge streak={props.hud.streak} dense={props.dense} />
+            </Show>
           </div>
         </fieldset>
       </Match>
@@ -196,6 +201,45 @@ function ContextBadge(props: { store: GameStore; projectId: string; onOpen?: () 
         </button>
       )}
     </Show>
+  );
+}
+
+/**
+ * Autonomy Streak の小さなメーター（企画書23章）。次の節目までの進み具合を細い棒で見せ、
+ * 最初の節目を越えると「燃え上がる」（暖色の地と脈動。動きを減らす設定では脈動しない）。色だけでなく文言も変わる
+ */
+function StreakBadge(props: { streak: StreakView; dense: boolean }) {
+  let el!: HTMLDivElement;
+  const fire = () => props.streak.level > 0;
+  createEffect(() => {
+    if (!fire() || reducedMotion() || typeof el.animate !== 'function') return;
+    const pulse = animate(el, { scale: [1, 1.08, 1] }, { duration: 0.9, repeat: Number.POSITIVE_INFINITY });
+    onCleanup(() => pulse.stop());
+  });
+  return (
+    <div
+      ref={el}
+      role="img"
+      data-streak={fire() ? 'fire' : 'calm'}
+      aria-label={t.streakLabel(props.streak.minutes, props.streak.next)}
+      class="flex min-h-6 items-center gap-1 rounded-full border-2 border-line px-1.5 text-[11px] font-bold whitespace-nowrap tabular-nums"
+      classList={{
+        'bg-surface': !fire(),
+        'bg-linear-to-r from-warning-300 to-danger-300': fire(),
+      }}
+    >
+      <Icon name="automation" tone={fire() ? 'danger' : undefined} />
+      <span>{fire() ? t.streakFire(props.streak.minutes) : t.streak(props.streak.minutes)}</span>
+      <Show when={!props.dense}>
+        <span class="h-1.5 w-8 overflow-hidden rounded-full border border-line bg-sunken" aria-hidden="true">
+          <span
+            class="block h-full"
+            classList={{ 'bg-success-400': !fire(), 'bg-danger-500': fire() }}
+            style={{ width: `${Math.round(props.streak.progress * 100)}%` }}
+          />
+        </span>
+      </Show>
+    </div>
   );
 }
 

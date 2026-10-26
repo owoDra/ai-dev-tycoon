@@ -1,6 +1,8 @@
+import { autonomySystem } from './autonomy';
 import { bottleneckSystem } from './bottleneck';
 import type { GameEvent } from './events';
 import { humanQueueSystem } from './humanQueueSystem';
+import { incidentSystem } from './incidents';
 import { progressSystem } from './progress';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
@@ -29,9 +31,12 @@ export const releaseScheduledEvents: System = (state, ctx) => {
 /** 1ステップごとに先頭から順に適用されるシステム */
 export const defaultSystems: readonly System[] = [
   releaseScheduledEvents,
+  // このステップで AI が処理する分を、工程が終わって人間に回る前に数える
+  autonomySystem,
   taskSystem,
   humanQueueSystem,
   taskUnlockSystem,
+  incidentSystem,
   bottleneckSystem,
   progressSystem,
 ];

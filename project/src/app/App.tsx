@@ -29,6 +29,12 @@ const WorldTweak = import.meta.env.DEV
   ? lazy(() => import('../dev/world/WorldTweak').then((m) => ({ default: m.WorldTweak })))
   : null;
 
+// プレイログ（開発用）。本番ビルドでは条件が定数 false になり、コードごと取り除かれる
+const PlayLogHost =
+  import.meta.env.DEV || import.meta.env.MODE === 'playtest'
+    ? lazy(() => import('../dev/log/PlayLogHost').then((m) => ({ default: m.PlayLogHost })))
+    : null;
+
 /** タイトル画面の後ろで動かす（案件を始めていない）ワールドの seed */
 const IDLE_SEED = 'title';
 
@@ -38,7 +44,7 @@ const IDLE_SEED = 'title';
  * 初回起動（チュートリアルを終えていない）では、タイトルの「はじめる」でチュートリアル案件を直接始める。
  * チュートリアルを終えるかスキップしたら記録し、以降は案件選択へ進む（タイトルから再挑戦できる）。
  */
-export function App(props: { tweak: boolean }) {
+export function App(props: { tweak: boolean; log?: boolean }) {
   const screens = createScreens();
   const selection = createSelection();
   const [game, setGame] = createSignal<GameStore>(createGameStore(createInitialState(IDLE_SEED)));
@@ -159,6 +165,12 @@ export function App(props: { tweak: boolean }) {
         <SettingsSheet onClose={() => setSettingsOpen(false)} />
       </Show>
       <Show when={import.meta.env.DEV && world()}>{(w) => <DevStats world={w().world} />}</Show>
+      <Show when={PlayLogHost && props.log && PlayLogHost}>
+        {(Host) => {
+          const Log = Host();
+          return <Log store={game()} selection={selection} />;
+        }}
+      </Show>
       <Show when={WorldTweak && props.tweak && WorldTweak}>
         {(Tweak) => {
           const Panel = Tweak();

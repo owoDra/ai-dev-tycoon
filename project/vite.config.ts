@@ -15,8 +15,13 @@ export default defineConfig(({ mode }) => ({
     {
       // 比較ページは本番と見分けられるタイトルにする（Artifact の名前にもなる）。いま比べているデザイン決定の名前を付ける
       name: 'explore-title',
+      // `--mode playtest` は D5 の通しプレイ用（プレイログを常に有効にした本番と同じゲーム）
       transformIndexHtml: (html) =>
-        mode === 'explore' ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D4 比較</title>') : html,
+        mode === 'explore'
+          ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D4 比較</title>')
+          : mode === 'playtest'
+            ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D5 通しプレイ</title>')
+            : html,
     },
   ],
   resolve: {
@@ -24,7 +29,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     // `--mode explore` はデザイン比較用のビルド（src/dev/explore）。本番の dist とは別の場所に出す
-    outDir: mode === 'explore' ? 'dist-explore' : 'dist',
+    outDir: mode === 'explore' ? 'dist-explore' : mode === 'playtest' ? 'dist-playtest' : 'dist',
     target: 'es2022',
     modulePreload: false,
     // 画像・glb・フォントも含めて全アセットを data URI でインライン化し、dist を index.html 1ファイルにする

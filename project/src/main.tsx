@@ -24,5 +24,7 @@ if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && devFlags.has('
   // サウンドテスト（src/dev/audio）。すべての効果音と BGM の各レイヤーを試聴する。開発サーバーだけで開ける
   void import('./dev/audio/main').then((m) => m.mountSoundTest(root));
 } else {
-  render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} />, root);
+  // プレイログ（src/dev/log）。`?dev=log` か、D5 の通しプレイ用ビルド（`--mode playtest`）で有効
+  const log = import.meta.env.MODE === 'playtest' || (import.meta.env.DEV && devFlags.has('log'));
+  render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} log={log} />, root);
 }

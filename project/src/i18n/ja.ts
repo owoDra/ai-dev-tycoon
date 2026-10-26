@@ -468,6 +468,18 @@ export const ja = {
     },
     typeSample: '人間を、人間にしかできない仕事へ',
   },
+  /** プレイログ（src/dev/log。D5 の通しプレイ用） */
+  playLog: {
+    title: 'プレイログ',
+    recording: '● プレイログ記録中',
+    ended: 'チュートリアル終了',
+    endedHint: '「ログを見る」から JSON をコピーして、フィードバックのメモ欄に貼ってください',
+    elapsed: (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`,
+    open: 'ログを見る',
+    close: '閉じる',
+    copy: 'JSON をコピー',
+    copied: 'コピーしました',
+  },
   explore: {
     title: 'デザイン比較',
     switcher: '案の切り替え',

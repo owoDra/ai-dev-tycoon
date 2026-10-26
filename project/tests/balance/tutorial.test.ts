@@ -63,6 +63,32 @@ function plannedCommands(): TimedCommand[] {
   return commands;
 }
 
+/** 各ステップに着いたゲーム内時刻（分）。1分ずつ進めて TutorialStepChanged を拾う */
+function stepTimeline(commands: readonly TimedCommand[]): { id: string; at: number }[] {
+  const first = tutorialScript.steps[0]?.id ?? '';
+  const timeline = [{ id: first, at: 0 }];
+  const horizon = LIMIT_SECONDS * balance.time.minutesPerRealSecond * 2;
+  let state = runHeadless({
+    seed: tutorialScript.seed,
+    initial: tutorialStart(),
+    commands: commands.filter((c) => c.at <= 0),
+    until: 0,
+  }).state;
+  while (state.tutorial && state.clock < horizon) {
+    const from = state.clock;
+    const r = runHeadless({
+      seed: tutorialScript.seed,
+      initial: state,
+      commands: commands.filter((c) => c.at > from && c.at <= from + 1),
+      until: from + 1,
+    });
+    for (const e of r.events) if (e.type === 'TutorialStepChanged') timeline.push({ id: e.stepId, at: r.state.clock });
+    if (r.events.some((e) => e.type === 'TutorialEnded')) timeline.push({ id: '（終了）', at: r.state.clock });
+    state = r.state;
+  }
+  return timeline;
+}
+
 function play() {
   const commands = plannedCommands();
   const horizon = LIMIT_SECONDS * balance.time.minutesPerRealSecond * 2;
@@ -125,6 +151,12 @@ describe('チュートリアル「小さなLP制作」（企画書50〜51章）'
     );
     for (const c of r.commands.slice(1))
       console.info(`[tutorial]   ${toRealSeconds(c.at).toFixed(1)}秒: ${JSON.stringify(c.command)}`);
+    const timeline = stepTimeline(r.commands);
+    timeline.slice(0, -1).forEach((s, i) => {
+      const sec = (minutes: number) => toRealSeconds(minutes).toFixed(1).padStart(5);
+      const stay = (timeline[i + 1]?.at ?? s.at) - s.at;
+      console.info(`[tutorial]   ステップ ${s.id.padEnd(10)} 到達 ${sec(s.at)}秒 / 滞在 ${sec(stay)}秒`);
+    });
     expect(seconds).toBeLessThanOrEqual(LIMIT_SECONDS);
   });
 });

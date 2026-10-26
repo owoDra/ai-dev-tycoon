@@ -55,12 +55,21 @@ export interface ToastLayout {
   width: number | null;
 }
 
+/** 短いお知らせ（Task 完了など）。操作を妨げないよう、押せない表示として出して自動で消す（企画書44章） */
+export interface NoticeLayout {
+  /** 同時に出す数（新しい順） */
+  max: number;
+  /** 表示している時間（ms） */
+  durationMs: number;
+}
+
 /** 1つの幅での画面構成 */
 export interface LayoutForm {
   dock: DockLayout;
   sheet: SheetLayout;
   assignCards: AssignCardsLayout;
   toast: ToastLayout;
+  notice: NoticeLayout;
 }
 
 /** 詳細を閉じる操作 */
@@ -97,12 +106,14 @@ export const uiLayout: UiLayout = {
     sheet: { maxWidth: 760, heightRatio: 0.42, swipeClose: 60 },
     assignCards: 'grid',
     toast: { max: 3, width: 384 },
+    notice: { max: 3, durationMs: 2600 },
   },
   compact: {
     dock: { projectName: true, items: dockItems, bottom: 0 },
     sheet: { maxWidth: 760, heightRatio: 0.6, swipeClose: 60 },
     assignCards: 'scroll',
     toast: { max: 1, width: null },
+    notice: { max: 2, durationMs: 2200 },
   },
   flow: {
     keepDetailAfterAssign: false,

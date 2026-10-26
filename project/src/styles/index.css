@@ -1,3 +1,18 @@
 @import "tailwindcss";
 @import "./tokens.css";
 @import "./icons.css";
+
+/* 見出しと大きな数字の太さ（トークンは content/look/visual.ts） */
+@utility font-heading {
+  font-weight: var(--font-weight-heading);
+  letter-spacing: var(--tracking-heading);
+}
+
+@layer base {
+  /* キーボード操作のフォーカスリング。どの背景でも見えるよう、濃い輪郭の外側に明るい縁を重ねる */
+  :focus-visible {
+    outline: 3px solid var(--color-primary-500);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 7px var(--color-surface);
+  }
+}

@@ -1,7 +1,9 @@
-import { type Accessor, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
+import { audio } from '../../audio/index';
 import { getTask } from '../../content/index';
 import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
+import { eventSfx } from '../../content/sfx';
 import type { AssignModeId } from '../../content/types';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
@@ -59,6 +61,13 @@ export function PlayScreen(props: {
   });
   const [dismissed, setDismissed] = createSignal<ReadonlySet<string>>(new Set());
   const shownProblems = () => problems().filter((p) => !dismissed().has(p.id));
+  // 問題のトーストが新しく出たら警告音を添える（トーストのアイコンと文言が本体で、音は補助）
+  let heard = new Set<string>();
+  createEffect(() => {
+    const ids = new Set(shownProblems().map((p) => p.id));
+    if ([...ids].some((id) => !heard.has(id))) audio.play(eventSfx.problemShown);
+    heard = ids;
+  });
 
   const notices = createNotices(() => form().form.notice);
   onCleanup(

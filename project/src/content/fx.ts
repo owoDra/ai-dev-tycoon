@@ -1,3 +1,5 @@
+import type { SfxId } from './sfx';
+
 /**
  * 演出の Tier テーブル（企画書42〜45章）。報酬の大きさに段階を付け、全部が派手になって価値が下がるのを防ぐ。
  * GameEvent（と UI の選択）を view/fx.ts が FxSignal に変換し、fx/director.ts がこの表を引いて演出を起動する。
@@ -93,6 +95,11 @@ export interface FxDef {
   readonly reducedAlternative: readonly FxPart[];
   /** 文字の文言キー（i18n の ja.fx.labels）と色合い。文字を出さない演出は null */
   readonly label: { readonly key: FxId; readonly tone: FxTone } | null;
+  /**
+   * 一緒に鳴らす効果音（content/sfx.ts）。演出と音をここで一緒に調整する。
+   * 音は補助で、どの演出も parts と reducedAlternative で画面上に必ず何かを出す（ミュートしても情報は失われない）
+   */
+  readonly sfx: readonly SfxId[];
   /** キャラクターの表情を変える演出の表情（actorExpression） */
   readonly expression?: 'joy' | 'focus' | 'trouble';
 }
@@ -105,6 +112,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['islandLift'],
     reducedAlternative: ['glow'],
     label: null,
+    sfx: ['select'],
   },
   {
     id: 'taskDone',
@@ -113,6 +121,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['islandBounce', 'coinBurst', 'popLabel', 'comboLabel'],
     reducedAlternative: ['glow', 'fadeLabel'],
     label: { key: 'taskDone', tone: 'success' },
+    sfx: ['taskDone', 'coin', 'combo'],
   },
   {
     id: 'taskDefect',
@@ -121,6 +130,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['islandBounce', 'popLabel'],
     reducedAlternative: ['fadeLabel'],
     label: { key: 'taskDefect', tone: 'danger' },
+    sfx: ['failure'],
   },
   {
     id: 'reviewCatch',
@@ -129,6 +139,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['shield', 'actorHop', 'actorExpression', 'sparkle', 'popLabel'],
     reducedAlternative: ['glow', 'actorExpression', 'fadeLabel'],
     label: { key: 'reviewCatch', tone: 'info' },
+    sfx: ['reviewCatch'],
     expression: 'focus',
   },
   {
@@ -138,6 +149,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['packetRush', 'confetti', 'ring', 'islandBounce', 'bigType'],
     reducedAlternative: ['glow', 'fadeBigType'],
     label: { key: 'bottleneckCleared', tone: 'accent' },
+    sfx: ['bottleneckCleared'],
   },
   {
     id: 'automation',
@@ -146,6 +158,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['packetRush', 'confetti', 'sparkle', 'ring', 'bigType', 'bigNumber'],
     reducedAlternative: ['glow', 'fadeBigType', 'fadeBigNumber'],
     label: { key: 'automation', tone: 'accent' },
+    sfx: ['automation'],
   },
   {
     id: 'projectComplete',
@@ -154,6 +167,7 @@ export const fxTable: readonly FxDef[] = [
     parts: ['flash', 'cameraShake', 'rays', 'confetti', 'coinBurst', 'bigType', 'hitStop', 'actorExpression'],
     reducedAlternative: ['fadeBigType', 'actorExpression'],
     label: { key: 'projectComplete', tone: 'success' },
+    sfx: ['fanfare'],
     expression: 'joy',
   },
 ];

@@ -20,6 +20,9 @@ if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && devFlags.has('
 } else if (import.meta.env.DEV && devFlags.has('fx')) {
   // 演出のプレビュー（src/dev/fx）。すべての演出をボタンで発火して確かめる。開発サーバーだけで開ける
   void import('./dev/fx/main').then((m) => m.mountFxPreview(root));
+} else if (import.meta.env.DEV && devFlags.has('audio')) {
+  // サウンドテスト（src/dev/audio）。すべての効果音と BGM の各レイヤーを試聴する。開発サーバーだけで開ける
+  void import('./dev/audio/main').then((m) => m.mountSoundTest(root));
 } else {
   render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} />, root);
 }

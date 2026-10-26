@@ -1,5 +1,6 @@
-import { createSignal, type JSX, onMount, Show } from 'solid-js';
+import { createSignal, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
+import { audio } from '../../audio/index';
 import type { SheetLayout } from '../../content/look/layout';
 import type { AssignModeId } from '../../content/types';
 import { enter } from '../../fx/motion';
@@ -32,7 +33,11 @@ export function DetailSheet(props: {
   const [drag, setDrag] = createSignal(0);
   let dragFrom: number | null = null;
   let el!: HTMLElement;
-  onMount(() => enter(el, 'below'));
+  onMount(() => {
+    audio.play('panelOpen');
+    onCleanup(() => audio.play('panelClose'));
+    enter(el, 'below');
+  });
 
   const d = () => props.detail;
   return (

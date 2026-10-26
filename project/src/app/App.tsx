@@ -2,7 +2,9 @@ import { createEffect, createSignal, lazy, Match, on, onCleanup, Show, Switch } 
 import { content } from '../content/index';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { createInitialState } from '../core/state';
+import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
+import { AudioHost } from '../ui/audio/AudioHost';
 import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
@@ -39,6 +41,7 @@ export function App(props: { tweak: boolean }) {
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const openSettings = () => setSettingsOpen(true);
+  let director: FxDirector | undefined;
   let plays = 0;
 
   const worldProject = () => {
@@ -122,6 +125,16 @@ export function App(props: { tweak: boolean }) {
         world={() => world()?.world}
         vm={() => world()?.vm()}
         selection={selection}
+        ref={(api) => {
+          director = api.director;
+        }}
+      />
+      <AudioHost
+        store={game()}
+        song={screens.screen().id === 'result' ? 'result' : 'play'}
+        projectId={screens.screen().id === 'play' ? worldProject() : null}
+        world={() => world()?.world}
+        combo={() => director?.combo() ?? 0}
       />
       <Show when={settingsOpen()}>
         <SettingsSheet onClose={() => setSettingsOpen(false)} />

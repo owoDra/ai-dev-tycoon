@@ -1,5 +1,8 @@
 import { type Accessor, createEffect, on, onCleanup } from 'solid-js';
 import type { GameStore } from '../../app/store';
+import { audio } from '../../audio/index';
+import { screenPan } from '../../audio/notes';
+import { audioRules } from '../../content/sfx';
 import { createFxDirector, type FxDirector } from '../../fx/director';
 import { feel } from '../../fx/feel';
 import { reducedMotion } from '../../fx/reduced';
@@ -17,7 +20,7 @@ export interface FxHostApi {
 
 /**
  * 演出のつなぎ役。store の events と選択の変化を FxSignal にして director に渡し、
- * 起動した演出を world（3D）と FxLayer（DOM）へ配る。state は読むだけで、Command は発行しない。
+ * 起動した演出を world（3D）と FxLayer（DOM）と audio（効果音）へ配る。state は読むだけで、Command は発行しない。
  * 画面が切り替わっても演出が続くよう、App で画面の外側に1つだけ置く。
  */
 export function FxHost(props: {
@@ -39,8 +42,12 @@ export function FxHost(props: {
     world?.cancelFx(cancelled);
     layer?.cancel(cancelled);
     for (const cue of started) {
+      const at = cue.entityId ? (world?.project(cue.entityId) ?? null) : null;
       world?.playFx(cue);
-      layer?.play(cue, cue.entityId ? (world?.project(cue.entityId) ?? null) : null);
+      layer?.play(cue, at);
+      // 音は演出と同じものだけ鳴らす（抑制された演出は音も出さない）。位置に応じて左右に振る
+      const pan = at ? screenPan(at.x, window.innerWidth, audioRules.spatialWidth) : 0;
+      for (const id of cue.def.sfx) audio.play(id, { pan, combo: cue.combo });
     }
   };
 

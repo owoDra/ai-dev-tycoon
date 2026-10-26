@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { balance } from '../../src/content/balance';
+import { getProject } from '../../src/content/index';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { createInitialState } from '../../src/core/state';
@@ -59,15 +59,28 @@ describe('Task の進行', () => {
     expect(started.indexOf('hearing')).toBeLessThan(started.indexOf('requirements'));
     expect(started.indexOf('uiDesign')).toBeLessThan(started.indexOf('implementation'));
     const tasks = state.projects[P]?.tasks;
-    // 実装は UI設計と競合調査の両方が終わった次のステップで始まる（並行作業の合流点）
+    // 実装は UI設計と競合調査の両方が終わった時点で始まる（並行作業の合流点）
     expect(tasks?.implementation?.startedAt).toBe(
-      Math.max(tasks?.uiDesign?.completedAt ?? Infinity, tasks?.research?.completedAt ?? Infinity) +
-        balance.time.tickMinutes,
+      Math.max(tasks?.uiDesign?.completedAt ?? Infinity, tasks?.research?.completedAt ?? Infinity),
     );
+    for (const task of getProject(P).tasks) {
+      const ends = task.deps.map((d) => tasks?.[d]?.completedAt ?? Infinity);
+      if (ends.length > 0) expect(tasks?.[task.id]?.startedAt).toBe(Math.max(...ends));
+    }
     expect(started.at(-1)).toBe('release');
     expect(ofType(events, 'TaskCompleted')).toHaveLength(7);
     expect(ofType(events, 'ProjectCompleted')).toEqual([{ type: 'ProjectCompleted', projectId: P }]);
     expect(state.projects[P]?.completedAt).not.toBeNull();
+  });
+
+  it('依存が解決した Task は、前の担当者が誰でも同じ時刻に始まり、次のステップから進む', () => {
+    const finish = (next: string) => {
+      const cmds = at0([start, assign('hearing', 'human', 'sato'), assign('requirements', 'human', next)]);
+      const t = runHeadless({ seed: 'u', commands: cmds, until: 400 }).state.projects[P]?.tasks;
+      return [t?.requirements?.startedAt, t?.requirements?.completedAt];
+    };
+    expect(finish('sato')).toEqual([90, 90 + 120]);
+    expect(finish('suzuki')).toEqual([90, 90 + 120]);
   });
 
   it('人間1人は同時に1件しか処理しない（同じ人に並べると直列になる）', () => {

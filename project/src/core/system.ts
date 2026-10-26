@@ -3,7 +3,7 @@ import type { GameEvent } from './events';
 import { humanQueueSystem } from './humanQueueSystem';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
-import { taskSystem } from './taskSystem';
+import { taskSystem, taskUnlockSystem } from './taskSystem';
 
 /** システム関数に渡す、1ステップ分の作業場所 */
 export interface SystemContext {
@@ -30,5 +30,6 @@ export const defaultSystems: readonly System[] = [
   releaseScheduledEvents,
   taskSystem,
   humanQueueSystem,
+  taskUnlockSystem,
   bottleneckSystem,
 ];

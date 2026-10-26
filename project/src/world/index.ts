@@ -49,6 +49,8 @@ export interface World {
   setSelected(entityId: string | null): void;
   /** 3D オブジェクトの頭上のキャンバス座標。DOM のラベルやポップアップを重ねるのに使う */
   project(entityId: string): ScreenPoint | null;
+  /** 島・キャラクター・パケットへカメラを寄せる（offset と zoom は CameraRig.focusOn と同じ） */
+  focus(entityId: string, offset?: { x: number; y: number }, zoom?: number): void;
   dispose(): void;
 }
 
@@ -358,6 +360,12 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       const p = at.pos.clone();
       p.y += at.height;
       return toScreen(p, rig.camera, canvas.clientWidth, canvas.clientHeight);
+    },
+    focus(entityId, offset = { x: 0, y: 0 }, zoom) {
+      const at = positionOf(entityId);
+      if (!at) return;
+      rig.focusOn({ x: at.pos.x, z: at.pos.z }, offset, zoom);
+      invalidate();
     },
     dispose() {
       canvas.removeEventListener('pointerdown', onPointerDown);

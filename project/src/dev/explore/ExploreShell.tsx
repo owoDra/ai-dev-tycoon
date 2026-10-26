@@ -11,6 +11,8 @@ export interface ExploreOption<T extends string> {
 /**
  * 案を比較するためのシェル。画面の隅に切り替えボタンを常に表示する（Artifact ではクエリパラメータを使えないため）。
  * 見た目は比較対象の案から切り離し、どの案を表示していても同じ見た目にする。
+ * placement が top のときは、切り替えを画面上端の帯に置き、children はその下の残りの領域に表示する
+ * （画面の下端や隅に置く UI そのものを比べるとき用）。extra は切り替えの横に並べる比較用の操作。
  */
 export function ExploreShell<T extends string>(props: {
   title: string;
@@ -21,8 +23,42 @@ export function ExploreShell<T extends string>(props: {
   onToggleTweak: () => void;
   tweak: JSX.Element;
   children: JSX.Element;
+  placement?: 'corner' | 'top';
+  extra?: JSX.Element;
 }) {
   const current = () => props.options.find((o) => o.id === props.selected);
+  const buttons = () => (
+    <For each={props.options}>
+      {(o) => (
+        <button
+          type="button"
+          aria-pressed={o.id === props.selected}
+          class="rounded-lg px-3 py-1.5 font-bold ring-1 ring-slate-600 hover:bg-slate-700 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:ring-white"
+          onClick={() => props.onSelect(o.id)}
+        >
+          {o.label}
+        </button>
+      )}
+    </For>
+  );
+  if (props.placement === 'top') {
+    return (
+      <div class="fixed inset-0 flex flex-col bg-slate-950">
+        <nav
+          aria-label={ja.explore.switcher}
+          class="z-50 flex flex-wrap items-center gap-x-4 gap-y-2 bg-slate-900 px-3 py-2 font-sans text-sm text-slate-100 shadow-xl"
+        >
+          <span class="text-xs font-bold tracking-wide text-slate-400">{props.title}</span>
+          <div class="flex flex-wrap gap-1.5">{buttons()}</div>
+          {props.extra}
+          <Show when={current()}>
+            {(c) => <p class="basis-full text-xs leading-relaxed text-slate-300">{c().aim}</p>}
+          </Show>
+        </nav>
+        <div class="relative min-h-0 flex-1">{props.children}</div>
+      </div>
+    );
+  }
   return (
     <>
       {props.children}
@@ -42,20 +78,7 @@ export function ExploreShell<T extends string>(props: {
             {ja.explore.tweak}
           </button>
         </div>
-        <div class="flex flex-wrap gap-1.5">
-          <For each={props.options}>
-            {(o) => (
-              <button
-                type="button"
-                aria-pressed={o.id === props.selected}
-                class="rounded-lg px-3 py-1.5 font-bold ring-1 ring-slate-600 hover:bg-slate-700 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:ring-white"
-                onClick={() => props.onSelect(o.id)}
-              >
-                {o.label}
-              </button>
-            )}
-          </For>
-        </div>
+        <div class="flex flex-wrap gap-1.5">{buttons()}</div>
         <Show when={current()}>{(c) => <p class="mt-2 text-xs leading-relaxed text-slate-300">{c().aim}</p>}</Show>
       </nav>
     </>

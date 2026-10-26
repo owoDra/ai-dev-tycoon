@@ -23,6 +23,11 @@ export interface CameraRig {
   wheel(deltaY: number): void;
   /** ドラッグによるパン（CSS ピクセル） */
   panBy(dx: number, dy: number): void;
+  /**
+   * 床の上の点が画面の中心から offset（CSS ピクセル）ずれた位置に来るように、ばねで寄せる。
+   * パネルなどで隠れていない範囲の中心に見せたいときに offset を使う。zoom を渡すと、それより引いていれば寄る
+   */
+  focusOn(point: { x: number; z: number }, offset: { x: number; y: number }, zoom?: number): void;
   /** ばねが動いているか */
   readonly moving: () => boolean;
   dispose(): void;
@@ -116,6 +121,19 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
     targets.z = Math.min(bounds.maxZ + m - c.z, Math.max(bounds.minZ - m - c.z, targets.z));
   };
 
+  /** 画面上のずれ（CSS ピクセル）を、床の上のずれ（m）に換算する。中身が (dx, dy) だけ動いて見えるカメラの移動量 */
+  const screenToGround = (dx: number, dy: number) => {
+    // 画面上の1ピクセルが床の上で何 m か。縦方向は俯角のぶん床が縮んで見える
+    const perPixel = viewHeight / targets.zoom / height;
+    const az = (look.azimuthDeg * Math.PI) / 180;
+    const el = (look.elevationDeg * Math.PI) / 180;
+    const rx = Math.cos(az);
+    const rz = -Math.sin(az);
+    const fx = -Math.sin(az) / Math.sin(el);
+    const fz = -Math.cos(az) / Math.sin(el);
+    return { x: (-dx * rx + dy * fx) * perPixel, z: (-dx * rz + dy * fz) * perPixel };
+  };
+
   const zoomTo = (to: number) => {
     targets.zoom = Math.min(look.zoomMax, Math.max(look.zoomMin, to));
     springTo(zoom, targets.zoom);
@@ -146,20 +164,23 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
       zoomTo(targets.zoom * Math.exp(-deltaY * WHEEL_ZOOM));
     },
     panBy(dx, dy) {
-      // 画面上の1ピクセルが床の上で何 m か。縦方向は俯角のぶん床が縮んで見える
-      const perPixel = viewHeight / targets.zoom / height;
-      const az = (look.azimuthDeg * Math.PI) / 180;
-      const el = (look.elevationDeg * Math.PI) / 180;
-      const rx = Math.cos(az);
-      const rz = -Math.sin(az);
-      const fx = -Math.sin(az) / Math.sin(el);
-      const fz = -Math.cos(az) / Math.sin(el);
-      targets.x += (-dx * rx + dy * fx) * perPixel;
-      targets.z += (-dx * rz + dy * fz) * perPixel;
+      const d = screenToGround(dx, dy);
+      targets.x += d.x;
+      targets.z += d.z;
       clampPan();
       // ドラッグ中は指に吸い付くように即座に動かす
       panX.jump(targets.x);
       panZ.jump(targets.z);
+    },
+    focusOn(point, offset, zoom) {
+      if (zoom !== undefined && targets.zoom < zoom) zoomTo(zoom);
+      const c = center();
+      const d = screenToGround(offset.x, offset.y);
+      targets.x = point.x - c.x + d.x;
+      targets.z = point.z - c.z + d.z;
+      clampPan();
+      springTo(panX, targets.x);
+      springTo(panZ, targets.z);
     },
     moving: () => running.size > 0,
     dispose() {

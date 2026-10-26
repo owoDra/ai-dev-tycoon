@@ -13,8 +13,10 @@ import {
 } from 'three';
 import type { ModelId } from '../assets/catalog';
 import { getTexture } from '../assets/registry';
+import { defaultFeelId, feelPresets } from '../content/look/feel';
 import type { VisualPreset } from '../content/look/visual';
 import type { WorldLook } from '../content/look/world';
+import type { FxCue } from '../fx/director';
 import type { ActorView, PacketView, WorldViewModel } from '../view/world';
 import { type Actors, createActors } from './actors';
 import { createCameraRig } from './camera';
@@ -26,6 +28,10 @@ import { createPackets, type Packets, type PacketTarget } from './packets';
 import { CLICK_SLOP, pickEntity, type SelectEntity } from './picking';
 import { type ScreenPoint, toScreen } from './project';
 import { createWorldRenderer, type RenderStats } from './renderer';
+import { createVfx } from './vfx/index';
+import { playCue } from './vfx/player';
+import { shakeOffset } from './vfx/shake';
+import { createSquash } from './vfx/squash';
 
 export type { SelectEntity } from './picking';
 export type { RenderStats } from './renderer';
@@ -34,7 +40,8 @@ export { DRAW_CALL_BUDGET } from './renderer';
 export interface WorldOptions {
   look: WorldLook;
   visual: VisualPreset;
-  reducedMotion: boolean;
+  /** 動きを減らすか。実行中に変わってもよい（変えたら redraw を呼ぶ） */
+  reducedMotion: () => boolean;
   /** 島・キャラクター・パケットをクリックしたとき（何もない場所なら entityId: null） */
   onSelect: (command: SelectEntity) => void;
 }
@@ -51,6 +58,14 @@ export interface World {
   project(entityId: string): ScreenPoint | null;
   /** 島・キャラクター・パケットへカメラを寄せる（offset と zoom は CameraRig.focusOn と同じ） */
   focus(entityId: string, offset?: { x: number; y: number }, zoom?: number): void;
+  /** 演出を再生する（fx/director が起動したもの）。ゲームの state には触れない */
+  playFx(cue: FxCue): void;
+  /** 入れ替えられた大きな演出を止める */
+  cancelFx(tokens: readonly number[]): void;
+  /** 生きているパーティクルの数（計測用） */
+  particleCount(): number;
+  /** 設定が変わったときに描き直す */
+  redraw(): void;
   dispose(): void;
 }
 
@@ -77,6 +92,15 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
 
   let invalidate = () => {};
   const rig = createCameraRig(look.camera, reducedMotion, () => invalidate());
+  const vfx = createVfx(visual);
+  const squash = createSquash(() => invalidate());
+  scene.add(vfx.root);
+  /** ワールドの時計（秒）。ヒットストップの間だけ遅く進む。シミュレーション（app/loop.ts）には関係しない */
+  let worldTime = 0;
+  const hitStop = { until: 0, scale: 1 };
+  const shaking = { start: 0, durationMs: 0, amplitude: 0 };
+  /** 島の持ち上げに使う spring（最後に再生した演出の手触り） */
+  let liftSpring = feelPresets[defaultFeelId].spring;
   const view = createWorldRenderer(
     canvas,
     scene,
@@ -263,13 +287,22 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     return true;
   }
 
-  function frame(dt: number, time: number): boolean {
+  function frame(realDt: number): boolean {
     if (!stage || !actors || !packets || !vm) return false;
+    const now = performance.now();
+    const dt = realDt * (now < hitStop.until ? hitStop.scale : 1);
+    worldTime += dt;
+    const time = worldTime;
+    const reduced = reducedMotion();
     const live = !vm.paused;
-    const motion = live && !reducedMotion;
-    stage.update(vm.islands, time, motion);
-    const walking = actors.frame({ dt, time, live, reducedMotion });
-    const sliding = packets.frame(dt, time, live, reducedMotion);
+    const motion = live && !reduced;
+    stage.update(vm.islands, time, motion, (id) => squash.get(id));
+    const walking = actors.frame({ dt, time, live, reducedMotion: reduced });
+    const sliding = packets.frame(dt, time, live, reduced);
+    const effects = vfx.frame(dt, rig.camera);
+    const elapsed = now - shaking.start;
+    const shakingNow = elapsed < shaking.durationMs;
+    rig.nudge(shakingNow ? shakeOffset(elapsed, shaking.durationMs, shaking.amplitude) : { x: 0, y: 0 });
     placeRing(selection, selected);
     const bn = vm.bottleneck;
     if (placeRing(bottleneckRing, bn?.entityId ?? null) && bn) {
@@ -278,7 +311,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
         look.bottleneck.ringOpacity * pulse * (0.4 + 0.6 * bn.intensity);
     }
     // 進行中は毎フレーム描く。一時停止中（や動きを減らす設定）では、歩行・パケット・カメラが落ち着いたら止まる
-    return motion || walking || sliding || rig.moving();
+    return motion || walking || sliding || effects || shakingNow || squash.active() || rig.moving();
   }
 
   // 入力：ドラッグでパン、ホイールとピンチでズーム、動かさずに離したら選択
@@ -352,6 +385,8 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     },
     setSelected(entityId) {
       selected = entityId;
+      // 選択が島から外れたら持ち上げた島を下ろす（島を選んだときの持ち上げは Tier 0 の演出が行う）
+      if (!entityId?.startsWith('island:')) squash.liftOnly(null, 0, liftSpring);
       invalidate();
     },
     project(entityId) {
@@ -367,6 +402,39 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       rig.focusOn({ x: at.pos.x, z: at.pos.z }, offset, zoom);
       invalidate();
     },
+    playFx(cue) {
+      liftSpring = cue.feel.spring;
+      playCue(cue, {
+        vfx,
+        squash,
+        actors,
+        islandSize: look.environment.islandSize,
+        groundOf: (entityId) => {
+          if (entityId === null) {
+            const e = layout?.exit;
+            return e ? new Vector3(e.x, PAD_HEIGHT, e.z) : null;
+          }
+          const at = positionOf(entityId);
+          return at ? at.pos.clone() : null;
+        },
+        actorIds: () => vm?.actors.map((a) => a.id) ?? [],
+        shake(amplitude, durationMs) {
+          Object.assign(shaking, { start: performance.now(), durationMs, amplitude });
+        },
+        hitStop(durationMs, scale) {
+          Object.assign(hitStop, { until: performance.now() + durationMs, scale });
+        },
+      });
+      invalidate();
+    },
+    cancelFx(tokens) {
+      if (tokens.length === 0) return;
+      vfx.stopBig();
+      shaking.durationMs = 0;
+      invalidate();
+    },
+    particleCount: () => vfx.particleCount(),
+    redraw: () => invalidate(),
     dispose() {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
@@ -376,6 +444,8 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       stage?.dispose();
       actors?.dispose();
       packets?.dispose();
+      vfx.dispose();
+      squash.dispose();
       materials?.dispose();
       floorMaterial?.dispose();
       rig.dispose();

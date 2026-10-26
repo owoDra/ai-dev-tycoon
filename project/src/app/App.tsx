@@ -3,7 +3,9 @@ import { content } from '../content/index';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { createInitialState } from '../core/state';
 import { ja } from '../i18n/ja';
+import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
+import { SettingsSheet } from '../ui/SettingsSheet';
 import { ProjectSelect } from '../ui/screens/ProjectSelect';
 import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
@@ -11,6 +13,7 @@ import { createSelection } from '../ui/selection';
 import { WorldCanvas } from '../ui/WorldCanvas';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
+import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
 import { createScreens } from './screens';
 import { createGameStore, type GameStore } from './store';
@@ -34,6 +37,8 @@ export function App(props: { tweak: boolean }) {
   const [world, setWorld] = createSignal<{ world: World; vm: () => WorldViewModel }>();
   const [lookId, setLookId] = createSignal<WorldLookId>(defaultWorldLookId);
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const openSettings = () => setSettingsOpen(true);
   let plays = 0;
 
   const worldProject = () => {
@@ -75,7 +80,7 @@ export function App(props: { tweak: boolean }) {
       />
       <Switch>
         <Match when={screens.screen().id === 'title'}>
-          <TitleScreen onStart={() => screens.go({ type: 'Open' })} />
+          <TitleScreen onStart={() => screens.go({ type: 'Open' })} onSettings={openSettings} />
         </Match>
         <Match when={screens.screen().id === 'select'}>
           <ProjectSelect
@@ -93,6 +98,7 @@ export function App(props: { tweak: boolean }) {
             selection={selection}
             vm={() => world()?.vm()}
             world={() => world()?.world}
+            onSettings={openSettings}
           />
         </Match>
         <Match when={screens.screen().id === 'result'}>
@@ -110,6 +116,16 @@ export function App(props: { tweak: boolean }) {
           />
         </Match>
       </Switch>
+      <FxHost
+        store={game()}
+        projectId={screens.screen().id === 'play' || screens.screen().id === 'result' ? worldProject() : null}
+        world={() => world()?.world}
+        vm={() => world()?.vm()}
+        selection={selection}
+      />
+      <Show when={settingsOpen()}>
+        <SettingsSheet onClose={() => setSettingsOpen(false)} />
+      </Show>
       <Show when={import.meta.env.DEV && world()}>{(w) => <DevStats world={w().world} />}</Show>
       <Show when={WorldTweak && props.tweak && WorldTweak}>
         {(Tweak) => {
@@ -133,8 +149,9 @@ export function App(props: { tweak: boolean }) {
 
 /** 開発時だけ表示する描画の計測（draw call・描画したフレーム数・ループが止まっているか） */
 function DevStats(props: { world: World }) {
-  const [stats, setStats] = createSignal({ ...props.world.stats });
-  const timer = setInterval(() => setStats({ ...props.world.stats }), 500);
+  const read = () => ({ ...props.world.stats, particles: props.world.particleCount() });
+  const [stats, setStats] = createSignal(read());
+  const timer = setInterval(() => setStats(read()), 500);
   onCleanup(() => clearInterval(timer));
   return (
     <p class="pointer-events-none absolute top-1 left-1 rounded bg-slate-900/70 px-2 py-0.5 font-mono text-[10px] text-white">
@@ -143,6 +160,8 @@ function DevStats(props: { world: World }) {
       </span>
       {' · '}
       {ja.world.frames(stats().frames)}
+      {' · '}
+      {ja.fx.preview.particles(stats().particles, PARTICLE_TOTAL)}
       <Show when={!stats().running}> · {ja.world.idle}</Show>
     </p>
   );

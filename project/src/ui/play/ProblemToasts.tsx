@@ -1,9 +1,9 @@
 import { Index, onMount, Show } from 'solid-js';
 import type { ToastLayout } from '../../content/look/layout';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { Advice } from '../../view/advice';
 import { Icon } from '../Icon';
-import { enter } from '../motion';
 import { panel, primaryButton, smallButton } from '../parts';
 
 const t = ja.advice;

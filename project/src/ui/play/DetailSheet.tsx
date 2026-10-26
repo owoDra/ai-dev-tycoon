@@ -2,10 +2,10 @@ import { createSignal, type JSX, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import type { SheetLayout } from '../../content/look/layout';
 import type { AssignModeId } from '../../content/types';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { DetailView } from '../../view/detail';
 import { Icon } from '../Icon';
-import { enter } from '../motion';
 import { ghostButton, kindIcon, Meter, modeIcon, panel, StatusIcon } from '../parts';
 import { AssignCards } from './AssignCards';
 

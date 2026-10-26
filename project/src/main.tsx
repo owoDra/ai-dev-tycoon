@@ -17,6 +17,9 @@ if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && devFlags.has('
 } else if (import.meta.env.DEV && devFlags.has('styleguide')) {
   // スタイルガイド（src/dev/styleguide）。開発サーバーだけで開ける
   void import('./dev/styleguide/main').then((m) => m.mountStyleguide(root));
+} else if (import.meta.env.DEV && devFlags.has('fx')) {
+  // 演出のプレビュー（src/dev/fx）。すべての演出をボタンで発火して確かめる。開発サーバーだけで開ける
+  void import('./dev/fx/main').then((m) => m.mountFxPreview(root));
 } else {
   render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} />, root);
 }

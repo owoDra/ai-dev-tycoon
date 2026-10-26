@@ -11,6 +11,7 @@ import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
 import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
+import { Presence } from '../Presence';
 import type { Selection } from '../selection';
 import { DetailSheet } from './DetailSheet';
 import { Dock } from './Dock';
@@ -33,6 +34,7 @@ export function PlayScreen(props: {
   vm: Accessor<WorldViewModel | undefined>;
   world?: Accessor<World | undefined>;
   layout?: UiLayout;
+  onSettings?: () => void;
 }) {
   const layout = () => props.layout ?? uiLayout;
   const [view, setView] = createSignal({ width: window.innerWidth, height: window.innerHeight });
@@ -185,26 +187,24 @@ export function PlayScreen(props: {
         onLater={(p) => setDismissed((s) => new Set([...s, p.id]))}
       />
       <NoticeHost notices={notices.list()} compact={form().compact} />
-      <Show when={detail()}>
+      <Presence when={detail()} enter={false} class="pointer-events-auto">
         {(d) => (
-          <div class="pointer-events-auto">
-            <DetailSheet
-              ref={(el) => {
-                sheetEl = el;
-              }}
-              store={props.store}
-              projectId={props.projectId}
-              detail={d()}
-              layout={form().form.sheet}
-              scrollCards={form().form.assignCards === 'scroll'}
-              bottom={sheetBottom()}
-              viewHeight={view().height}
-              onClose={close}
-              onAssign={assign}
-            />
-          </div>
+          <DetailSheet
+            ref={(el) => {
+              sheetEl = el;
+            }}
+            store={props.store}
+            projectId={props.projectId}
+            detail={d()}
+            layout={form().form.sheet}
+            scrollCards={form().form.assignCards === 'scroll'}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            onClose={close}
+            onAssign={assign}
+          />
         )}
-      </Show>
+      </Presence>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -214,6 +214,7 @@ export function PlayScreen(props: {
           compact={form().compact}
           problemCount={problems().length}
           onProblems={() => setDismissed(new Set<string>())}
+          onSettings={props.onSettings}
         />
       </div>
     </div>

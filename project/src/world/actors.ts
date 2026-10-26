@@ -1,3 +1,4 @@
+import { animate, type MotionValue, motionValue } from 'motion';
 import { type BufferGeometry, Group, Mesh, MeshBasicMaterial, PlaneGeometry, type Texture, Vector3 } from 'three';
 import { type ModelId, modelAssets } from '../assets/catalog';
 import { type Expression, expressions, type WorldLook } from '../content/look/world';
@@ -25,7 +26,14 @@ interface ActorObject {
   /** 動きの位相をずらすための値（ID から決める） */
   readonly seed: number;
   walking: boolean;
+  /** 演出のジャンプの高さ（m）。motion の animate() で動かす */
+  readonly hop: MotionValue<number>;
+  /** 演出で一時的に変えた表情と、元に戻す時刻（performance.now の ms） */
+  reaction: { expression: Expression; until: number } | null;
 }
+
+/** 演出のジャンプ1回の長さ（秒） */
+const HOP_SECONDS = 0.45;
 
 export interface ActorFrame {
   readonly dt: number;
@@ -45,6 +53,8 @@ export interface Actors {
   /** 頭の上の高さ（m） */
   readonly headHeight: number;
   readonly pickables: () => Mesh[];
+  /** 演出の反応。hop で跳ね、expression を durationMs の間だけ表示する（ViewModel の表情より優先） */
+  react(id: string, reaction: { hop?: number; expression?: Expression; durationMs?: number }): void;
   /** look やマテリアルを変えたら作り直す（位置は引き継ぐ） */
   rebuild(materials: WorldMaterials, look: WorldLook): void;
   dispose(): void;
@@ -113,12 +123,14 @@ export function createActors(
       target: pos.clone(),
       seed: hashSeed(view.id),
       walking: false,
+      hop: motionValue(0),
+      reaction: null,
     };
   };
 
   const removeObject = (o: ActorObject) => root.remove(o.root);
 
-  const animate = (o: ActorObject, f: ActorFrame) => {
+  const pose = (o: ActorObject, f: ActorFrame) => {
     const c = look.character;
     const yaw = (look.camera.azimuthDeg * Math.PI) / 180;
     const toTarget = new Vector3().subVectors(o.target, o.pos);
@@ -151,12 +163,14 @@ export function createActors(
         sy = 1 + 0.025 * Math.sin(t * 2.2);
       }
     }
-    o.body.position.y = y;
+    o.body.position.y = y + o.hop.get();
     o.body.rotation.set(lean, 0, roll);
     const k = c.scale;
     o.body.scale.set(k / Math.sqrt(sy), k * c.stretch * sy, k / Math.sqrt(sy));
     o.shadow.scale.setScalar(look.shadow.size * k * 0.55 * Math.max(0.5, 1 - y * 1.5));
-    if (o.face) o.face.material = faceMaterials.get(o.view.expression) ?? o.face.material;
+    if (o.reaction && o.reaction.until <= performance.now()) o.reaction = null;
+    const expression = o.reaction?.expression ?? o.view.expression;
+    if (o.face) o.face.material = faceMaterials.get(expression) ?? o.face.material;
   };
 
   return {
@@ -175,12 +189,18 @@ export function createActors(
     frame(f) {
       let moving = false;
       for (const o of objects.values()) {
-        animate(o, f);
-        moving ||= o.walking;
+        pose(o, f);
+        moving ||= o.walking || o.reaction !== null || o.hop.isAnimating();
       }
       return moving;
     },
     positionOf: (id) => objects.get(id)?.pos ?? null,
+    react(id, r) {
+      const o = objects.get(id);
+      if (!o) return;
+      if (r.hop) animate(o.hop, [0, r.hop, 0], { duration: HOP_SECONDS, ease: 'easeOut' });
+      if (r.expression) o.reaction = { expression: r.expression, until: performance.now() + (r.durationMs ?? 0) };
+    },
     pickables: () =>
       [...objects.values()].flatMap((o) =>
         o.body.children.filter((c): c is Mesh => c instanceof Mesh && c.userData.entityId !== undefined),
@@ -192,6 +212,7 @@ export function createActors(
         root.remove(o.root);
         const fresh = build(o.view, o.pos);
         fresh.target.copy(o.target);
+        fresh.reaction = o.reaction;
         objects.set(id, fresh);
       }
     },

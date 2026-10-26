@@ -1,4 +1,4 @@
-import { createMemo, For, Match, Show, Switch } from 'solid-js';
+import { createMemo, For, type JSX, Match, Show, Switch } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { balance } from '../../content/balance';
 import { getProject } from '../../content/index';
@@ -6,9 +6,12 @@ import type { DockLayout, HudItemId } from '../../content/look/layout';
 import { ja } from '../../i18n/ja';
 import { type HudView, hudView } from '../../view/hud';
 import { Icon } from '../Icon';
-import { Meter, PlayPauseIcon, panel } from '../parts';
+import { Num } from '../Num';
+import { iconButton, Meter, PlayPauseIcon, panel, SettingsIcon } from '../parts';
 
 const t = ja.hud;
+/** Profit / Human Hour の増減チップを出す最小の変化（円/人時）。見込みの細かな揺れでは出さない */
+const PROFIT_CHIP_MIN = 100;
 
 /**
  * 下部のドック（D3「ゲームのドック」）。先頭に案件名（見出しで、常時表示の項目には数えない）、
@@ -22,6 +25,8 @@ export function Dock(props: {
   compact: boolean;
   problemCount: number;
   onProblems: () => void;
+  /** 設定を開く（渡さなければボタンを出さない） */
+  onSettings?: () => void;
   ref?: (el: HTMLElement) => void;
 }) {
   const hud = createMemo(() => hudView(props.store.state(), props.projectId));
@@ -62,6 +67,13 @@ export function Dock(props: {
           </For>
         )}
       </Show>
+      <Show when={props.onSettings}>
+        {(open) => (
+          <button type="button" class={iconButton} aria-label={ja.settings.open} onClick={() => open()()}>
+            <SettingsIcon />
+          </button>
+        )}
+      </Show>
     </nav>
   );
 }
@@ -80,7 +92,7 @@ function HudItem(props: {
         <Figure
           icon="money"
           label={props.hud.projected ? `${t.profit}（${t.projected}）` : t.profit}
-          value={t.yenPerHour(props.hud.profitPerHumanHour)}
+          value={<Num value={props.hud.profitPerHumanHour} format={t.yenPerHour} chipMin={PROFIT_CHIP_MIN} />}
           dense={props.dense}
         />
       </Match>
@@ -128,7 +140,7 @@ function HudItem(props: {
 function Figure(props: {
   icon: 'money' | 'clock' | 'warning';
   label: string;
-  value: string;
+  value: JSX.Element;
   sub?: string;
   dense: boolean;
   danger?: boolean;

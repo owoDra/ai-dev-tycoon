@@ -1,8 +1,8 @@
 import { For, onMount } from 'solid-js';
 import { content } from '../../content/index';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
-import { enter } from '../motion';
 import { ghostButton, panel, primaryButton } from '../parts';
 
 /** 案件選択。今は案件が1件だけなので、カードを1枚並べる（content.projects に足せば増える） */

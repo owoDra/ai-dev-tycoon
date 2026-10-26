@@ -28,6 +28,8 @@ export interface CameraRig {
    * パネルなどで隠れていない範囲の中心に見せたいときに offset を使う。zoom を渡すと、それより引いていれば寄る
    */
   focusOn(point: { x: number; z: number }, offset: { x: number; y: number }, zoom?: number): void;
+  /** 画面上で (x, y) CSS ピクセルだけずらして映す（カメラの揺れ）。ズームとパンの目標は変えない */
+  nudge(offset: { x: number; y: number }): void;
   /** ばねが動いているか */
   readonly moving: () => boolean;
   dispose(): void;
@@ -37,7 +39,11 @@ export interface CameraRig {
  * 直交カメラによるアイソメトリック表示。俯角と回転は look から読み、ズームとパンは motion の spring でなめらかに動かす。
  * ズームは「案件全体が収まる倍率」を 1 とした相対値で、look の範囲に制限する。パンは島の範囲＋余白に制限する。
  */
-export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean, onChange: () => void): CameraRig {
+export function createCameraRig(
+  initial: WorldCameraLook,
+  reducedMotion: () => boolean,
+  onChange: () => void,
+): CameraRig {
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, DISTANCE * 3);
   let look = initial;
   let aspect = 1;
@@ -49,6 +55,7 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
   const panZ = motionValue(0);
   const targets = { zoom: look.zoomInitial, x: 0, z: 0 };
   const running = new Set<MotionValue<number>>();
+  const shake = { x: 0, y: 0 };
 
   const center = () => ({ x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 });
   const direction = () => {
@@ -63,6 +70,14 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
     camera.position.copy(target).addScaledVector(direction(), DISTANCE);
     camera.up.set(0, 1, 0);
     camera.lookAt(target);
+    if (shake.x !== 0 || shake.y !== 0) {
+      // 画面の右と上の向きへずらす。映っているものは逆向きに動いて見えるので符号を反転する
+      camera.updateMatrixWorld();
+      const perPixel = viewHeight / zoom.get() / Math.max(1, height);
+      const right = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      camera.position.addScaledVector(right, -shake.x * perPixel).addScaledVector(up, shake.y * perPixel);
+    }
     camera.left = (-viewHeight * aspect) / 2;
     camera.right = (viewHeight * aspect) / 2;
     camera.top = viewHeight / 2;
@@ -95,7 +110,7 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
   };
 
   const springTo = (value: MotionValue<number>, to: number) => {
-    if (reducedMotion) {
+    if (reducedMotion()) {
       value.jump(to);
       onChange();
       return;
@@ -181,6 +196,11 @@ export function createCameraRig(initial: WorldCameraLook, reducedMotion: boolean
       clampPan();
       springTo(panX, targets.x);
       springTo(panZ, targets.z);
+    },
+    nudge(offset) {
+      shake.x = offset.x;
+      shake.y = offset.y;
+      apply();
     },
     moving: () => running.size > 0,
     dispose() {

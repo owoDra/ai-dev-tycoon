@@ -1,5 +1,6 @@
-import { For, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js';
 import type { AssignModeId } from '../../content/types';
+import { morph } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { AssignForecast, ForecastMetrics } from '../../view/forecast';
 
@@ -57,7 +58,7 @@ export function ForecastPreview(props: { forecast: (AssignForecast & { mode: Ass
                       </span>
                       <span aria-hidden="true">→</span>
                       <span class="font-heading tabular-nums" data-dir={dir()}>
-                        {row.format(after())}
+                        <MorphValue from={before()} to={after()} format={row.format} />
                       </span>
                       <Show when={before() !== undefined}>
                         <Trend dir={dir()} />
@@ -71,6 +72,33 @@ export function ForecastPreview(props: { forecast: (AssignForecast & { mode: Ass
         </section>
       )}
     </Show>
+  );
+}
+
+/**
+ * After の数字。予測が変わるたびに Before の値から After の値へ変形して見せる（企画書42章「Before → After が Morph」）。
+ * 読み上げには最終的な値を渡す
+ */
+function MorphValue(props: { from: number | undefined; to: number; format: (v: number) => string }) {
+  const to = createMemo(() => props.to);
+  const [shown, setShown] = createSignal(props.to);
+  let stop = () => {};
+  createEffect(
+    on(
+      to,
+      (value) => {
+        stop();
+        stop = morph([props.from ?? shown()], [value], ([v]) => setShown(v ?? value));
+      },
+      { defer: true },
+    ),
+  );
+  onCleanup(() => stop());
+  return (
+    <>
+      <span class="sr-only">{props.format(props.to)}</span>
+      <span aria-hidden="true">{props.format(shown())}</span>
+    </>
   );
 }
 

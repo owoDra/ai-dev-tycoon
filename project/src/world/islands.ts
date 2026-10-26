@@ -58,7 +58,13 @@ export interface Stage {
   readonly islands: Map<string, IslandObject>;
   /** 選択できるメッシュ（userData.entityId を持つ） */
   readonly pickables: Object3D[];
-  update(views: readonly IslandView[], time: number, animate: boolean): void;
+  /** fx は演出による島のスカッシュ＆ストレッチと持ち上げ（島の entityId ごと） */
+  update(
+    views: readonly IslandView[],
+    time: number,
+    animate: boolean,
+    fx?: (entityId: string) => { sx: number; sy: number; lift: number },
+  ): void;
   dispose(): void;
 }
 
@@ -220,7 +226,7 @@ export function createStage(parts: StageParts): Stage {
     root,
     islands,
     pickables,
-    update(views, time, animate) {
+    update(views, time, animate, fx) {
       currentViews = new Map(views.map((v) => [v.taskId, v]));
       for (const v of views) {
         const island = islands.get(v.taskId);
@@ -231,7 +237,9 @@ export function createStage(parts: StageParts): Stage {
           animate && v.isBottleneck
             ? 1 + look.bottleneck.pulseAmplitude * v.bottleneck * Math.sin(time * Math.PI * 2 * look.bottleneck.pulseHz)
             : 1;
-        island.group.scale.set(pulse, 1, pulse);
+        const f = fx?.(v.id) ?? { sx: 1, sy: 1, lift: 0 };
+        island.group.scale.set(pulse * f.sx, f.sy, pulse * f.sx);
+        island.group.position.y = f.lift;
       }
     },
     dispose() {

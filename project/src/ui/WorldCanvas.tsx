@@ -2,6 +2,7 @@ import { type Accessor, createEffect, createSignal, on, onCleanup, onMount, Show
 import type { GameStore } from '../app/store';
 import { visual } from '../content/look/visual';
 import type { WorldLook } from '../content/look/world';
+import { reducedMotion } from '../fx/reduced';
 import { ja } from '../i18n/ja';
 import { type WorldViewModel, worldView } from '../view/world';
 import { createWorld, type World } from '../world/index';
@@ -28,7 +29,7 @@ export function WorldCanvas(props: {
       world = createWorld(canvas, {
         look: props.look(),
         visual,
-        reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        reducedMotion,
         onSelect: (command) => props.selection.dispatch(command),
       });
     } catch (e) {
@@ -46,6 +47,7 @@ export function WorldCanvas(props: {
     createEffect(() => world.setViewModel(vm()));
     createEffect(on(props.look, (look) => world.setLook(look), { defer: true }));
     createEffect(() => world.setSelected(props.selection.selected()));
+    createEffect(on(reducedMotion, () => world.redraw(), { defer: true }));
     props.onWorld?.(world, vm);
     onCleanup(() => world.dispose());
   });

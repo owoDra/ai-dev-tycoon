@@ -2,9 +2,9 @@ import { createMemo, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { textureUrl } from '../../assets/registry';
 import { scoreProject } from '../../core/scoring';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
-import { enter } from '../motion';
 import { ghostButton, panel, primaryButton } from '../parts';
 
 /** 結果画面（仮）。Profit / Human Hour と主な数字だけを出す。振り返りと演出は Phase 14 で作る */

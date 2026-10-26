@@ -82,9 +82,20 @@ export function textScale(preset: VisualPreset): Record<string, number> {
  * （1.25 で y≈1.56。一般的な back-out の曲線になる）。
  */
 export function popEasing(preset: VisualPreset): string {
-  const y = 1 + (preset.motion.popOvershoot - 1) * 2.24;
-  return `cubic-bezier(0.34, ${y.toFixed(2)}, 0.64, 1)`;
+  const [x1, y1, x2, y2] = popBezier(preset);
+  return `cubic-bezier(${x1}, ${y1.toFixed(2)}, ${x2}, ${y2})`;
 }
+
+/** popEasing の制御点。motion の animate() に渡して CSS のトークンと同じ曲線で動かす */
+export function popBezier(preset: VisualPreset): [number, number, number, number] {
+  const y = 1 + (preset.motion.popOvershoot - 1) * 2.24;
+  return [0.34, Number(y.toFixed(2)), 0.64, 1];
+}
+
+/** `--ease-out` と `--ease-in-out` の制御点（motion の animate() と CSS で共有する） */
+export const EASE_OUT_BEZIER = [0.22, 1, 0.36, 1] as const;
+export const EASE_IN_OUT_BEZIER = [0.65, 0, 0.35, 1] as const;
+const bezier = (b: readonly number[]) => `cubic-bezier(${b.join(', ')})`;
 
 /** 柔らかい多層の影（浮いたパネル・ツールチップ用）。D1 の影（輪郭のはっきりした影）とは別に用意する */
 function softShadow(preset: VisualPreset): string {
@@ -139,8 +150,8 @@ export function themeTokens(preset: VisualPreset): Record<string, string> {
     '--shadow-raised': boxShadow(preset, 1.4),
     '--shadow-soft': softShadow(preset),
     '--ease-pop': popEasing(preset),
-    '--ease-out': 'cubic-bezier(0.22, 1, 0.36, 1)',
-    '--ease-in-out': 'cubic-bezier(0.65, 0, 0.35, 1)',
+    '--ease-out': bezier(EASE_OUT_BEZIER),
+    '--ease-in-out': bezier(EASE_IN_OUT_BEZIER),
   });
   for (const [name, px] of Object.entries(textScale(preset))) {
     tokens[`--text-${name}`] = `${px}px`;

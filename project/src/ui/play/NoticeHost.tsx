@@ -1,7 +1,7 @@
 import { For, onMount } from 'solid-js';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
-import { enter } from '../motion';
 import type { Notice } from '../notices';
 
 /** 短いお知らせの表示。画面上部の中央に小さく出し、押せないので下のワールドやボタンの操作を妨げない */

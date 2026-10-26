@@ -1,14 +1,14 @@
 import { onMount } from 'solid-js';
 import { textureSrcset, textureUrl } from '../../assets/registry';
+import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import { enter } from '../motion';
-import { panel, primaryButton } from '../parts';
+import { iconButton, panel, primaryButton, SettingsIcon } from '../parts';
 
 /**
  * タイトル画面。後ろでは 3D ワールドがアイドル表示で動き（App が描く）、手前にキービジュアル（WebP）と
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
  */
-export function TitleScreen(props: { onStart: () => void }) {
+export function TitleScreen(props: { onStart: () => void; onSettings: () => void }) {
   let el!: HTMLDivElement;
   let start!: HTMLButtonElement;
   onMount(() => {
@@ -28,6 +28,9 @@ export function TitleScreen(props: { onStart: () => void }) {
         <p class="text-sm font-bold text-ink-muted">{ja.screens.title.tagline}</p>
         <button ref={start} type="button" class={`${primaryButton} min-w-48 text-lg`} onClick={() => props.onStart()}>
           {ja.screens.title.start}
+        </button>
+        <button type="button" class={iconButton} aria-label={ja.settings.open} onClick={() => props.onSettings()}>
+          <SettingsIcon />
         </button>
       </div>
     </div>

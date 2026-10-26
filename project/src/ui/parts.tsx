@@ -56,6 +56,25 @@ export function PlayPauseIcon(props: { paused: boolean }) {
   );
 }
 
+/** 設定（歯車）。アイコンセットにない UI 専用の記号なので、ここで描く */
+export function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" class="size-6" aria-hidden="true">
+      <path
+        d="M12 2.5l1.6 2.3 2.7-.8.6 2.8 2.8.6-.8 2.7 2.3 1.6-2.3 1.6.8 2.7-2.8.6-.6 2.8-2.7-.8L12 21.5l-1.6-2.3-2.7.8-.6-2.8-2.8-.6.8-2.7L2.5 12l2.3-1.6-.8-2.7 2.8-.6.6-2.8 2.7.8z"
+        class="fill-surface stroke-line"
+        stroke-width="2"
+        stroke-linejoin="round"
+      />
+      <circle cx="12" cy="12" r="3.4" class="fill-accent-400 stroke-line" stroke-width="2" />
+    </svg>
+  );
+}
+
+/** 設定を開くボタン（44px 四方） */
+export const iconButton =
+  'flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-surface shadow-pop transition-transform active:translate-y-1 active:shadow-none';
+
 /** 0〜1 の割合を示す棒。棒は見た目だけで、読み上げには label を文字で渡す */
 export function Meter(props: { ratio: number; label: string; color: string; class?: string }) {
   return (

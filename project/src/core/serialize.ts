@@ -1,7 +1,7 @@
-import type { GameState } from './state';
+import { createHumanQueues, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -10,7 +10,10 @@ export interface Migration {
 }
 
 /** from の昇順に並べる */
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [
+  // v2: 案件・人間の待ち行列・ボトルネックを追加（Phase 03）
+  { from: 1, migrate: (s) => ({ ...(s as object), projects: {}, humanQueues: createHumanQueues(), bottleneck: null }) },
+];
 
 interface SaveData {
   readonly saveVersion: number;
@@ -60,6 +63,9 @@ function isGameState(v: unknown): v is GameState {
     typeof v.speed === 'number' &&
     typeof v.paused === 'boolean' &&
     isRecord(v.entities) &&
+    isRecord(v.projects) &&
+    isRecord(v.humanQueues) &&
+    (v.bottleneck === null || isRecord(v.bottleneck)) &&
     Array.isArray(v.pendingEvents)
   );
 }

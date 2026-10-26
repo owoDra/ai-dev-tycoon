@@ -4,11 +4,14 @@ import './styles/index.css';
 import { startLoop } from './app/loop';
 import { createGameStore } from './app/store';
 import { balance } from './content/balance';
+import { content } from './content/index';
+import { assertValidContent } from './content/validate';
 import { createInitialState } from './core/state';
 import { ja } from './i18n/ja';
+import { ProjectPanel } from './ui/ProjectPanel';
 import { clockView } from './view/clock';
 
-// 仮の画面。ゲーム内時計と一時停止・速度変更だけを置く。本番の HUD は Phase 06 で作る
+// 仮の画面。ゲーム内時計・一時停止・速度変更と、案件の仮パネルを置く。本番の HUD は Phase 06 で作る
 function App() {
   const store = createGameStore(createInitialState('dev'));
   onCleanup(startLoop(store));
@@ -18,7 +21,7 @@ function App() {
   const speed = createMemo(() => store.state().speed);
 
   return (
-    <main class="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-900 text-white">
+    <main class="flex min-h-screen flex-col items-center justify-center gap-8 bg-slate-900 p-4 text-white">
       <h1 class="text-4xl font-bold tracking-tight text-amber-300">{ja.title}</h1>
       <p class="font-mono text-3xl tabular-nums" aria-live="off">
         {ja.clock.day(clock().day)} {clock().time}
@@ -55,6 +58,7 @@ function App() {
           </For>
         </fieldset>
       </div>
+      <ProjectPanel store={store} projectId="ecRenewal" />
     </main>
   );
 }
@@ -75,6 +79,7 @@ function PauseIcon() {
   );
 }
 
+assertValidContent(content);
 const root = document.getElementById('root');
 if (!root) throw new Error('#root が見つからない');
 render(() => <App />, root);

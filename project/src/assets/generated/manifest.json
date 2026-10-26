@@ -1,5 +1,5 @@
 {
-  "inputHash": "dd3a69bec9e1ecdc640d7e7dedfb32b8497a308dca9c6e8e85d43ef8f5df98ab",
+  "inputHash": "c5c2a33b05fac5482689159fdf89b4375c5f20f32bbae3425771b99f61c0a39b",
   "outputs": {
     "src/styles/tokens.css": "149be1ab0007b21d00bba832a911d32cd97dbf72df38c381ebd7f09d3ae2d40f",
     "src/assets/generated/title-key@1x.webp": "84513c85edf6afe39d99ade1dddaa8d36cdf6f65366623be9f54d6787aeeb203",
@@ -13,6 +13,21 @@
     "src/assets/generated/matcap-toon@1x.webp": "f8029b716de0f382d62c9ad10aef9607db33e7ddb086dd3bbae6140f907d592b",
     "src/assets/generated/matcap-toon@2x.webp": "caa151389a554f13393df231f30dc9111a30f050b47548d829e4fcffeb9ae112",
     "src/assets/generated/toon-gradient@1x.webp": "35c46e4dc763a9ae28c365f511b54c898a723a2265f0a0c9ecd0c6fd5c67de65",
-    "src/assets/generated/desk.glb": "d0e6229d8a800f598a4cf2d750106b9d7014c86ebad4328b5881d40dca6fa8b1"
+    "src/assets/generated/face-atlas@1x.webp": "fda9d754678491c913eb65035d3f60af5181e5dd7c1fea359f2e502a04b5881a",
+    "src/assets/generated/blob-shadow@1x.webp": "bf4ac0198952bd4ef0585c7792bd0409f76d5322d8a7a0e10bc27e9535b55dd1",
+    "src/assets/generated/desk.glb": "d0e6229d8a800f598a4cf2d750106b9d7014c86ebad4328b5881d40dca6fa8b1",
+    "src/assets/generated/human-bob.glb": "b4d2286225366b57c9c35f4dcd9ee6bcdbd795b439d58e7a2d2cb358b6565a80",
+    "src/assets/generated/human-cap.glb": "a9ea7f8482503eea301fde84663e533ff48fc45446e02402dc9bbf98057c9da9",
+    "src/assets/generated/human-glasses.glb": "fcdafbd166f5be98c66b7f82af8ff21068013d877568ed54e2368ff0a00935e0",
+    "src/assets/generated/human-bun.glb": "e3a8381b0caee5662ee09bf7edac5899dc8a21dec8ec76ac837735a13484369f",
+    "src/assets/generated/agent-research.glb": "1e8df5138ef5f5a0aad98f8cb2d435efcf6ac503acf07c094b8b4cfa92df969c",
+    "src/assets/generated/agent-code.glb": "d7c60f5f1adf54b885edd0b7d34685d858117db5172eccec523026998e6c26d6",
+    "src/assets/generated/agent-qa.glb": "dd20c8a6b02aa6e338e767fbb1be621dcb4cc6b270717b73ae8f4b79a1be304b",
+    "src/assets/generated/agent-release.glb": "b3f720b5736d74ce5e038030b6c82f6548ac7545e5e76892a94f17e43c806aff",
+    "src/assets/generated/monitor.glb": "9f3ef75b17e9c8ed1004927a4994c36a1c3372cf48dbe02cb660880cdc316d78",
+    "src/assets/generated/conveyor.glb": "5e9e15559ba844475c38dc83dfe3de89e68751c30e87885c86ce66c91cb19c23",
+    "src/assets/generated/packet.glb": "ddb9400fc49fba99193316b2c792f93fd940f3033f858e62250daab092db89a0",
+    "src/assets/generated/plant.glb": "81737d94b6497e8b94b59513561dca20f7582e24eb725882efa1354f5ffbd96f",
+    "src/assets/generated/server-rack.glb": "049b16a98ffcb80d694c650bb5a4e704ffb703ee09447a4c828253bb3f008819"
   }
 }

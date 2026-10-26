@@ -6,6 +6,7 @@ import {
   type BufferGeometry,
   Color,
   Float32BufferAttribute,
+  Group,
   Mesh,
   MeshStandardMaterial,
   type Object3D,
@@ -34,7 +35,8 @@ export function bakeParts(name: string, parts: readonly Part[], ao: AmbientOcclu
   const p = new Vector3();
   const nrm = new Vector3();
   const geometries = parts.map(({ geometry, color }) => {
-    const g = geometry;
+    // mergeGeometries は index の有無がそろっている必要があるため、すべて index なしにそろえる
+    const g = geometry.index ? geometry.toNonIndexed() : geometry;
     g.deleteAttribute('uv');
     // glTF の頂点カラーは線形の値。Color は sRGB の指定を作業用の線形色空間に変換する
     const base = new Color(color);
@@ -58,6 +60,14 @@ export function bakeParts(name: string, parts: readonly Part[], ao: AmbientOcclu
   const mesh = new Mesh(merged, material);
   mesh.name = name;
   return mesh;
+}
+
+/** 部品を1つのメッシュにまとめ、名前を付けたグループで包む（glb のルート） */
+export function bakeModel(name: string, parts: readonly Part[], ao: AmbientOcclusion): Group {
+  const group = new Group();
+  group.name = name;
+  group.add(bakeParts(name, parts, ao));
+  return group;
 }
 
 /** three のオブジェクトを glb にし、dedup・weld・meshopt（量子化を含む）で圧縮する */

@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: Number.MAX_SAFE_INTEGER,
   },
   test: {
+    // ファイルシステムのモジュールキャッシュは、中身が変わらないファイル（assets/registry.ts）の import.meta.glob の
+    // 結果を使い回すため、生成物を足しても古い一覧のままになる。テストは十分速いので使わない
+    fsModuleCache: false,
     // 既定は node 環境。UI ロジックのテスト（*.dom.test.tsx）だけ jsdom で動かす
     projects: [
       {

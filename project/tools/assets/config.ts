@@ -26,6 +26,8 @@ export const rasterConfig: Record<TextureId, RasterConfig> = {
   wall: { width: 256, height: 256, quality: 82, lossless: false, budgetBytes: 8 * 1024 },
   matcapToon: { width: 128, height: 128, quality: 90, lossless: false, budgetBytes: 4 * 1024 },
   toonGradient: { width: 4, height: 1, quality: 100, lossless: true, budgetBytes: 256 },
+  faceAtlas: { width: 256, height: 256, quality: 90, lossless: false, budgetBytes: 12 * 1024 },
+  blobShadow: { width: 64, height: 64, quality: 90, lossless: false, budgetBytes: 2 * 1024 },
 };
 
 export function rasterBudget(id: TextureId, scale: 1 | 2): number {
@@ -34,6 +36,19 @@ export function rasterBudget(id: TextureId, scale: 1 | 2): number {
 
 export const modelBudgetBytes: Record<ModelId, number> = {
   desk: 24 * 1024,
+  humanBob: 24 * 1024,
+  humanCap: 24 * 1024,
+  humanGlasses: 24 * 1024,
+  humanBun: 24 * 1024,
+  agentResearch: 24 * 1024,
+  agentCode: 24 * 1024,
+  agentQa: 24 * 1024,
+  agentRelease: 24 * 1024,
+  monitor: 16 * 1024,
+  conveyor: 16 * 1024,
+  packet: 12 * 1024,
+  plant: 16 * 1024,
+  serverRack: 28 * 1024,
 };
 
 /**
@@ -54,6 +69,7 @@ export const INPUT_GLOBS = {
     'src/styles/visualVars.ts',
     'src/styles/tokens.ts',
     'src/assets/catalog.ts',
+    'src/content/look/world.ts',
   ],
   packages: ['sharp', 'three', '@gltf-transform/core', '@gltf-transform/functions', 'meshoptimizer'],
 } as const;

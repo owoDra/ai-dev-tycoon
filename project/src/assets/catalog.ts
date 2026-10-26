@@ -1,3 +1,5 @@
+import type { AgentRole, HumanLookId } from '../content/look/world';
+
 /**
  * 生成アセットの一覧（ID → `assets/generated/` のファイル）。ランタイムのレジストリ（registry.ts）と
  * 生成スクリプト（tools/assets）の両方がこれを読む。後から人が作った画像やモデルに差し替えるときは、
@@ -30,12 +32,77 @@ export const textureAssets = {
   matcapToon: { base: 'matcap-toon', scales: [1, 2], srgb: true, repeat: false, nearest: false },
   /** MeshToonMaterial のグラデーションマップ（段の数だけの幅しかないため 1x のみ） */
   toonGradient: { base: 'toon-gradient', scales: [1], srgb: false, repeat: false, nearest: true },
+  /** キャラクターの表情のアトラス（2×2 のコマ。並びは content/look/world.ts の expressions） */
+  faceAtlas: { base: 'face-atlas', scales: [1], srgb: true, repeat: false, nearest: false },
+  /** 接地影（blob shadow）。白い円のぼかしで、アルファだけを使う */
+  blobShadow: { base: 'blob-shadow', scales: [1], srgb: false, repeat: false, nearest: false },
 } as const satisfies Record<string, TextureAsset>;
 
+/** キャラクターの顔を貼る位置（モデルの原点からの高さと前方への距離、顔の一辺。単位は m） */
+export interface FaceAnchor {
+  y: number;
+  z: number;
+  size: number;
+}
+
+export interface ModelAsset {
+  file: string;
+  /** 表情のアトラスを貼るキャラクターだけが持つ */
+  face?: FaceAnchor;
+}
+
+const humanFace: FaceAnchor = { y: 0.92, z: 0.25, size: 0.34 };
+
+/**
+ * 手続き生成するモデル（tools/assets/models）。単位は m、原点は床の中心、+Y が上、キャラクターの正面は +Z。
+ * 人間は髪型・服の色・小物で、Agent はボディの形で見分ける。
+ */
 export const modelAssets = {
-  /** パイプライン確認用のデスク（Phase 05 でキャラクターや小物を足す） */
+  /** 島に置くデスク（モニター・キーボード付き） */
   desk: { file: 'desk.glb' },
-} as const satisfies Record<string, { file: string }>;
+  /** 人間：ボブヘア・ピンクの服 */
+  humanBob: { file: 'human-bob.glb', face: humanFace },
+  /** 人間：キャップ・黄色の服・名札 */
+  humanCap: { file: 'human-cap.glb', face: humanFace },
+  /** 人間：短髪・メガネ・青緑の服・ネクタイ */
+  humanGlasses: { file: 'human-glasses.glb', face: humanFace },
+  /** 人間：お団子・ヘッドホン・オレンジの服 */
+  humanBun: { file: 'human-bun.glb', face: humanFace },
+  /** Agent（Research）：縦長のカプセル・アンテナ・レンズ */
+  agentResearch: { file: 'agent-research.glb', face: { y: 0.8, z: 0.235, size: 0.3 } },
+  /** Agent（Code）：角丸の箱・ブラケット状のバイザー */
+  agentCode: { file: 'agent-code.glb', face: { y: 0.6, z: 0.265, size: 0.32 } },
+  /** Agent（QA）：幅の広いボディ・盾の形の胸部 */
+  agentQa: { file: 'agent-qa.glb', face: { y: 0.84, z: 0.215, size: 0.28 } },
+  /** Agent（Release）：卵形のボディ・背中のロケット */
+  agentRelease: { file: 'agent-release.glb', face: { y: 0.6, z: 0.26, size: 0.28 } },
+  /** 案件の状況を映す大きなモニター（休憩所に置く） */
+  monitor: { file: 'monitor.glb' },
+  /** コンベアの部品（+Z 方向へ 0.5m の1区間） */
+  conveyor: { file: 'conveyor.glb' },
+  /** 仕事の小包（パケット）。一辺 1m で作り、描画時に縮める */
+  packet: { file: 'packet.glb' },
+  /** 観葉植物 */
+  plant: { file: 'plant.glb' },
+  /** サーバーラック */
+  serverRack: { file: 'server-rack.glb' },
+} as const satisfies Record<string, ModelAsset>;
+
+/** 人間の見た目の種類 → モデル */
+export const humanModels = {
+  bob: 'humanBob',
+  cap: 'humanCap',
+  glasses: 'humanGlasses',
+  bun: 'humanBun',
+} as const satisfies Record<HumanLookId, ModelId>;
+
+/** AI Agent の役割 → モデル */
+export const agentModels = {
+  research: 'agentResearch',
+  code: 'agentCode',
+  qa: 'agentQa',
+  release: 'agentRelease',
+} as const satisfies Record<AgentRole, ModelId>;
 
 export type TextureId = keyof typeof textureAssets;
 export type ModelId = keyof typeof modelAssets;

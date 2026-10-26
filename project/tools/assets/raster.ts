@@ -5,13 +5,23 @@ import { type TextureId, textureAssets, textureFile } from '../../src/assets/cat
 import type { VisualPreset } from '../../src/content/look/visual';
 import { floor, matcapToon, toonGradient, wall } from './art/materials';
 import { resultBg, titleKey } from './art/scenes';
+import { blobShadow, faceAtlas } from './art/world';
 import { GENERATED_DIR, rasterConfig } from './config';
 
 /** SVG のイラストを WebP に事前ラスタライズする（sharp）。解像度と品質は config.ts の rasterConfig */
 
 type Artwork = (preset: VisualPreset, w: number, h: number, scale: number) => string;
 
-export const artworks: Record<TextureId, Artwork> = { titleKey, resultBg, floor, wall, matcapToon, toonGradient };
+export const artworks: Record<TextureId, Artwork> = {
+  titleKey,
+  resultBg,
+  floor,
+  wall,
+  matcapToon,
+  toonGradient,
+  faceAtlas,
+  blobShadow,
+};
 
 export async function rasterizeTexture(preset: VisualPreset, id: TextureId, scale: 1 | 2): Promise<Buffer> {
   const c = rasterConfig[id];

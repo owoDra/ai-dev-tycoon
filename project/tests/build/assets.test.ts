@@ -71,8 +71,10 @@ describe('WebP', () => {
   });
 });
 
-describe('glb', () => {
-  const glb = readFileSync(join(GENERATED_DIR, modelAssets.desk.file));
+const modelIds = Object.keys(modelAssets) as (keyof typeof modelAssets)[];
+
+describe.each(modelIds)('glb: %s', (id) => {
+  const glb = readFileSync(join(GENERATED_DIR, modelAssets[id].file));
   const jsonLength = glb.readUInt32LE(12);
   const json = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8'));
 

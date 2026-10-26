@@ -1,4 +1,4 @@
-import { createSignal, For, type JSX, Match, Switch } from 'solid-js';
+import { createSignal, For, type JSX, Match, Show, Switch } from 'solid-js';
 import { type TextureId, textureAssets } from '../../assets/catalog';
 import { type IconTone, iconNames } from '../../assets/icons';
 import { textureSrcset, textureUrl } from '../../assets/registry';
@@ -8,6 +8,7 @@ import { contrastRatio } from '../../styles/color';
 import { colorScales, rootTokens, SCALE_STEPS, textScale, tokenContrastPairs } from '../../styles/tokens';
 import { Icon } from '../../ui/Icon';
 import { DeskViewer } from './DeskViewer';
+import { ModelGallery } from './ModelGallery';
 
 const t = ja.styleguide;
 
@@ -32,6 +33,7 @@ export function Styleguide() {
         <Icons />
         <Textures />
         <Model />
+        <Characters />
       </div>
     </main>
   );
@@ -333,6 +335,22 @@ function Model() {
             </Match>
           </Switch>
         </p>
+      </Card>
+    </Section>
+  );
+}
+
+function Characters() {
+  const [status, setStatus] = createSignal<'loading' | 'ready' | 'error'>('loading');
+  return (
+    <Section title={t.sections.characters}>
+      <Card class="flex flex-col gap-2" data-model-status={status()}>
+        <ModelGallery label={t.sections.characters} onStatus={setStatus} />
+        <Show when={status() === 'error'}>
+          <p class="flex items-center gap-2 text-sm">
+            <Icon name="failure" /> {t.modelError}
+          </p>
+        </Show>
       </Card>
     </Section>
   );

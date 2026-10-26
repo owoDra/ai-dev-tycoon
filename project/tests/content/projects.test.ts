@@ -40,7 +40,7 @@ describe('content', () => {
       requirements: ['hearing'],
       uiDesign: ['requirements'],
       research: ['requirements'],
-      implementation: ['uiDesign'],
+      implementation: ['uiDesign', 'research'],
       qa: ['implementation'],
       release: ['qa'],
     });

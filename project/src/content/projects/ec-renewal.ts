@@ -5,7 +5,9 @@ const t = ja.tasks.ecRenewal;
 
 /**
  * ECサイトリニューアル（企画書4章）。
- * 顧客要望整理 → 要件定義 → UI設計 / 競合調査、UI設計 → 実装 → QA → リリース。
+ * 顧客要望整理 → 要件定義 → UI設計 / 競合調査 → 実装 → QA → リリース。
+ * 企画書の図では競合調査が行き止まりだが、成果が使われない仕事に見えないよう実装の前で合流させる
+ * （並行して進める配置の工夫が生まれる）。
  * 実装は人間だと8時間かかり、AI 化すると QA やレビューが次のボトルネックになる（企画書20章）。
  */
 export const ecRenewal: ProjectDef = {
@@ -61,7 +63,7 @@ export const ecRenewal: ProjectDef = {
     {
       id: 'implementation',
       name: t.implementation,
-      deps: ['uiDesign'],
+      deps: ['uiDesign', 'research'],
       effort: 480,
       difficulty: 0.6,
       aiAptitude: 0.8,

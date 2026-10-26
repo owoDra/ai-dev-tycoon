@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { balance } from '../../src/content/balance';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { createInitialState } from '../../src/core/state';
@@ -57,6 +58,12 @@ describe('Task の進行', () => {
     const started = ofType(events, 'TaskStarted').map((e) => e.taskId);
     expect(started.indexOf('hearing')).toBeLessThan(started.indexOf('requirements'));
     expect(started.indexOf('uiDesign')).toBeLessThan(started.indexOf('implementation'));
+    const tasks = state.projects[P]?.tasks;
+    // 実装は UI設計と競合調査の両方が終わった次のステップで始まる（並行作業の合流点）
+    expect(tasks?.implementation?.startedAt).toBe(
+      Math.max(tasks?.uiDesign?.completedAt ?? Infinity, tasks?.research?.completedAt ?? Infinity) +
+        balance.time.tickMinutes,
+    );
     expect(started.at(-1)).toBe('release');
     expect(ofType(events, 'TaskCompleted')).toHaveLength(7);
     expect(ofType(events, 'ProjectCompleted')).toEqual([{ type: 'ProjectCompleted', projectId: P }]);

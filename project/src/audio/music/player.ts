@@ -23,10 +23,23 @@ export interface MusicPlayer {
   dispose(): void;
 }
 
+/** パレットの曲調を掛けた、実際に鳴らすテンポ（BPM） */
+export function songTempo(song: Song, palette: SoundPalette): number {
+  return song.tempo * palette.music.tempo;
+}
+
+/**
+ * ハネ（シャッフル）：裏の16分音符（奇数のステップ）を、1ステップの長さ × swing だけ遅らせる。
+ * 遅らせるのは鳴らす時刻だけで、シーケンサーの格子は変えない（ずれは積み重ならない）
+ */
+export function swingOffset(step: number, stepDur: number, swing: number): number {
+  return step % 2 === 1 ? stepDur * swing : 0;
+}
+
 /** 楽曲の1音を鳴らせる形にする */
 function toVoice(note: MusicNote, song: Song, palette: SoundPalette, gain: number, pan: number, send: number) {
   const shape = musicEnvelopes[song.layers.find((l) => l.id === note.layer)?.kind ?? 'drum'];
-  const seconds = note.len * stepSeconds(song.tempo, song.stepsPerBeat);
+  const seconds = note.len * stepSeconds(songTempo(song, palette), song.stepsPerBeat);
   const hold = Math.max(0, seconds - shape.attack - shape.decay);
   const env: SfxEnvelope = { ...shape, hold: shape.sustain > 0 ? hold : 0 };
   const voice: VoiceNote = {
@@ -57,6 +70,8 @@ export function createMusicPlayer(
   let forced: number | null = null;
   let muted: ReadonlySet<MusicLayerId> = new Set();
   let lastTick = ctx.currentTime;
+  /** いま刻んでいるテンポ。パレットを替えたら次の tick で合わせる */
+  let tempo = 0;
   const layerGains = new Map<MusicLayerId, GainNode>();
   let active = new Set<MusicLayerId>();
 
@@ -98,11 +113,13 @@ export function createMusicPlayer(
     schedule(step, time) {
       const song = songId ? songs[songId] : null;
       if (!song) return;
+      const p = palette();
+      const at = time + swingOffset(step, stepSeconds(songTempo(song, p), song.stepsPerBeat), p.music.swing);
       for (const note of stepNotes(song, step, active)) {
         const layer = song.layers.find((l) => l.id === note.layer);
         if (!layer) continue;
-        const voice = toVoice(note, song, palette(), layer.gain, layer.pan ?? 0, layer.send ?? 0);
-        playVoice(ctx, { dry: layerGain(note.layer), send: reverb }, voice, time);
+        const voice = toVoice(note, song, p, layer.gain, layer.pan ?? 0, layer.send ?? 0);
+        playVoice(ctx, { dry: layerGain(note.layer), send: reverb }, voice, at);
       }
     },
   });
@@ -111,6 +128,11 @@ export function createMusicPlayer(
     const now = ctx.currentTime;
     value = smoothMomentum(value, target, Math.max(0, now - lastTick));
     lastTick = now;
+    const song = songId ? songs[songId] : null;
+    if (song && songTempo(song, palette()) !== tempo) {
+      tempo = songTempo(song, palette());
+      sequencer.setTempo(tempo, song.stepsPerBeat);
+    }
     updateLayers();
     sequencer.tick();
   }, musicRules.tickMs);
@@ -127,7 +149,8 @@ export function createMusicPlayer(
         sequencer.stop();
         return;
       }
-      sequencer.start(ctx.currentTime + musicRules.fade, songs[id].tempo, songs[id].stepsPerBeat);
+      tempo = songTempo(songs[id], palette());
+      sequencer.start(ctx.currentTime + musicRules.fade, tempo, songs[id].stepsPerBeat);
       updateLayers();
     },
     setMomentum(v) {

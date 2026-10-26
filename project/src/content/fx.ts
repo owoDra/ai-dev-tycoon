@@ -18,6 +18,9 @@ export type FxSignalKind =
   | 'reviewCatch'
   | 'bottleneckCleared'
   | 'automation'
+  | 'incident'
+  | 'autoRepair'
+  | 'autonomyStreak'
   | 'projectComplete';
 
 /**
@@ -83,6 +86,9 @@ export type FxId =
   | 'reviewCatch'
   | 'bottleneckCleared'
   | 'automation'
+  | 'incident'
+  | 'autoRepair'
+  | 'autonomyStreak'
   | 'projectComplete';
 
 export interface FxDef {
@@ -159,6 +165,36 @@ export const fxTable: readonly FxDef[] = [
     reducedAlternative: ['glow', 'fadeBigType', 'fadeBigNumber'],
     label: { key: 'automation', tone: 'accent' },
     sfx: ['automation'],
+  },
+  // 事件・自動修復・Autonomy Streak は Phase 10・12 で GameEvent とつなぐ。いまは演出のプレビューと D4 のデモ再生から起動する
+  {
+    id: 'incident',
+    tier: 2,
+    signal: 'incident',
+    parts: ['islandBounce', 'actorHop', 'actorExpression', 'popLabel'],
+    reducedAlternative: ['glow', 'actorExpression', 'fadeLabel'],
+    label: { key: 'incident', tone: 'danger' },
+    sfx: ['warning'],
+    expression: 'trouble',
+  },
+  {
+    id: 'autoRepair',
+    tier: 2,
+    signal: 'autoRepair',
+    parts: ['shield', 'sparkle', 'actorExpression', 'popLabel'],
+    reducedAlternative: ['glow', 'actorExpression', 'fadeLabel'],
+    label: { key: 'autoRepair', tone: 'info' },
+    sfx: ['autoRepair'],
+    expression: 'joy',
+  },
+  {
+    id: 'autonomyStreak',
+    tier: 3,
+    signal: 'autonomyStreak',
+    parts: ['packetRush', 'sparkle', 'ring', 'confetti', 'bigType'],
+    reducedAlternative: ['glow', 'fadeBigType'],
+    label: { key: 'autonomyStreak', tone: 'accent' },
+    sfx: ['streak'],
   },
   {
     id: 'projectComplete',

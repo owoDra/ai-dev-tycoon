@@ -10,7 +10,7 @@ import {
 } from '../../src/audio/notes';
 import { karplusStrong } from '../../src/audio/synth/pluck';
 import { fxTable } from '../../src/content/fx';
-import { type SoundPaletteId, soundPalettes, voiceSlots } from '../../src/content/look/sound';
+import { defaultSoundPaletteId, type SoundPaletteId, soundPalettes, voiceSlots } from '../../src/content/look/sound';
 import { audioRules, eventSfx, getSfx, sfxCatalog } from '../../src/content/sfx';
 
 const palettes = Object.keys(soundPalettes) as SoundPaletteId[];
@@ -84,14 +84,14 @@ describe('効果音カタログ', () => {
     expect(steps).toEqual([0, 2, 4, 7, 9, 12, 14]);
     expect(comboSemitones(rise, 100)).toBe(comboSemitones(rise, rise.minCombo + rise.maxSteps));
     // コンボが始まる前は鳴らさない
-    expect(resolveSfx(getSfx('combo'), soundPalettes.standard, { combo: 1 })).toEqual([]);
+    expect(resolveSfx(getSfx('combo'), soundPalettes[defaultSoundPaletteId], { combo: 1 })).toEqual([]);
   });
 
   it('揺らぎは音程を cents の幅で動かし、音量は下げる方向だけ', () => {
     const def = getSfx('taskStart');
-    const base = resolveSfx(def, soundPalettes.standard)[0];
-    const up = resolveSfx(def, soundPalettes.standard, { jitter: () => 1 })[0];
-    const down = resolveSfx(def, soundPalettes.standard, { jitter: () => -1 })[0];
+    const base = resolveSfx(def, soundPalettes[defaultSoundPaletteId])[0];
+    const up = resolveSfx(def, soundPalettes[defaultSoundPaletteId], { jitter: () => 1 })[0];
+    const down = resolveSfx(def, soundPalettes[defaultSoundPaletteId], { jitter: () => -1 })[0];
     if (!base || !up || !down) throw new Error('レイヤーがない');
     expect(up.hz / base.hz).toBeCloseTo(2 ** (def.variation.cents / 1200), 6);
     expect(down.hz).toBeLessThan(base.hz);

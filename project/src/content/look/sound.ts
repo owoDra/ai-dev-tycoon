@@ -2,7 +2,8 @@
  * 音色のパレット。効果音（content/sfx.ts）と楽曲（content/music.ts）は音源を直接指定せず、
  * ここの「声部（VoiceSlot）」を参照する。パレットを差し替えると、同じ譜面のまま音色だけが変わる
  * （実行中に audio.setPalette で切り替えられる。`?dev=audio` でも試聴できる）。
- * いまの値は仮の既定値1種で、D4（docs/plan/design-D4-feel.md）で比較して決める。
+ * パレットは BGM の曲調（テンポとハネ）と、効果音と BGM の音量バランスも持つ。
+ * 既定は D4 で採用した「ウッド＆マリンバ」（docs/decisions/D4-feel.md）。
  */
 
 /** 声部。効果音と楽曲はこの名前で音色を参照する */
@@ -76,61 +77,72 @@ export interface SoundPalette {
   readonly reverb: { readonly seconds: number; readonly decay: number };
   /** 全体のリバーブ送り量に掛ける倍率（0〜1） */
   readonly space: number;
+  /** BGM の曲調。tempo は曲（content/music.ts）のテンポに掛ける倍率、swing は裏の16分音符を遅らせる割合（0 でまっすぐ） */
+  readonly music: { readonly tempo: number; readonly swing: number };
+  /** 効果音と BGM の音量バランス（0〜1）。設定画面の音量に掛ける */
+  readonly mix: { readonly sfx: number; readonly music: number };
 }
 
-const standard: SoundPalette = {
+/** ウッド＆マリンバ：木の打鍵と柔らかい弦。短い部屋の響きで、BGM は少しハネる */
+const wood: SoundPalette = {
   voices: {
+    // マリンバ：基音と約4倍・約10倍の倍音を、短く減衰させる
     bell: {
       engine: 'bell',
       partials: [
-        { ratio: 1, gain: 1, decay: 0.9 },
-        { ratio: 2.76, gain: 0.45, decay: 0.35 },
-        { ratio: 5.4, gain: 0.22, decay: 0.16 },
-        { ratio: 8.93, gain: 0.1, decay: 0.08 },
+        { ratio: 1, gain: 1, decay: 0.35 },
+        { ratio: 3.93, gain: 0.35, decay: 0.09 },
+        { ratio: 9.9, gain: 0.12, decay: 0.03 },
       ],
     },
-    pluck: { engine: 'pluck', damping: 0.993, brightness: 0.75 },
-    lead: { engine: 'fm', ratio: 2, index: 2.2, indexDecay: 0.25, wave: 'sine' },
-    tick: { engine: 'fm', ratio: 3.5, index: 1.2, indexDecay: 0.02, wave: 'sine' },
+    pluck: { engine: 'pluck', damping: 0.985, brightness: 0.4 },
+    // 木管のような丸い旋律
+    lead: { engine: 'fm', ratio: 1, index: 0.8, indexDecay: 0.3, wave: 'sine' },
+    // ウッドブロック
+    tick: { engine: 'fm', ratio: 2.7, index: 2.4, indexDecay: 0.012, wave: 'sine' },
     pad: {
       engine: 'subtractive',
-      wave: 'sawtooth',
-      unison: 3,
-      detuneCents: 9,
-      cutoff: 2,
-      envAmount: 3,
-      q: 0.7,
+      wave: 'triangle',
+      unison: 2,
+      detuneCents: 6,
+      cutoff: 1.6,
+      envAmount: 1.5,
+      q: 0.5,
     },
+    // ウッドベース
     bass: {
       engine: 'subtractive',
-      wave: 'square',
+      wave: 'triangle',
       unison: 1,
       detuneCents: 0,
-      cutoff: 2.5,
-      envAmount: 6,
-      q: 4,
+      cutoff: 2,
+      envAmount: 3,
+      q: 1,
     },
-    air: { engine: 'noise', filter: 'bandpass', q: 6 },
-    kick: { engine: 'kick', sweep: 3.2, sweepTime: 0.07 },
-    snare: { engine: 'snare', noiseMix: 0.75, noiseCutoff: 1800 },
-    hat: { engine: 'hat', cutoff: 7000 },
+    air: { engine: 'noise', filter: 'bandpass', q: 3 },
+    kick: { engine: 'kick', sweep: 2.2, sweepTime: 0.09 },
+    // ブラシ
+    snare: { engine: 'snare', noiseMix: 0.45, noiseCutoff: 1100 },
+    hat: { engine: 'hat', cutoff: 5200 },
   },
   trims: {
-    bell: 0.9,
+    bell: 1,
     pluck: 1,
     lead: 0.8,
     tick: 0.9,
-    pad: 0.55,
-    bass: 0.8,
-    air: 0.7,
-    kick: 1,
-    snare: 0.8,
-    hat: 0.5,
+    pad: 0.5,
+    bass: 0.9,
+    air: 0.6,
+    kick: 0.9,
+    snare: 0.7,
+    hat: 0.45,
   },
-  reverb: { seconds: 1.8, decay: 3.2 },
-  space: 1,
+  reverb: { seconds: 1.1, decay: 4 },
+  space: 0.7,
+  music: { tempo: 0.9, swing: 0.2 },
+  mix: { sfx: 1, music: 0.9 },
 };
 
-export const soundPalettes = { standard } satisfies Record<string, SoundPalette>;
+export const soundPalettes = { wood } satisfies Record<string, SoundPalette>;
 export type SoundPaletteId = keyof typeof soundPalettes;
-export const defaultSoundPaletteId: SoundPaletteId = 'standard';
+export const defaultSoundPaletteId: SoundPaletteId = 'wood';

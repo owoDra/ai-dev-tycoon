@@ -3,13 +3,15 @@ import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadSettings, settings, updateSettings } from '../../src/app/settings';
 import { createGameStore } from '../../src/app/store';
-import { feelPresets } from '../../src/content/look/feel';
+import { defaultFeel, feelIntensities } from '../../src/content/look/feel';
 import { createInitialState } from '../../src/core/state';
 import { createFxDirector } from '../../src/fx/director';
+import { feel } from '../../src/fx/feel';
 import { reducedMotion } from '../../src/fx/reduced';
 import { FxHost, type FxHostApi } from '../../src/ui/fx/FxHost';
 import { Num } from '../../src/ui/Num';
 import { Presence } from '../../src/ui/Presence';
+import { SettingsSheet } from '../../src/ui/SettingsSheet';
 import { createSelection } from '../../src/ui/selection';
 
 let dispose = () => {};
@@ -106,7 +108,7 @@ describe('動きを減らす設定', () => {
   it('設定の「減らす」で reduced になり、director は代替の部品で起動する', () => {
     updateSettings({ motion: 'reduce' });
     expect(reducedMotion()).toBe(true);
-    const director = createFxDirector({ now: () => 0, feel: () => feelPresets.standard, reduced: reducedMotion });
+    const director = createFxDirector({ now: () => 0, feel: () => defaultFeel, reduced: reducedMotion });
     expect(director.handle([{ kind: 'taskDone', entityId: null }]).started[0]?.reduced).toBe(true);
     updateSettings({ motion: 'full' });
     expect(reducedMotion()).toBe(false);
@@ -125,5 +127,22 @@ describe('動きを減らす設定', () => {
         },
       }).motion,
     ).toBe('system');
+  });
+});
+
+describe('演出の強さの設定（D4 で設定画面に残した3段階）', () => {
+  it('設定画面で選んだ強さが手触りに反映され、保存され、読めない値では標準に戻る', () => {
+    const dispose = render(() => <SettingsSheet onClose={() => {}} />, document.body);
+    const calm = document.querySelector<HTMLInputElement>('input[name="feelIntensity"][value="calm"]');
+    expect(calm).not.toBeNull();
+    calm?.click();
+    expect(settings().feelIntensity).toBe('calm');
+    expect(feel().tiers).toBe(feelIntensities.calm.tiers);
+    expect(feel().motion).toBe(defaultFeel.motion);
+    expect(loadSettings(localStorage).feelIntensity).toBe('calm');
+    expect(loadSettings({ getItem: () => '{"feelIntensity":"wild"}' }).feelIntensity).toBe('standard');
+    dispose();
+    updateSettings({ feelIntensity: 'standard' });
+    expect(feel().tiers).toBe(defaultFeel.tiers);
   });
 });

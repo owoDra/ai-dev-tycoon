@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js';
 import type { AudioVolumes } from '../audio/engine';
+import { defaultFeelChoice, type FeelIntensityId, feelIntensities } from '../content/look/feel';
 
 /** 動きを減らす設定。system は OS の prefers-reduced-motion に合わせる */
 export type MotionPreference = 'system' | 'reduce' | 'full';
@@ -7,12 +8,18 @@ export const motionPreferences = ['system', 'reduce', 'full'] as const satisfies
 
 export interface Settings {
   readonly motion: MotionPreference;
+  /** 演出の強さ（content/look/feel.ts の feelIntensities） */
+  readonly feelIntensity: FeelIntensityId;
   /** 音量（0〜1）とミュート。初期値は控えめにする */
   readonly audio: AudioVolumes;
 }
 
 const STORAGE_KEY = 'ai-dev-tycoon.settings.v1';
-const DEFAULTS: Settings = { motion: 'system', audio: { master: 0.6, sfx: 0.8, music: 0.45, muted: false } };
+const DEFAULTS: Settings = {
+  motion: 'system',
+  feelIntensity: defaultFeelChoice.intensity,
+  audio: { master: 0.6, sfx: 0.8, music: 0.45, muted: false },
+};
 
 /** 0〜1 の数でなければ既定値にする */
 function volume(value: unknown, fallback: number): number {
@@ -26,6 +33,9 @@ export function loadSettings(storage: Pick<Storage, 'getItem'> | undefined = saf
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const motion = motionPreferences.find((m) => m === parsed.motion) ?? DEFAULTS.motion;
+    const feelIntensity =
+      (Object.keys(feelIntensities) as FeelIntensityId[]).find((id) => id === parsed.feelIntensity) ??
+      DEFAULTS.feelIntensity;
     const a: Partial<AudioVolumes> = parsed.audio ?? {};
     const audio: AudioVolumes = {
       master: volume(a.master, DEFAULTS.audio.master),
@@ -33,7 +43,7 @@ export function loadSettings(storage: Pick<Storage, 'getItem'> | undefined = saf
       music: volume(a.music, DEFAULTS.audio.music),
       muted: typeof a.muted === 'boolean' ? a.muted : DEFAULTS.audio.muted,
     };
-    return { motion, audio };
+    return { motion, feelIntensity, audio };
   } catch {
     return DEFAULTS;
   }

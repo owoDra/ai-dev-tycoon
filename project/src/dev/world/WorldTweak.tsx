@@ -1,6 +1,6 @@
 import { createSignal, For, Show } from 'solid-js';
 import { type WorldLook, type WorldLookId, worldLooks } from '../../content/look/world';
-import { feel, feelId, selectFeelPreset, setFeel } from '../../fx/feel';
+import { feel, feelChoice, selectFeel, setFeel } from '../../fx/feel';
 import { ja } from '../../i18n/ja';
 import { TweakPanel } from '../explore/TweakPanel';
 import { getPath, setPath } from '../explore/tweak';
@@ -71,9 +71,9 @@ export function WorldTweak(props: {
       <Show when={open() === 'feel'}>
         <TweakPanel
           value={feel()}
-          groups={feelTweakGroups}
+          groups={feelTweakGroups(feel())}
           onChange={(path, value) => setFeel(setPath(feel(), path, Number(value)))}
-          onReset={() => selectFeelPreset(feelId())}
+          onReset={() => selectFeel(feelChoice())}
           onClose={() => setOpen(null)}
         />
       </Show>

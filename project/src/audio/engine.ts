@@ -105,10 +105,11 @@ export function createAudioEngine(): AudioEngine {
     if (!ctx || !nodes) return;
     const now = ctx.currentTime;
     const set = (g: GainNode, v: number) => g.gain.setTargetAtTime(v, now, 0.02);
+    // 設定の音量に、パレットの効果音と BGM のバランスを掛ける
     set(nodes.master, volumes.muted ? 0 : volumes.master);
-    set(nodes.buses.sfx, volumes.sfx);
-    set(nodes.buses.ui, volumes.sfx);
-    set(nodes.musicVolume, volumes.music);
+    set(nodes.buses.sfx, volumes.sfx * palette.mix.sfx);
+    set(nodes.buses.ui, volumes.sfx * palette.mix.sfx);
+    set(nodes.musicVolume, volumes.music * palette.mix.music);
   };
 
   const applyPaused = () => {
@@ -264,6 +265,7 @@ export function createAudioEngine(): AudioEngine {
       palette = custom ?? soundPalettes[id];
       if (ctx && nodes) {
         nodes.reverb.buffer = impulseResponse(ctx, palette.reverb.seconds, palette.reverb.decay);
+        applyVolumes();
         scheduleBake();
       }
     },

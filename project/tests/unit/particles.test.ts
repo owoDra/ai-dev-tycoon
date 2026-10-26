@@ -1,7 +1,7 @@
 import { OrthographicCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { fxTierList } from '../../src/content/fx';
-import { feelPresets } from '../../src/content/look/feel';
+import { allFeelPresets } from '../../src/content/look/feel';
 import { visual } from '../../src/content/look/visual';
 import { createVfx } from '../../src/world/vfx/index';
 import { PARTICLE_LIMITS, PARTICLE_TOTAL, type ParticleInit, ParticlePool } from '../../src/world/vfx/particles';
@@ -74,7 +74,7 @@ describe('world/vfx/particles', () => {
 
   it('上限は 60fps を保てる量に抑えてあり、手触りのプリセットの1回分は上限に収まる', () => {
     expect(PARTICLE_TOTAL).toBeLessThanOrEqual(1000);
-    for (const feel of Object.values(feelPresets)) {
+    for (const feel of allFeelPresets()) {
       for (const tier of fxTierList) expect(feel.tiers[tier].particles).toBeLessThanOrEqual(PARTICLE_LIMITS.confetti);
     }
   });

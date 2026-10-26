@@ -40,10 +40,10 @@ export function playCue(cue: FxCue, target: CueTarget): void {
   for (const part of cue.parts) {
     switch (part) {
       case 'islandLift':
-        target.squash.liftOnly(cue.entityId, LIFT * cue.intensity, cue.feel.spring);
+        target.squash.liftOnly(cue.entityId, LIFT * cue.intensity, cue.feel.motion.transition);
         break;
       case 'islandBounce':
-        if (cue.entityId) target.squash.bounce(cue.entityId, cue.intensity);
+        if (cue.entityId) target.squash.bounce(cue.entityId, cue.intensity, cue.feel.motion);
         break;
       case 'actorHop':
         for (const id of actors) target.actors?.react(id, { hop: 0.3 * cue.intensity });

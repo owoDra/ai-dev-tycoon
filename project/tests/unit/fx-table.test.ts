@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type FxSignalKind, fxRules, fxTable, fxTierList, fxTiers, KINETIC_PARTS } from '../../src/content/fx';
-import { feelPresets } from '../../src/content/look/feel';
+import { allFeelPresets, defaultFeel } from '../../src/content/look/feel';
 import { createFxDirector } from '../../src/fx/director';
 import { ja } from '../../src/i18n/ja';
 import { MAX_SHAKE_PX } from '../../src/world/vfx/shake';
@@ -36,7 +36,7 @@ describe('演出の Tier テーブル', () => {
     expect(fxTiers[4].maxConcurrent).toBe(1);
 
     let now = 0;
-    const director = createFxDirector({ now: () => now, feel: () => feelPresets.standard, reduced: () => false });
+    const director = createFxDirector({ now: () => now, feel: () => defaultFeel, reduced: () => false });
     const big = (d: { active(): readonly { tier: number }[] }) => d.active().filter((c) => c.tier >= 3).length;
 
     // 同じ回に Tier 3 が2つ来ても1つだけ
@@ -90,7 +90,7 @@ describe('演出の Tier テーブル', () => {
   });
 
   it('手触りのプリセットは全 Tier の値を持ち、揺れは上限以内・Tier が上がるほど長く大きい', () => {
-    for (const feel of Object.values(feelPresets)) {
+    for (const feel of allFeelPresets()) {
       for (const tier of fxTierList) {
         const look = feel.tiers[tier];
         expect(look.shakePx).toBeLessThanOrEqual(MAX_SHAKE_PX);

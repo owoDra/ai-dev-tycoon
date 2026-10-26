@@ -94,7 +94,7 @@ describe('楽曲のパターン', () => {
         const hz = midiToHz(note.midi);
         expect(hz).toBeGreaterThanOrEqual(audioRules.minHz);
         expect(hz).toBeLessThanOrEqual(audioRules.maxHz);
-        expect(soundPalettes.standard.voices[note.voice]).toBeDefined();
+        for (const palette of Object.values(soundPalettes)) expect(palette.voices[note.voice]).toBeDefined();
       }
     }
   });

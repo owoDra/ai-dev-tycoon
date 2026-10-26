@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
       // 比較ページは本番と見分けられるタイトルにする（Artifact の名前にもなる）。いま比べているデザイン決定の名前を付ける
       name: 'explore-title',
       transformIndexHtml: (html) =>
-        mode === 'explore' ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D3 比較</title>') : html,
+        mode === 'explore' ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D4 比較</title>') : html,
     },
   ],
   resolve: {

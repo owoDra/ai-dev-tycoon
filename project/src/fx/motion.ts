@@ -1,12 +1,12 @@
 import { animate } from 'motion';
-import type { FeelPreset } from '../content/look/feel';
+import type { FeelPreset, FeelTransition } from '../content/look/feel';
 import { visual } from '../content/look/visual';
 import { EASE_IN_OUT_BEZIER, EASE_OUT_BEZIER, popBezier } from '../styles/tokens';
 import { feel } from './feel';
 import { reducedMotion } from './reduced';
 
 /**
- * UI のモーション。spring は手触りのプリセット（content/look/feel.ts）、イージングと長さはデザイントークン
+ * UI のモーション。spring・ポップの形は手触りのプリセット（content/look/feel.ts のモーションの性格）、イージングと長さはデザイントークン
  * （styles/tokens.ts・content/look/visual.ts）から読み、CSS のトランジションと同じ曲線で動かす。
  * どの関数も要素を押せないようにはしない（操作はブロックしない）。reduced-motion ではフェードか即時切り替えにする。
  */
@@ -14,7 +14,7 @@ import { reducedMotion } from './reduced';
 const MS = 1000;
 /** 出現するときにずらす距離（px） */
 const OFFSET = 16;
-/** pop の行き過ぎ（大きさの倍率に掛ける） */
+/** pop の膨らみ（大きさの倍率に掛ける）。膨らみ方のイージングはモーションの性格から読む */
 const POP_PEAK = 0.18;
 /** shake の往復の回数 */
 const SHAKE_SWINGS = 4;
@@ -25,10 +25,16 @@ export const ease = {
   inOut: [...EASE_IN_OUT_BEZIER] as [number, number, number, number],
 };
 
-/** いまの手触りの spring（motion の animate() の options） */
-export function spring(preset: FeelPreset = feel()) {
-  const s = preset.spring;
-  return { type: 'spring' as const, stiffness: s.stiffness, damping: s.damping, mass: s.mass };
+/** モーションの性格の動き方を、motion の animate() の options にする */
+export function transitionOptions(t: FeelTransition) {
+  return t.type === 'spring'
+    ? { type: 'spring' as const, stiffness: t.stiffness, damping: t.damping, mass: t.mass }
+    : { duration: t.durationMs / MS, ease: t.ease };
+}
+
+/** いまの手触りの動き方（spring か tween） */
+export function transition(preset: FeelPreset = feel()) {
+  return transitionOptions(preset.motion.transition);
 }
 
 /** 動きを減らす設定か（設定画面と OS の設定） */
@@ -116,7 +122,7 @@ export function pop(el: HTMLElement, strength = 1): void {
     return;
   }
   const peak = 1 + POP_PEAK * strength;
-  animate(el, { scale: [1, peak, 1] }, { duration: visual.motion.popDuration / MS, ease: ease.pop });
+  animate(el, { scale: [1, peak, 1] }, { duration: visual.motion.popDuration / MS, ease: feel().motion.pop.ease });
 }
 
 /** 横に揺らす（失敗・警告）。動きを減らす設定では揺らさない */
@@ -128,7 +134,7 @@ export function shake(el: HTMLElement, px = 6): void {
 }
 
 /**
- * Before → After の変形。数字や棒の長さを before から after へ spring で動かし、途中の値を onUpdate に渡す。
+ * Before → After の変形。数字や棒の長さを before から after へモーションの性格の動き方で動かし、途中の値を onUpdate に渡す。
  * 長さが違う配列は短い方に合わせる。戻り値で止める
  */
 export function morph(
@@ -143,6 +149,6 @@ export function morph(
     onUpdate(at(1));
     return () => {};
   }
-  const controls = animate(0, 1, { ...spring(), onUpdate: (t) => onUpdate(at(t)) });
+  const controls = animate(0, 1, { ...transition(), onUpdate: (t) => onUpdate(at(t)) });
   return () => controls.stop();
 }

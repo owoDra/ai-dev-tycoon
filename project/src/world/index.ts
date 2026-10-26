@@ -13,7 +13,7 @@ import {
 } from 'three';
 import type { ModelId } from '../assets/catalog';
 import { getTexture } from '../assets/registry';
-import { defaultFeelId, feelPresets } from '../content/look/feel';
+import { defaultFeel } from '../content/look/feel';
 import type { VisualPreset } from '../content/look/visual';
 import type { WorldLook } from '../content/look/world';
 import type { FxCue } from '../fx/director';
@@ -99,8 +99,8 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
   let worldTime = 0;
   const hitStop = { until: 0, scale: 1 };
   const shaking = { start: 0, durationMs: 0, amplitude: 0 };
-  /** 島の持ち上げに使う spring（最後に再生した演出の手触り） */
-  let liftSpring = feelPresets[defaultFeelId].spring;
+  /** 島の持ち上げの動き方（最後に再生した演出の手触り） */
+  let liftTransition = defaultFeel.motion.transition;
   const view = createWorldRenderer(
     canvas,
     scene,
@@ -386,7 +386,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     setSelected(entityId) {
       selected = entityId;
       // 選択が島から外れたら持ち上げた島を下ろす（島を選んだときの持ち上げは Tier 0 の演出が行う）
-      if (!entityId?.startsWith('island:')) squash.liftOnly(null, 0, liftSpring);
+      if (!entityId?.startsWith('island:')) squash.liftOnly(null, 0, liftTransition);
       invalidate();
     },
     project(entityId) {
@@ -403,7 +403,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       invalidate();
     },
     playFx(cue) {
-      liftSpring = cue.feel.spring;
+      liftTransition = cue.feel.motion.transition;
       playCue(cue, {
         vfx,
         squash,

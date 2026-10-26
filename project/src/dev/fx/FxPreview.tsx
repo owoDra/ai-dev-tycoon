@@ -3,10 +3,10 @@ import { type MotionPreference, motionPreferences, settings, updateSettings } fr
 import { createGameStore } from '../../app/store';
 import { type FxId, fxTable } from '../../content/fx';
 import { content } from '../../content/index';
-import { type FeelId, feelPresets } from '../../content/look/feel';
+import { type FeelIntensityId, type FeelMotionId, feelIntensities, feelMotions } from '../../content/look/feel';
 import { defaultWorldLookId, worldLooks } from '../../content/look/world';
 import { createInitialState } from '../../core/state';
-import { feelId, selectFeelPreset } from '../../fx/feel';
+import { feelChoice, selectFeel } from '../../fx/feel';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
 import { FxHost, type FxHostApi } from '../../ui/fx/FxHost';
@@ -81,6 +81,13 @@ export function FxPreview() {
           return { kind: 'bottleneckCleared', entityId };
         case 'automation':
           return { kind: 'automation', entityId, amount: SAMPLE_HOURS };
+        case 'incident':
+        case 'autoRepair': {
+          const actorId = human();
+          return { kind: id, entityId, ...(actorId ? { actorId } : {}) };
+        }
+        case 'autonomyStreak':
+          return { kind: 'autonomyStreak', entityId };
         case 'projectComplete':
           return { kind: 'projectComplete', entityId: null };
       }
@@ -187,17 +194,34 @@ export function FxPreview() {
           </div>
         </fieldset>
         <fieldset class="flex flex-col gap-1">
-          <legend class="text-xs font-bold">{t.feel}</legend>
+          <legend class="text-xs font-bold">{t.intensity}</legend>
           <div class="flex flex-wrap gap-1">
-            <For each={Object.keys(feelPresets) as FeelId[]}>
+            <For each={Object.keys(feelIntensities) as FeelIntensityId[]}>
               {(id) => (
                 <button
                   type="button"
-                  aria-pressed={feelId() === id}
+                  aria-pressed={feelChoice().intensity === id}
                   class="rounded-md border-2 border-line/30 px-2 py-0.5 text-xs font-bold aria-pressed:border-line aria-pressed:bg-accent-200"
-                  onClick={() => selectFeelPreset(id)}
+                  onClick={() => selectFeel({ intensity: id })}
                 >
-                  {ja.fx.feels[id]}
+                  {ja.fx.intensities[id]}
+                </button>
+              )}
+            </For>
+          </div>
+        </fieldset>
+        <fieldset class="flex flex-col gap-1">
+          <legend class="text-xs font-bold">{t.motionCharacter}</legend>
+          <div class="flex flex-wrap gap-1">
+            <For each={Object.keys(feelMotions) as FeelMotionId[]}>
+              {(id) => (
+                <button
+                  type="button"
+                  aria-pressed={feelChoice().motion === id}
+                  class="rounded-md border-2 border-line/30 px-2 py-0.5 text-xs font-bold aria-pressed:border-line aria-pressed:bg-accent-200"
+                  onClick={() => selectFeel({ motion: id })}
+                >
+                  {ja.fx.motions[id]}
                 </button>
               )}
             </For>

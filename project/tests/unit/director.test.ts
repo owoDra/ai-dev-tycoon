@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fxRules, fxTable, fxTiers } from '../../src/content/fx';
-import { type FeelPreset, feelPresets } from '../../src/content/look/feel';
+import { defaultFeel, type FeelPreset } from '../../src/content/look/feel';
 import type { GameEvent } from '../../src/core/events';
 import { createFxDirector } from '../../src/fx/director';
 import { fxSignals, savedHumanHours } from '../../src/view/fx';
@@ -12,7 +12,7 @@ function setup(options: { reduced?: boolean; feel?: FeelPreset } = {}) {
   const clock = { now: 0 };
   const director = createFxDirector({
     now: () => clock.now,
-    feel: () => options.feel ?? feelPresets.standard,
+    feel: () => options.feel ?? defaultFeel,
     reduced: () => options.reduced ?? false,
   });
   /** その時刻に events を流し、起動した演出 ID を返す */
@@ -85,7 +85,7 @@ describe('fx/director', () => {
   });
 
   it('コンボの強さはプリセットの段数で頭打ちになる', () => {
-    const feel = { ...feelPresets.standard, combo: { step: 0.5, maxSteps: 2 } };
+    const feel = { ...defaultFeel, combo: { step: 0.5, maxSteps: 2 } };
     const { clock, director } = setup({ feel });
     let last = 0;
     for (let i = 0; i < 6; i++) {
@@ -106,7 +106,7 @@ describe('fx/director', () => {
     const { clock, director } = setup();
     director.handle([{ kind: 'automation', entityId: null, amount: 3 }]);
     expect(director.active()).toHaveLength(1);
-    clock.now = feelPresets.standard.tiers[3].durationMs;
+    clock.now = defaultFeel.tiers[3].durationMs;
     expect(director.active()).toHaveLength(0);
     expect(director.handle([{ kind: 'bottleneckCleared', entityId: null }]).started).toHaveLength(1);
   });

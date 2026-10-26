@@ -2,11 +2,13 @@ import { For, onCleanup, onMount } from 'solid-js';
 import { type MotionPreference, motionPreferences, settings, updateSettings } from '../app/settings';
 import type { AudioVolumes } from '../audio/engine';
 import { audio } from '../audio/index';
+import { type FeelIntensityId, feelIntensities } from '../content/look/feel';
 import { enter } from '../fx/motion';
 import { ja } from '../i18n/ja';
 import { ghostButton, panel } from './parts';
 
 const t = ja.settings;
+const FEEL_INTENSITIES = Object.keys(feelIntensities) as FeelIntensityId[];
 const VOLUME_KEYS = ['master', 'sfx', 'music'] as const satisfies readonly (keyof AudioVolumes)[];
 
 function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
@@ -14,7 +16,8 @@ function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
 }
 
 /**
- * 設定シート。「動きを減らす」（OS に合わせる / 減らす / 減らさない）と、音量（全体・効果音・BGM）とミュート。
+ * 設定シート。「動きを減らす」（OS に合わせる / 減らす / 減らさない）、「演出の強さ」（控えめ / 標準 / 派手）、
+ * 音量（全体・効果音・BGM）とミュート。
  * 設定はゲームの state ではないので Command を通さず、app/settings.ts が localStorage に保存する。
  * 開いている間もゲームは止めない。Esc か「閉じる」で閉じ、開いたボタンにフォーカスを戻す。
  */
@@ -68,6 +71,27 @@ export function SettingsSheet(props: { onClose: () => void }) {
             )}
           </For>
           <p class="text-xs text-ink-muted">{t.motionHint}</p>
+        </fieldset>
+        <fieldset class="flex flex-col gap-2">
+          <legend class="mb-1 font-bold">{t.feel}</legend>
+          <div class="flex gap-2">
+            <For each={FEEL_INTENSITIES}>
+              {(id) => (
+                <label class="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border-[3px] border-line/30 px-2 has-checked:border-line has-checked:bg-accent-200">
+                  <input
+                    type="radio"
+                    name="feelIntensity"
+                    value={id}
+                    checked={settings().feelIntensity === id}
+                    onChange={() => updateSettings({ feelIntensity: id })}
+                    class="size-4 accent-primary-500"
+                  />
+                  <span class="font-bold">{ja.fx.intensities[id]}</span>
+                </label>
+              )}
+            </For>
+          </div>
+          <p class="text-xs text-ink-muted">{t.feelHint}</p>
         </fieldset>
         <fieldset class="flex flex-col gap-2">
           <legend class="mb-1 font-bold">{t.sound}</legend>

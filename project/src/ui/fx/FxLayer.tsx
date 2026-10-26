@@ -15,15 +15,34 @@ const LABEL_ICON: Record<FxId, IconName> = {
   reviewCatch: 'review',
   bottleneckCleared: 'bottleneck',
   automation: 'automation',
+  incident: 'warning',
+  autoRepair: 'hook',
+  autonomyStreak: 'subagent',
   projectComplete: 'release',
 };
 
-const TONE_CLASS: Record<FxTone, string> = {
-  success: 'bg-success-soft text-success-ink',
-  danger: 'bg-danger-soft text-danger-ink',
-  info: 'bg-primary-100 text-ink',
-  accent: 'bg-accent-300 text-on-accent',
+/**
+ * 演出の文字の色。ボタンに見えないよう、枠と背景を付けずに文字とアイコンだけを色で塗る
+ * （下の縁取りで、どの背景の上でも読めるようにする）
+ */
+const TONE_TEXT: Record<FxTone, string> = {
+  success: 'text-success-700',
+  danger: 'text-danger-700',
+  info: 'text-primary-700',
+  accent: 'text-accent-800',
 };
+
+/** 文字の縁取り：地の色で8方向に width px 縁取り、少し下に影を落とす */
+function halo(width: number): string {
+  const d = [-width, 0, width];
+  return [
+    ...d.flatMap((x) => d.filter((y) => x !== 0 || y !== 0).map((y) => `${x}px ${y}px 0 var(--color-surface)`)),
+    `0 ${width * 2}px ${width * 3}px rgb(0 0 0 / 0.18)`,
+  ].join(', ');
+}
+/** ポップの文字と、中央の大きな文字の縁取り */
+const HALO = halo(2);
+const BIG_HALO = halo(3);
 
 /** ポップの文字が浮き上がる距離（px） */
 const RISE = 44;
@@ -136,25 +155,31 @@ function PopLabel(props: { pop: Pop }) {
           return;
         }
         const s = cue.intensity;
+        const p = cue.feel.motion.pop;
         animate(
           el,
-          { opacity: [0, 1, 1, 0], scale: [0.4, 1.15 * s, s, s], y: [0, -RISE * 0.6, -RISE * 0.8, -RISE] },
-          { duration: d, times: [0, 0.2, 0.7, 1], ease: ease.out },
+          {
+            opacity: [0, 1, 1, 0],
+            scale: [p.from, p.overshoot * s, s, s],
+            y: [0, -RISE * 0.6, -RISE * 0.8, -RISE],
+          },
+          { duration: d, times: [0, 0.2, 0.7, 1], ease: p.ease },
         );
       }}
     >
       <Show when={label}>
         {(l) => (
           <span
-            class={`inline-flex items-center gap-1 rounded-full border-[3px] border-line px-2.5 py-0.5 font-heading text-sm whitespace-nowrap shadow-pop ${TONE_CLASS[l().tone]}`}
+            class={`inline-flex items-center gap-1 font-heading text-lg whitespace-nowrap ${TONE_TEXT[l().tone]}`}
+            style={{ 'text-shadow': HALO }}
           >
-            <Icon name={LABEL_ICON[cue.id]} class="text-base" />
+            <Icon name={LABEL_ICON[cue.id]} class="text-xl drop-shadow-[0_0_2px_var(--color-surface)]" />
             {ja.fx.labels[l().key]}
           </span>
         )}
       </Show>
       <Show when={showCombo}>
-        <span class="rounded-full border-2 border-line bg-accent-400 px-2 font-heading text-xs text-on-accent shadow-pop">
+        <span class="font-heading text-sm whitespace-nowrap text-accent-800" style={{ 'text-shadow': HALO }}>
           {ja.fx.combo(cue.combo)}
         </span>
       </Show>
@@ -179,19 +204,21 @@ function BigMoment(props: { cue: FxCue }) {
         }
         // 狭い画面では拡大しすぎて画面からはみ出さないようにする
         const s = Math.min(window.innerWidth < NARROW ? 1 : 1.6, cue.intensity);
+        const p = cue.feel.motion.pop;
         animate(
           el,
-          { opacity: [0, 1, 1, 0], scale: [0.5, 1.12 * s, s, s * 0.96] },
-          { duration: d, times: [0, 0.18, 0.8, 1], ease: ease.out },
+          { opacity: [0, 1, 1, 0], scale: [p.from, p.overshoot * s, s, s * 0.96] },
+          { duration: d, times: [0, 0.18, 0.8, 1], ease: p.ease },
         );
       }}
     >
       <Show when={label}>
         {(l) => (
           <p
-            class={`inline-flex items-center gap-2 rounded-xl border-[3px] border-line px-3 py-1 font-heading text-2xl tracking-wide whitespace-nowrap shadow-raised sm:px-4 sm:text-4xl ${TONE_CLASS[l().tone]}`}
+            class={`inline-flex items-center gap-2 font-heading text-2xl tracking-wide whitespace-nowrap sm:text-4xl ${TONE_TEXT[l().tone]}`}
+            style={{ 'text-shadow': BIG_HALO }}
           >
-            <Icon name={LABEL_ICON[cue.id]} class="text-3xl sm:text-4xl" />
+            <Icon name={LABEL_ICON[cue.id]} class="text-3xl drop-shadow-[0_0_3px_var(--color-surface)] sm:text-4xl" />
             {ja.fx.labels[l().key]}
           </p>
         )}

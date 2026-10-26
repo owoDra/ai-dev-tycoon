@@ -1,5 +1,5 @@
 import type { GameSpeed } from '../content/balance';
-import type { AssignModeId, FeatureId, TermId } from '../content/types';
+import type { AssignModeId, FeatureId, HandoffItemId, IncidentId, TermId } from '../content/types';
 import type { BottleneckRef } from './bottleneck';
 
 /**
@@ -25,7 +25,18 @@ export type GameEvent =
   /** チュートリアルのステップが進んだ */
   | { readonly type: 'TutorialStepChanged'; readonly stepId: string }
   /** チュートリアルが終わった（skipped: スキップした） */
-  | { readonly type: 'TutorialEnded'; readonly skipped: boolean };
+  | { readonly type: 'TutorialEnded'; readonly skipped: boolean }
+  /** AI Worker の Session を始め直した。lost は Handoff で残さず失った項目 */
+  | { readonly type: 'SessionReset'; readonly workerId: string; readonly lost: readonly HandoffItemId[] }
+  /** 事件が起きた（「次に対応すべき問題」の先頭に出る） */
+  | {
+      readonly type: 'IncidentStarted';
+      readonly incident: IncidentId;
+      readonly workerId: string;
+      readonly projectId: string;
+      readonly taskId: string;
+    }
+  | { readonly type: 'IncidentResolved'; readonly incident: IncidentId; readonly workerId: string };
 
 /** 指定したゲーム内時刻（分）に発火させる予約済みの出来事 */
 export interface ScheduledEvent {

@@ -15,6 +15,7 @@ export const ja = {
   projects: {
     ecRenewal: 'ECサイトリニューアル',
     tutorialLp: '小さなLP制作',
+    paymentFix: '決済画面の修正',
   },
   tasks: {
     ecRenewal: {
@@ -32,6 +33,28 @@ export const ja = {
       form: '問い合わせフォーム',
       responsive: 'スマホ対応',
     },
+    paymentFix: {
+      reproduce: '不具合の再現',
+      spec: '決済仕様の確認',
+      fix: '決済画面の修正',
+      tests: 'テスト追加',
+      release: 'リリース',
+    },
+  },
+  /** 資料（content/documents.ts） */
+  documents: {
+    bugReport: '不具合報告',
+    paymentCode: '決済画面の関連コード',
+    paymentSpec: '決済仕様',
+    paymentTests: '決済の関連テスト',
+    codingRules: 'Coding Rules',
+    releaseGuide: 'リリース手順',
+    oldPaymentSpec: '旧決済仕様（v1）',
+    legacyRules: '旧コーディング規約',
+    unrelatedIssues: '無関係な Issue 一覧',
+    pastMinutes: '過去案件の議事録',
+    specCopy: '決済仕様のコピー（重複）',
+    companyWiki: '全社 Wiki',
   },
   workers: {
     sato: '佐藤（ディレクター）',
@@ -198,6 +221,10 @@ export const ja = {
     same: '変わらない',
   },
   notices: {
+    incident: (name: string) => `事件発生：${name}`,
+    incidentResolved: (name: string) => `解決：${name}`,
+    sessionReset: '新しい Session を始めた',
+    sessionLost: 'Important Decisions Lost：引き継がなかった決定事項がある',
     region: 'お知らせ',
     taskDone: (task: string) => `${task} 完了`,
     taskDefect: (task: string) => `${task} 完了（品質低下）`,
@@ -338,6 +365,11 @@ export const ja = {
     eval: '「AI → 自動テスト → 確認」が使えるようになった',
     advanced: '新しい担当の任せ方が使えるようになった',
     problems: '「次に対応すべき問題」が出るようになった',
+    context: 'AI に渡す資料を選べるようになった',
+    contextPick: '資料を1つずつ選べるようになった',
+    contextRouter: '「Context Router」で資料を自動で選べるようになった',
+    session: '新しい Session で始め直せるようになった',
+    artifacts: '成果物に作業状態を残せるようになった',
   },
   /** 体験の後で明かす用語（content/glossary.ts） */
   glossary: {
@@ -352,6 +384,88 @@ export const ja = {
     harnessEngineering: {
       term: 'Harness Engineering',
       plain: 'レビューや自動テストのように、AI が失敗しにくく、失敗しても止まれる仕組みを周りに作ること',
+    },
+    contextRouting: {
+      term: 'Context Routing',
+      plain: '資料を全部渡さず、その仕事に必要な情報だけを選んで AI に渡すこと',
+    },
+    sessionHandoff: {
+      term: 'Session Handoff',
+      plain: '会話の履歴を全部持ち越さず、ゴール・決定事項・残りの作業など必要な状態だけを次の Session に引き継ぐこと',
+    },
+  },
+  /** Context の状態と操作（企画書9〜12章・41章） */
+  context: {
+    title: 'Context',
+    open: (status: string) => `Context：${status}（押すと内訳と操作）`,
+    status: { good: '良好', cluttered: '散らかり', overflow: '溢れ' },
+    hint: {
+      good: '必要な情報がそろい、余計なものが少ない',
+      cluttered: '余計な情報が混ざり、AI が迷いやすい',
+      overflow: '情報が多すぎて、AI が大事なことを見落とす',
+    },
+    relevant: 'Relevant',
+    noise: 'Noise',
+    fill: '使用量',
+    percent: (ratio: number) => `${Math.round(ratio * 100)}%`,
+    feedTitle: 'AI に渡す資料',
+    feed: {
+      needed: '必要な資料だけ',
+      all: 'すべての資料',
+      router: 'Context Router（自動で選ぶ）',
+      pick: '個別に選ぶ',
+    },
+    feedHint: {
+      needed: 'この案件の作業に使う資料だけを渡す',
+      all: '古い仕様や無関係な資料も含めて全部渡す',
+      router: 'Task ごとに、その作業に必要な資料だけを自動で選ぶ',
+      pick: '下のリストで渡す資料を選ぶ',
+    },
+    docsCount: (n: number, total: number) => `${n} / ${total} 件`,
+    stale: '古い',
+    conflict: '矛盾',
+    sessionTitle: 'Session',
+    sessionAge: (minutes: number) => `この Session で AI が ${Math.round(minutes)} 分作業`,
+    newSession: 'New Session',
+    newSessionHint: '履歴のノイズを 0 にして始め直す',
+    handoffTitle: 'Handoff（次の Session に残すもの）',
+    willLose: (items: string) => `失われます：${items}`,
+    nothingLost: '必要な作業状態は引き継がれます',
+    artifacts: '成果物に作業状態を残す（Artifact Driven Work）',
+    artifactsHint: 'コード・テスト・Task State に保存し、Session が切れても少ない手間で再開できる。作業は少し増える',
+    lost: (items: string) => `決定事項が失われた：${items}`,
+    recovering: (n: number) => `取り戻すまであと ${n} 回の作業`,
+    close: '閉じる',
+  },
+  handoff: {
+    goal: 'Goal',
+    decisions: 'Decisions',
+    constraints: 'Constraints',
+    modifiedFiles: 'Modified Files',
+    validation: 'Validation',
+    remainingWork: 'Remaining Work',
+  },
+  /** 事件（content/incidents.ts）。問題 → 原因 → 次の行動（企画書49章） */
+  incidents: {
+    resolve: '解決する',
+    view: 'Context を見る',
+    contextOverflow: {
+      name: 'Context Overflow',
+      problem: 'AI の Context が溢れています',
+      cause: '不要な資料と長い履歴で、大事な情報が埋もれている',
+      action: '必要な資料だけに絞り、新しい Session で始め直そう（Handoff を付けると決定事項が残る）',
+    },
+    staleContext: {
+      name: 'Stale Context',
+      problem: 'AI の Context に古い仕様が混ざっています',
+      cause: '旧版の仕様を参照して、間違った実装をしやすい',
+      action: '古い資料を外すと成功率が改善します',
+    },
+    instructionConflict: {
+      name: 'Instruction Conflict',
+      problem: 'AI に渡したルール同士が衝突しています',
+      cause: '新旧のコーディング規約が矛盾していて、AI が迷っている',
+      action: '矛盾する古いルールを外そう',
     },
   },
   tutorial: {

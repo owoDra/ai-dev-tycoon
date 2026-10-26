@@ -9,4 +9,8 @@ export const glossary: readonly TermDef[] = [
   { id: 'humanInTheLoop', reveal: { type: 'modeCompleted', mode: 'aiThenHumanReview', count: 1 } },
   { id: 'eval', reveal: { type: 'modeCompleted', mode: 'aiThenEval', count: 1 } },
   { id: 'harnessEngineering', reveal: { type: 'projectsCompleted', count: 1 } },
+  // 必要な資料だけを渡して AI が作業した後に
+  { id: 'contextRouting', reveal: { type: 'contextStat', stat: 'routedWorks', count: 2 } },
+  // Handoff を付けて Session を始め直した後に
+  { id: 'sessionHandoff', reveal: { type: 'contextStat', stat: 'handoffResets', count: 1 } },
 ];

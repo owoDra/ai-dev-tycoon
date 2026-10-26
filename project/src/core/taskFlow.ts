@@ -1,6 +1,17 @@
 import { getAssignMode } from '../content/assignModes';
+import { balance } from '../content/balance';
 import { getAiWorker, getHuman, getModel, getProject, getTask, humans } from '../content/index';
-import type { ModeStep } from '../content/types';
+import type { ModeStep, TaskDef } from '../content/types';
+import {
+  contextApplies,
+  contextEffects,
+  fedDocs,
+  getSession,
+  lossEffects,
+  projectNeededDocs,
+  readContext,
+  updateSession,
+} from './context';
 import {
   type ActorProfile,
   escapedQuality,
@@ -9,6 +20,7 @@ import {
   stepMinutes,
   successProbability,
 } from './formulas';
+import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
 import { forcedAiOutcome } from './tutorial';
@@ -96,8 +108,13 @@ export function enterStep(
 
   const task = getTask(projectId, taskId);
   if (step.actor === 'ai') {
-    const remaining = stepMinutes(task, step, aiActor(run));
-    return updateTask(state, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining }));
+    let next = state;
+    let remaining = stepMinutes(task, step, aiActor(run));
+    if (step.phase === 'work' && contextApplies(projectId)) {
+      next = rollIncidents(next, run.assignment.workerId, projectId, taskId, ctx);
+      remaining = contextWorkMinutes(next, run, projectId, task, remaining, ctx);
+    }
+    return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining }));
   }
   const humanId = chooseHuman(state, run);
   const remaining = stepMinutes(task, step, { kind: 'human', skill: getHuman(humanId).skill });
@@ -109,6 +126,56 @@ export function enterStep(
     humanId,
   }));
   return enqueue(next, humanId, projectId, taskId, false);
+}
+
+/**
+ * Context が働く案件で、AI の作業の所要時間を Context に応じて延ばす。
+ * Tool の誤選択（確率）・発生中の事件・Reset で失った項目の把握し直し・Artifact Driven Work の保存作業。
+ */
+function contextWorkMinutes(
+  state: GameState,
+  run: TaskRun,
+  projectId: string,
+  task: TaskDef,
+  minutes: number,
+  ctx: SystemContext,
+): number {
+  const workerId = run.assignment?.workerId ?? '';
+  const session = getSession(state, workerId);
+  const effects = contextEffects(readContext(session, projectId, task.id));
+  const toolMiss = ctx.rng.chance(effects.toolMissChance) ? 1 + balance.context.toolMissExtra : 1;
+  const speed = aiActor(run).model.speed;
+  const extraShare = lossEffects(session).relearnShare + (session.artifacts ? balance.handoff.artifactShare : 0);
+  return minutes * toolMiss * incidentEffects(state, workerId).aiTimeFactor + (task.effort * extraShare) / speed;
+}
+
+/**
+ * Context が働く案件での AI の作業の成功確率。成功確率から Context・Reset で失った項目・事件の影響を引き、
+ * 古い仕様を参照する確率の分だけさらに下げる。
+ */
+function contextSuccess(state: GameState, run: TaskRun, projectId: string, taskId: string, p: number): number {
+  const workerId = run.assignment?.workerId ?? '';
+  const session = getSession(state, workerId);
+  const effects = contextEffects(readContext(session, projectId, taskId));
+  const penalty =
+    effects.successPenalty + lossEffects(session).successPenalty + incidentEffects(state, workerId).successPenalty;
+  const { min, max } = balance.success;
+  return Math.min(max, Math.max(min, p - penalty)) * (1 - effects.staleChance);
+}
+
+/**
+ * Context が働く案件で AI の作業を終えたときの記録。Reset で失った項目の影響を1回分減らし、
+ * 余計な資料なしで必要な資料がそろっていれば「必要な資料だけで作業した」と数える。
+ */
+function afterContextWork(state: GameState, run: TaskRun, projectId: string, taskId: string): GameState {
+  const workerId = run.assignment?.workerId ?? '';
+  const session = getSession(state, workerId);
+  const reading = readContext(session, projectId, taskId);
+  const needed = projectNeededDocs(projectId);
+  const routed = reading.coverage >= 1 && fedDocs(session.feed, projectId, taskId).every((d) => needed.includes(d));
+  const next = updateSession(state, workerId, (s) => ({ ...s, recover: Math.max(0, s.recover - 1) }));
+  if (!routed) return next;
+  return { ...next, contextStats: { ...next.contextStats, routedWorks: next.contextStats.routedWorks + 1 } };
 }
 
 /**
@@ -156,7 +223,11 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const actor: ActorProfile =
       step.actor === 'ai' ? aiActor(run) : { kind: 'human', skill: getHuman(run.humanId ?? '').skill };
     const forced = step.actor === 'ai' ? forcedAiOutcome(state, projectId, taskId) : null;
-    const ok = forced === null ? ctx.rng.chance(successProbability(getTask(projectId, taskId), actor)) : forced;
+    const withContext = step.actor === 'ai' && contextApplies(projectId);
+    let p = successProbability(getTask(projectId, taskId), actor);
+    if (withContext) p = contextSuccess(state, run, projectId, taskId, p);
+    const ok = forced === null ? ctx.rng.chance(p) : forced;
+    if (withContext) next = afterContextWork(next, run, projectId, taskId);
     if (!ok) {
       ctx.emit({ type: 'TaskFailed', projectId, taskId });
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, defect: true, failures: r.failures + 1 }));

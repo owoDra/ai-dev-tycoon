@@ -6,10 +6,12 @@ import type { DockLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
+import { contextView } from '../../view/context';
 import { type HudView, hudView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
 import { iconButton, Meter, PlayPauseIcon, panel, SettingsIcon } from '../parts';
+import { contextStatusIcon } from './ContextSheet';
 
 const t = ja.hud;
 /** Profit / Human Hour の増減チップを出す最小の変化（円/人時）。見込みの細かな揺れでは出さない */
@@ -28,6 +30,8 @@ export function Dock(props: {
   compact: boolean;
   problemCount: number;
   onProblems: () => void;
+  /** Context のシートを開く */
+  onContext?: () => void;
   /** 設定を開く（渡さなければボタンを出さない） */
   onSettings?: () => void;
   ref?: (el: HTMLElement) => void;
@@ -70,6 +74,8 @@ export function Dock(props: {
                   dense={props.compact}
                   problemCount={props.problemCount}
                   onProblems={props.onProblems}
+                  projectId={props.projectId}
+                  onContext={props.onContext}
                 />
               </div>
             )}
@@ -94,6 +100,8 @@ function HudItem(props: {
   dense: boolean;
   problemCount: number;
   onProblems: () => void;
+  projectId: string;
+  onContext?: () => void;
 }) {
   return (
     <Switch>
@@ -118,7 +126,10 @@ function HudItem(props: {
       <Match when={props.id === 'utilization'}>
         <fieldset class="flex flex-col gap-0.5" aria-label={t.utilization}>
           <Bar label={t.human} icon="human" ratio={props.hud.human} color="bg-primary-400" dense={props.dense} />
-          <Bar label={t.ai} icon="ai" ratio={props.hud.ai} color="bg-success-400" dense={props.dense} />
+          <div class="flex items-center gap-1.5">
+            <Bar label={t.ai} icon="ai" ratio={props.hud.ai} color="bg-success-400" dense={props.dense} />
+            <ContextBadge store={props.store} projectId={props.projectId} onOpen={props.onContext} />
+          </div>
         </fieldset>
       </Match>
       <Match when={props.id === 'speed'}>
@@ -143,6 +154,32 @@ function HudItem(props: {
         </button>
       </Match>
     </Switch>
+  );
+}
+
+/**
+ * AI の稼働バーの横に出す Context の状態（企画書41章：数字ではなく意味を出す）。押すと Context のシートを開く。
+ * 資料のない案件や、Context が未解放なら出さない
+ */
+const badgeBg = { good: 'bg-surface', cluttered: 'bg-warning-200', overflow: 'bg-danger-200' } as const;
+
+function ContextBadge(props: { store: GameStore; projectId: string; onOpen?: () => void }) {
+  const view = createMemo(() => contextView(props.store.state(), props.projectId));
+  return (
+    <Show when={view()}>
+      {(v) => (
+        <button
+          type="button"
+          data-context-badge={v().status}
+          class={`flex min-h-6 items-center gap-1 rounded-full border-2 border-line px-1.5 text-[11px] font-bold whitespace-nowrap ${badgeBg[v().status]}`}
+          aria-label={ja.context.open(ja.context.status[v().status])}
+          onClick={() => props.onOpen?.()}
+        >
+          <Icon name={contextStatusIcon[v().status]} />
+          {ja.context.status[v().status]}
+        </button>
+      )}
+    </Show>
   );
 }
 

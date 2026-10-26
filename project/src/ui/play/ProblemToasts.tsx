@@ -19,6 +19,10 @@ export function ProblemToasts(props: {
   dismissible: boolean;
   onGo: (advice: Advice) => void;
   onLater: (advice: Advice) => void;
+  /** 事件の解決ボタン */
+  onResolve: (advice: Advice) => void;
+  /** 事件の「Context を見る」 */
+  onContext: () => void;
 }) {
   return (
     <section
@@ -27,7 +31,16 @@ export function ProblemToasts(props: {
       style={{ width: props.layout.width === null ? undefined : `${props.layout.width}px` }}
     >
       <Index each={props.problems.slice(0, props.layout.max)}>
-        {(p) => <ProblemCard advice={p()} dismissible={props.dismissible} onGo={props.onGo} onLater={props.onLater} />}
+        {(p) => (
+          <ProblemCard
+            advice={p()}
+            dismissible={props.dismissible}
+            onGo={props.onGo}
+            onLater={props.onLater}
+            onResolve={props.onResolve}
+            onContext={props.onContext}
+          />
+        )}
       </Index>
     </section>
   );
@@ -38,6 +51,8 @@ function ProblemCard(props: {
   dismissible: boolean;
   onGo: (advice: Advice) => void;
   onLater: (advice: Advice) => void;
+  onResolve: (advice: Advice) => void;
+  onContext: () => void;
 }) {
   let el!: HTMLElement;
   onMount(() => enter(el, 'above'));
@@ -69,9 +84,26 @@ function ProblemCard(props: {
         </li>
       </ol>
       <div class="flex shrink-0 flex-col items-center gap-1">
-        <button type="button" class={`${primaryButton} px-3 text-sm`} onClick={() => props.onGo(props.advice)}>
-          {t.go}
-        </button>
+        <Show
+          when={props.advice.incident}
+          fallback={
+            <button type="button" class={`${primaryButton} px-3 text-sm`} onClick={() => props.onGo(props.advice)}>
+              {t.go}
+            </button>
+          }
+        >
+          <button
+            type="button"
+            data-resolve
+            class={`${primaryButton} px-3 text-sm`}
+            onClick={() => props.onResolve(props.advice)}
+          >
+            {ja.incidents.resolve}
+          </button>
+          <button type="button" class={smallButton} onClick={() => props.onContext()}>
+            {ja.incidents.view}
+          </button>
+        </Show>
         <Show when={props.dismissible}>
           <button type="button" class={smallButton} onClick={() => props.onLater(props.advice)}>
             {t.later}

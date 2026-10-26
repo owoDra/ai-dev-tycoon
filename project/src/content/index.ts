@@ -1,8 +1,21 @@
 import { assignModes } from './assignModes';
+import { documents } from './documents';
+import { incidentDefs } from './incidents';
 import { models } from './models';
 import { ecRenewal } from './projects/ec-renewal';
+import { paymentFix } from './projects/payment-fix';
 import { tutorialLp } from './projects/tutorial-lp';
-import type { AiWorkerDef, AssignModeDef, HumanWorkerDef, ModelDef, ProjectDef, TaskDef, WorkerDef } from './types';
+import type {
+  AiWorkerDef,
+  AssignModeDef,
+  DocumentDef,
+  HumanWorkerDef,
+  IncidentDef,
+  ModelDef,
+  ProjectDef,
+  TaskDef,
+  WorkerDef,
+} from './types';
 import { workers } from './workers';
 
 /** ゲームデータ一式。新しい案件は projects に足す（先頭はタイトル画面の後ろに映す案件） */
@@ -11,13 +24,17 @@ export interface Content {
   readonly workers: readonly WorkerDef[];
   readonly models: readonly ModelDef[];
   readonly assignModes: readonly AssignModeDef[];
+  readonly documents: readonly DocumentDef[];
+  readonly incidents: readonly IncidentDef[];
 }
 
 export const content: Content = {
-  projects: [ecRenewal, tutorialLp],
+  projects: [ecRenewal, paymentFix, tutorialLp],
   workers,
   models,
   assignModes,
+  documents,
+  incidents: incidentDefs,
 };
 
 export function getProject(id: string): ProjectDef {
@@ -55,3 +72,5 @@ export function getModel(id: string): ModelDef {
 }
 
 export const humans: readonly HumanWorkerDef[] = content.workers.filter((w) => w.kind === 'human');
+
+export const aiWorkers: readonly AiWorkerDef[] = content.workers.filter((w) => w.kind === 'ai');

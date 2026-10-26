@@ -2,7 +2,8 @@ import type { IconName } from '../assets/icons';
 import { stageOfPhase } from '../content/assignModes';
 import { findWorker, getProject } from '../content/index';
 import { defaultWorldLookId, type WorldBottleneckLook, worldLooks } from '../content/look/world';
-import type { Stage } from '../content/types';
+import type { IncidentId, Stage } from '../content/types';
+import { getIncidentDef } from '../core/incidents';
 import type { GameState, TaskRun } from '../core/state';
 import { currentStep } from '../core/taskFlow';
 import { ja } from '../i18n/ja';
@@ -15,7 +16,7 @@ const t = ja.advice;
 export interface Advice {
   /** 同じ問題が続いている間は同じ値（「あとで」で閉じた記録に使う） */
   readonly id: string;
-  readonly kind: 'bottleneck' | 'unassigned';
+  readonly kind: 'incident' | 'bottleneck' | 'unassigned';
   readonly severity: 'danger' | 'warning';
   readonly icon: IconName;
   /** 問題のある島やキャラクター。ボタンを押すとここを選んでカメラを寄せる */
@@ -23,12 +24,15 @@ export interface Advice {
   readonly problem: string;
   readonly cause: string;
   readonly action: string;
+  /** 事件なら、解決ボタンで送る ResolveIncident の中身 */
+  readonly incident?: { readonly id: IncidentId; readonly workerId: string };
 }
 
 type Candidate = { readonly advice: Advice; readonly minutes: number };
 
 /**
  * 案件の問題を重要な順に並べる（純粋関数）。
+ * 0. 事件（企画書19章）。最優先で出し、解決ボタンから直接対処できる
  * 1. ボトルネック：まだ終わっていない Task の工程のリードタイムと、人間の待ち行列の待ち時間のうち最大のもの。
  *    ワールドで赤いリングを出すのと同じ強さ（look.threshold × look.fullMinutes 分）以上のときだけ出す。
  *    終わった Task のリードタイムは、もう打つ手がないので対象にしない
@@ -42,7 +46,22 @@ export function adviseProblems(
   const run = state.projects[projectId];
   if (!run || run.completedAt !== null) return [];
   const rows = taskRows(state, projectId);
-  const out: Advice[] = [];
+  const out: Advice[] = state.incidents
+    .filter((r) => r.projectId === projectId)
+    .map((r) => {
+      const text = ja.incidents[r.id];
+      return {
+        id: `incident:${r.id}:${r.workerId}`,
+        kind: 'incident',
+        severity: 'danger',
+        icon: getIncidentDef(r.id).icon,
+        entityId: islandId(r.taskId),
+        problem: text.problem,
+        cause: text.cause,
+        action: text.action,
+        incident: { id: r.id, workerId: r.workerId },
+      };
+    });
 
   const bottleneck = worstBottleneck(state, projectId, rows);
   if (bottleneck && bottleneck.minutes >= look.threshold * look.fullMinutes) out.push(bottleneck.advice);

@@ -9,6 +9,7 @@ import { modeFeature, unlockDefs } from '../../content/unlocks';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
+import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { defaultWorkerFor } from '../../view/project';
 import type { WorldViewModel } from '../../view/world';
@@ -17,6 +18,7 @@ import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
 import type { Selection } from '../selection';
+import { ContextSheet } from './ContextSheet';
 import { DetailSheet } from './DetailSheet';
 import { Dock } from './Dock';
 import { IslandLabels } from './IslandLabels';
@@ -99,6 +101,21 @@ export function PlayScreen(props: {
         if (e.type === 'EvalCaught' && e.projectId === props.projectId) {
           notices.push({ text: ja.notices.evalCaught(getTask(e.projectId, e.taskId).name), icon: 'eval' });
         }
+        if (e.type === 'IncidentStarted' && e.projectId === props.projectId) {
+          const name = ja.incidents[e.incident].name;
+          notices.push({ text: ja.notices.incident(name), icon: 'warning', tone: 'danger' });
+        }
+        if (e.type === 'IncidentResolved') {
+          notices.push({ text: ja.notices.incidentResolved(ja.incidents[e.incident].name), icon: 'success' });
+        }
+        if (e.type === 'SessionReset') {
+          const lost = e.lost.length > 0;
+          notices.push({
+            text: lost ? ja.notices.sessionLost : ja.notices.sessionReset,
+            icon: lost ? 'warning' : 'session',
+            tone: lost ? 'danger' : undefined,
+          });
+        }
         if (e.type === 'FeatureUnlocked') {
           const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';
           notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
@@ -107,6 +124,17 @@ export function PlayScreen(props: {
       }
     }),
   );
+
+  // Context のシート。詳細のシートと同じ場所に出すので、どちらか一方だけを開く
+  const [contextOpen, setContextOpen] = createSignal(false);
+  const context = createMemo(() => (contextOpen() ? contextView(props.store.state(), props.projectId) : null));
+  const openContext = () => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setContextOpen(true);
+  };
+  createEffect(() => {
+    if (props.selection.selected() !== null) setContextOpen(false);
+  });
 
   const selected = () => props.selection.selected();
   const detail = createMemo(() => {
@@ -177,6 +205,11 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
+        if (contextOpen()) {
+          e.preventDefault();
+          setContextOpen(false);
+          return;
+        }
         if (selected() === null) return;
         e.preventDefault();
         close();
@@ -210,6 +243,12 @@ export function PlayScreen(props: {
         dismissible={layout().flow.toastDismissible}
         onGo={goTo}
         onLater={(p) => setDismissed((s) => new Set([...s, p.id]))}
+        onResolve={(p) => {
+          if (p.incident) {
+            props.store.dispatch({ type: 'ResolveIncident', incident: p.incident.id, workerId: p.incident.workerId });
+          }
+        }}
+        onContext={openContext}
       />
       <NoticeHost notices={notices.list()} compact={form().compact} />
       <Presence when={detail()} enter={false} class="pointer-events-auto">
@@ -231,6 +270,19 @@ export function PlayScreen(props: {
           />
         )}
       </Presence>
+      <Presence when={context()} enter={false} class="pointer-events-auto">
+        {(v) => (
+          <ContextSheet
+            view={v()}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            dispatch={(c) => props.store.dispatch(c)}
+            toggleDoc={(docId) => toggleDoc(props.store.state(), props.projectId, v().workerId, docId)}
+            onClose={() => setContextOpen(false)}
+          />
+        )}
+      </Presence>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -240,6 +292,7 @@ export function PlayScreen(props: {
           compact={form().compact}
           problemCount={problemsOn() ? problems().length : 0}
           onProblems={() => setDismissed(new Set<string>())}
+          onContext={openContext}
           onSettings={props.onSettings}
         />
       </div>

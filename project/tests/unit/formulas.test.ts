@@ -26,7 +26,6 @@ const task: TaskDef = {
   aiAptitude: 0.5,
   qualityReq: 0.5,
   failRisk: 0.5,
-  contextNeeds: [],
 };
 const model = getModel('standard');
 const human: ActorProfile = { kind: 'human', skill: 1 };

@@ -32,5 +32,9 @@ export function holds(state: GameState, c: Condition): boolean {
       return state.projects[c.projectId]?.tasks[c.taskId]?.status === 'done';
     case 'projectCompleted':
       return (state.projects[c.projectId]?.completedAt ?? null) !== null;
+    case 'contextStat':
+      return state.contextStats[c.stat] >= c.count;
+    case 'sessionAge':
+      return Object.values(state.sessions).some((s) => s.age >= c.minutes);
   }
 }

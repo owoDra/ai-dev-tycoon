@@ -201,6 +201,11 @@ export const agentRoleByTask: Readonly<Record<string, AgentRole>> = {
   implementation: 'code',
   qa: 'qa',
   release: 'release',
+  // 決済画面の修正
+  reproduce: 'research',
+  spec: 'research',
+  fix: 'code',
+  tests: 'qa',
 };
 
 export const fallbackAgentRole: AgentRole = 'code';

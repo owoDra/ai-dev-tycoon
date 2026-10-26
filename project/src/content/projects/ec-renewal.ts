@@ -25,7 +25,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.4,
       qualityReq: 0.6,
       failRisk: 0.3,
-      contextNeeds: [],
     },
     {
       id: 'requirements',
@@ -36,7 +35,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.5,
       qualityReq: 0.8,
       failRisk: 0.4,
-      contextNeeds: [],
     },
     {
       id: 'uiDesign',
@@ -47,7 +45,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.7,
       qualityReq: 0.6,
       failRisk: 0.4,
-      contextNeeds: [],
     },
     {
       id: 'research',
@@ -58,7 +55,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.9,
       qualityReq: 0.3,
       failRisk: 0.2,
-      contextNeeds: [],
     },
     {
       id: 'implementation',
@@ -69,7 +65,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.8,
       qualityReq: 0.7,
       failRisk: 0.5,
-      contextNeeds: [],
     },
     {
       id: 'qa',
@@ -80,7 +75,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.4,
       qualityReq: 0.9,
       failRisk: 0.3,
-      contextNeeds: [],
     },
     {
       id: 'release',
@@ -91,7 +85,6 @@ export const ecRenewal: ProjectDef = {
       aiAptitude: 0.3,
       qualityReq: 0.9,
       failRisk: 0.3,
-      contextNeeds: [],
     },
   ],
 };

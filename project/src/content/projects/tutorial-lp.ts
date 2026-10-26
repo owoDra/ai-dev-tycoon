@@ -24,7 +24,6 @@ export const tutorialLp: ProjectDef = {
       aiAptitude: 0.9,
       qualityReq: 0.4,
       failRisk: 0.2,
-      contextNeeds: [],
     },
     {
       id: 'coding',
@@ -35,7 +34,6 @@ export const tutorialLp: ProjectDef = {
       aiAptitude: 0.8,
       qualityReq: 0.5,
       failRisk: 0.4,
-      contextNeeds: [],
     },
     {
       id: 'form',
@@ -46,7 +44,6 @@ export const tutorialLp: ProjectDef = {
       aiAptitude: 0.8,
       qualityReq: 0.7,
       failRisk: 0.4,
-      contextNeeds: [],
     },
     {
       id: 'responsive',
@@ -57,7 +54,6 @@ export const tutorialLp: ProjectDef = {
       aiAptitude: 0.8,
       qualityReq: 0.6,
       failRisk: 0.4,
-      contextNeeds: [],
     },
   ],
 };

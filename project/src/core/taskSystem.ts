@@ -1,5 +1,6 @@
 import { stageOfPhase } from '../content/assignModes';
 import { balance } from '../content/balance';
+import { contextApplies, contextEffects, getSession, readContext, updateSession } from './context';
 import { aiCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
@@ -22,7 +23,13 @@ export const taskSystem: System = (state, ctx) => {
       const stage = stageOfPhase[run.phase];
       next = updateTask(next, projectId, taskId, (r) => ({ ...r, lead: { ...r.lead, [stage]: r.lead[stage] + tick } }));
       if (!isAiWorking(run)) continue;
-      const cost = aiCost(tick, aiActor(run).model);
+      let cost = aiCost(tick, aiActor(run).model);
+      // Context が働く案件では、Context の使用率に応じて費用が増え、Session の履歴が溜まる
+      const workerId = run.assignment?.workerId ?? '';
+      if (contextApplies(projectId)) {
+        cost *= contextEffects(readContext(getSession(next, workerId), projectId, taskId)).costFactor;
+        next = updateSession(next, workerId, (s) => ({ ...s, age: s.age + tick }));
+      }
       next = updateTask(next, projectId, taskId, (r) => ({
         ...r,
         remaining: r.remaining - tick,

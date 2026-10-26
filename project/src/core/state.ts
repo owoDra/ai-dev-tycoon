@@ -1,7 +1,17 @@
 import { balance, type GameSpeed } from '../content/balance';
 import { glossary } from '../content/glossary';
-import { humans } from '../content/index';
-import type { AssignModeId, FeatureId, ModePhase, Stage, TermId } from '../content/types';
+import { aiWorkers, humans } from '../content/index';
+import type {
+  AssignModeId,
+  ContextFeed,
+  ContextStatId,
+  FeatureId,
+  HandoffItemId,
+  IncidentId,
+  ModePhase,
+  Stage,
+  TermId,
+} from '../content/types';
 import { allFeatures, unlockDefs } from '../content/unlocks';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
@@ -63,6 +73,39 @@ export interface QueueItem {
   readonly queuedAt: number;
 }
 
+/**
+ * AI Worker の Session（企画書9〜12章）。渡す資料と、Reset からの履歴を持つ。
+ * relevant と noise は、ここと Task から core/context.ts が計算する
+ */
+export interface SessionRun {
+  /** 資料の渡し方 */
+  readonly feed: ContextFeed;
+  /** Reset から AI が作業した時間（分）。長いほど履歴のノイズが溜まる */
+  readonly age: number;
+  /** 次の Reset で残す項目 */
+  readonly handoff: readonly HandoffItemId[];
+  /** Artifact Driven Work：成果物に作業状態を保存する */
+  readonly artifacts: boolean;
+  /** 直前の Reset で引き継がれた項目の大きさ（Context を占める） */
+  readonly carried: number;
+  /** 直前の Reset で失った項目。recover 回の AI の作業が終わるまで影響する */
+  readonly lost: readonly HandoffItemId[];
+  readonly recover: number;
+}
+
+/** 発生中の事件 */
+export interface IncidentRun {
+  readonly id: IncidentId;
+  readonly workerId: string;
+  readonly projectId: string;
+  /** 事件のきっかけになった Task（Context の読み取りに使う） */
+  readonly taskId: string;
+  readonly since: number;
+}
+
+/** Context に関わる出来事の回数。解放と用語の条件（contextStat）に使う */
+export type ContextStats = Readonly<Record<ContextStatId, number>>;
+
 /** 進行中のチュートリアル（台本は content/tutorial.ts） */
 export interface TutorialRun {
   /** 今のステップの添字 */
@@ -101,6 +144,11 @@ export interface GameState {
   readonly revealed: readonly TermId[];
   /** 進行中のチュートリアル。チュートリアルでなければ null */
   readonly tutorial: TutorialRun | null;
+  /** AI Worker ごとの Session（AI Worker の id がキー） */
+  readonly sessions: Readonly<Record<string, SessionRun>>;
+  /** 発生中の事件（発生した順） */
+  readonly incidents: readonly IncidentRun[];
+  readonly contextStats: ContextStats;
 }
 
 export interface InitialStateOptions {
@@ -129,7 +177,22 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     unlocked: tutorial ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature) : allFeatures,
     revealed: tutorial ? [] : glossary.map((g) => g.id),
     tutorial: tutorial ? { step: 0 } : null,
+    sessions: createSessions(),
+    incidents: [],
+    contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
   };
+}
+
+/**
+ * 新しい Session。資料は最初「すべての資料」を渡している（とりあえず全部渡す、から始めて絞ることを覚える）。
+ * Handoff は何も選んでいない（最初の Reset で「決定事項の喪失」を体験してから選ぶ）
+ */
+export function createSession(): SessionRun {
+  return { feed: { mode: 'all' }, age: 0, handoff: [], artifacts: false, carried: 0, lost: [], recover: 0 };
+}
+
+export function createSessions(): Record<string, SessionRun> {
+  return Object.fromEntries(aiWorkers.map((w) => [w.id, createSession()]));
 }
 
 export function createHumanQueues(): Record<string, readonly QueueItem[]> {

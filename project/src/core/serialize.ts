@@ -1,9 +1,9 @@
 import { glossary } from '../content/glossary';
 import { allFeatures } from '../content/unlocks';
-import { createHumanQueues, type GameState } from './state';
+import { createHumanQueues, createSessions, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -19,6 +19,16 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     from: 2,
     migrate: (s) => ({ ...(s as object), unlocked: allFeatures, revealed: glossary.map((g) => g.id), tutorial: null }),
+  },
+  // v4: AI Worker の Session・事件・Context の記録を追加（Phase 10）
+  {
+    from: 3,
+    migrate: (s) => ({
+      ...(s as object),
+      sessions: createSessions(),
+      incidents: [],
+      contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
+    }),
   },
 ];
 
@@ -76,7 +86,10 @@ function isGameState(v: unknown): v is GameState {
     Array.isArray(v.pendingEvents) &&
     Array.isArray(v.unlocked) &&
     Array.isArray(v.revealed) &&
-    (v.tutorial === null || isRecord(v.tutorial))
+    (v.tutorial === null || isRecord(v.tutorial)) &&
+    isRecord(v.sessions) &&
+    Array.isArray(v.incidents) &&
+    isRecord(v.contextStats)
   );
 }
 

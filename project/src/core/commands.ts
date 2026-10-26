@@ -1,9 +1,11 @@
 import { primaryActor } from '../content/assignModes';
 import { balance, type GameSpeed } from '../content/balance';
 import { content, findWorker } from '../content/index';
-import type { AssignModeId } from '../content/types';
+import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId } from '../content/types';
 import { allFeatures, modeFeature } from '../content/unlocks';
+import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
+import { resolveIncident, settleIncidents } from './incidents';
 import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
 import { isAllowed } from './tutorial';
@@ -26,7 +28,17 @@ export type Command =
       readonly workerId: string;
     }
   /** チュートリアルをやめる。残りの機能をすべて解放し、案件はそのまま続ける */
-  | { readonly type: 'SkipTutorial' };
+  | { readonly type: 'SkipTutorial' }
+  /** AI Worker の Session に渡す資料を決める（企画書10章）。pick の資料は、その AI Worker が作業する案件のもの */
+  | { readonly type: 'SetContextFeed'; readonly workerId: string; readonly feed: ContextFeed }
+  /** 次の Reset で残す項目を決める（企画書11章） */
+  | { readonly type: 'SetHandoff'; readonly workerId: string; readonly items: readonly HandoffItemId[] }
+  /** Artifact Driven Work（企画書12章）の切り替え */
+  | { readonly type: 'SetArtifactDriven'; readonly workerId: string; readonly on: boolean }
+  /** Session を始め直す。履歴のノイズは 0 になり、Handoff で残さなかった項目は失われる */
+  | { readonly type: 'NewSession'; readonly workerId: string }
+  /** 事件の解決アクション（content/incidents.ts の resolve）を実行する */
+  | { readonly type: 'ResolveIncident'; readonly incident: IncidentId; readonly workerId: string };
 
 export interface Transition {
   readonly state: GameState;
@@ -44,7 +56,8 @@ export function reduce(state: GameState, command: Command): Transition {
   const result = apply(state, command);
   if (result.state === state) return result;
   const events = [...result.events];
-  const settled = settleProgress(result.state, (e) => events.push(e));
+  const emit = (e: GameEvent) => events.push(e);
+  const settled = settleProgress(settleIncidents(result.state, emit), emit);
   return { state: settled, events };
 }
 
@@ -90,5 +103,40 @@ function apply(state: GameState, command: Command): Transition {
       events.push({ type: 'TutorialEnded', skipped: true });
       return { state: { ...state, tutorial: null, unlocked: allFeatures }, events };
     }
+    case 'SetContextFeed': {
+      const { feed, workerId } = command;
+      const valid = feed.mode !== 'pick' || feed.docs.every((id) => content.documents.some((d) => d.id === id));
+      if (!isAi(workerId) || !valid || !isUnlocked(state, feedFeature[feed.mode])) return unchanged(state);
+      return { state: updateSession(state, workerId, (s) => ({ ...s, feed })), events: [] };
+    }
+    case 'SetHandoff': {
+      if (!isAi(command.workerId) || !isUnlocked(state, 'session')) return unchanged(state);
+      const items = [...new Set(command.items)];
+      return { state: updateSession(state, command.workerId, (s) => ({ ...s, handoff: items })), events: [] };
+    }
+    case 'SetArtifactDriven': {
+      if (!isAi(command.workerId) || !isUnlocked(state, 'session:artifacts')) return unchanged(state);
+      return { state: updateSession(state, command.workerId, (s) => ({ ...s, artifacts: command.on })), events: [] };
+    }
+    case 'NewSession': {
+      if (!isAi(command.workerId) || !isUnlocked(state, 'session')) return unchanged(state);
+      const events: GameEvent[] = [];
+      return { state: newSession(state, command.workerId, (e) => events.push(e)), events };
+    }
+    case 'ResolveIncident': {
+      const events: GameEvent[] = [];
+      const next = resolveIncident(state, command.incident, command.workerId, (e) => events.push(e));
+      return { state: next, events };
+    }
   }
 }
+
+/** 資料の渡し方ごとに必要な機能 */
+const feedFeature: Readonly<Record<ContextFeed['mode'], FeatureId>> = {
+  needed: 'context',
+  all: 'context',
+  pick: 'context:pick',
+  router: 'context:router',
+};
+
+const isAi = (workerId: string) => findWorker(workerId)?.kind === 'ai';

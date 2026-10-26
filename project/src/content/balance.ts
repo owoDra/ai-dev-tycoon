@@ -65,6 +65,51 @@ export const balance = {
     /** 納品後の修正にかかる人件費の時給（円） */
     escapedFixHourlyWage: 4000,
   },
+  /** Context（企画書9〜11章）。大きさは資料の size と同じ単位 */
+  context: {
+    /** AI が一度に抱えられる Context の大きさ。これを超えると溢れる */
+    capacity: 100,
+    /** Session を続けると溜まる履歴のノイズ（AI が1分作業するごと） */
+    driftPerMinute: 1.2,
+    /** Noise が Context の大きさに占める割合がこれ以上なら「散らかり」 */
+    clutteredNoise: 0.2,
+    /** Noise の割合 1 あたりに成功確率から引く量（誤判断率の上昇） */
+    errorPerNoise: 0.45,
+    /** Task に必要な資料が欠けている割合 1 あたりに成功確率から引く量 */
+    missingPenalty: 0.4,
+    /** Context が溢れている（使用率 1 以上）ときに成功確率から引く量 */
+    overflowPenalty: 0.15,
+    /** Task に関係する古い仕様を渡していると、それを参照して失敗する確率（古い仕様の参照） */
+    staleReferenceChance: 0.3,
+    /** 矛盾するルールの組1つあたりに成功確率から引く量 */
+    conflictPenalty: 0.1,
+    /** Context の使用率 1 あたりの AI 費用の増加率（AI 消費量の増加） */
+    costPerFill: 0.8,
+    /** Noise の割合 1 あたりの Tool の誤選択の確率。起きると AI の作業時間が toolMissExtra だけ延びる */
+    toolMissPerNoise: 0.8,
+    toolMissExtra: 0.6,
+  },
+  /** Session Reset と Handoff（企画書11〜12章） */
+  handoff: {
+    /** Handoff の項目1つが次の Session で占める Context の大きさ（関係のある情報として数える） */
+    itemSize: 2,
+    /** Handoff で残さなかった項目の影響が続く、Reset 後の AI の作業の回数 */
+    recoverWorks: 3,
+    /**
+     * Handoff で残さなかった項目ごとの影響。成功確率から引く量と、作業の把握し直しで AI の作業時間に足す割合（effort に対する）。
+     * Decisions の喪失が最も重い（企画書11章「Important Decisions Lost」）
+     */
+    loss: {
+      goal: { successPenalty: 0.08, relearnShare: 0.1 },
+      decisions: { successPenalty: 0.15, relearnShare: 0 },
+      constraints: { successPenalty: 0.08, relearnShare: 0 },
+      modifiedFiles: { successPenalty: 0.02, relearnShare: 0.2 },
+      validation: { successPenalty: 0.06, relearnShare: 0 },
+      remainingWork: { successPenalty: 0.02, relearnShare: 0.2 },
+    },
+    /** Artifact Driven Work：成果物（コード・テスト・Task State）に状態を保存するため、AI の作業に足す時間（effort に対する割合） */
+    artifactShare: 0.04,
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

@@ -48,8 +48,6 @@ export interface TaskDef {
   readonly qualityReq: number;
   /** 0〜1。失敗のしやすさの基礎値。difficulty と qualityReq はこれに掛かる */
   readonly failRisk: number;
-  /** 必要な Context の id（Phase 10 で使う。今は型だけ） */
-  readonly contextNeeds: readonly string[];
 }
 
 export interface ProjectDef {
@@ -117,7 +115,11 @@ export type Condition =
   /** 特定の Task が完了した */
   | { readonly type: 'taskCompleted'; readonly projectId: string; readonly taskId: string }
   /** 特定の案件を納品した */
-  | { readonly type: 'projectCompleted'; readonly projectId: string };
+  | { readonly type: 'projectCompleted'; readonly projectId: string }
+  /** Context の記録（core/state.ts の ContextStats）の値が count 以上 */
+  | { readonly type: 'contextStat'; readonly stat: ContextStatId; readonly count: number }
+  /** どれかの AI Worker の Session が、Reset からこの時間（AI が作業した分）以上続いている */
+  | { readonly type: 'sessionAge'; readonly minutes: number };
 
 /** 担当カードの1枚を表す機能 ID */
 export type ModeFeatureId = `mode:${AssignModeId}`;
@@ -126,7 +128,18 @@ export type ModeFeatureId = `mode:${AssignModeId}`;
  * 解放の対象になる機能。UI は isUnlocked(state, featureId) を見て表示・非表示を切り替える。
  * mode:*: 担当モードのカード / dock:*: ドックの項目 / problems: 「次に対応すべき問題」のトーストとドックのボタン
  */
-export type FeatureId = ModeFeatureId | 'dock:speed' | 'dock:utilization' | 'problems';
+export type FeatureId =
+  | ModeFeatureId
+  | 'dock:speed'
+  | 'dock:utilization'
+  | 'problems'
+  /** context: 資料の渡し方の2択と Context の状態 / context:pick: 資料を個別に選ぶチェックリスト / context:router: Context Router */
+  | 'context'
+  | 'context:pick'
+  | 'context:router'
+  /** session: New Session と Handoff / session:artifacts: Artifact Driven Work */
+  | 'session'
+  | 'session:artifacts';
 
 export interface UnlockDef {
   readonly id: string;
@@ -136,10 +149,28 @@ export interface UnlockDef {
   readonly message: UnlockMessageId;
 }
 
-export type UnlockMessageId = 'review' | 'eval' | 'speed' | 'utilization' | 'advanced' | 'problems' | 'basic';
+export type UnlockMessageId =
+  | 'review'
+  | 'eval'
+  | 'speed'
+  | 'utilization'
+  | 'advanced'
+  | 'problems'
+  | 'basic'
+  | 'context'
+  | 'contextPick'
+  | 'contextRouter'
+  | 'session'
+  | 'artifacts';
 
 /** 体験の後で名前を教える用語（企画書34章）。文言（名前・平易な説明）は i18n の ja.glossary */
-export type TermId = 'delegation' | 'humanInTheLoop' | 'eval' | 'harnessEngineering';
+export type TermId =
+  | 'delegation'
+  | 'humanInTheLoop'
+  | 'eval'
+  | 'harnessEngineering'
+  | 'contextRouting'
+  | 'sessionHandoff';
 
 export interface TermDef {
   readonly id: TermId;
@@ -199,4 +230,68 @@ export interface TutorialScript {
   readonly steps: readonly TutorialStepDef[];
   /** この条件を満たしたらチュートリアルを終える */
   readonly completeWhen: Condition;
+}
+
+/** 資料（企画書9〜10章）。AI に渡すと Context を占める。文言は i18n の ja.documents */
+export interface DocumentDef {
+  readonly id: string;
+  /** どの案件の資料か */
+  readonly projectId: string;
+  readonly name: string;
+  /** この資料が役に立つ Task。古い仕様（stale）は載っていても役に立たず、誤った参照のもとになる */
+  readonly relevantTo: readonly string[];
+  /** 古い仕様。渡すと「古い仕様の参照」で失敗しやすくなる（Stale Context） */
+  readonly stale: boolean;
+  /** この資料と矛盾するルールの資料。両方を渡すと衝突する（Instruction Conflict）。外すべき側に書く */
+  readonly conflictsWith: readonly string[];
+  /** Context を占める大きさ（balance.context.capacity に対する量） */
+  readonly size: number;
+}
+
+/**
+ * AI Worker の Session に資料をどう渡すか（企画書10章）。
+ * needed: 案件の Task に必要な資料だけ / all: すべての資料 / pick: 個別に選んだ資料 / router: Task ごとに必要な資料だけを自動で選ぶ（Context Router）
+ */
+export type ContextFeed =
+  | { readonly mode: 'needed' }
+  | { readonly mode: 'all' }
+  | { readonly mode: 'router' }
+  | { readonly mode: 'pick'; readonly docs: readonly string[] };
+
+/** Session Reset のときに次の Session へ残す項目（企画書11章）。文言は i18n の ja.handoff */
+export type HandoffItemId = 'goal' | 'decisions' | 'constraints' | 'modifiedFiles' | 'validation' | 'remainingWork';
+
+/** Context の記録（core/state.ts の ContextStats）の項目 */
+export type ContextStatId = 'resets' | 'handoffResets' | 'incidents' | 'resolved' | 'routedWorks';
+
+/** Context の読み取り値（core/context.ts の ContextReading）のうち、事件の発生条件に使える値 */
+export type ContextMetric = 'fill' | 'noise' | 'stale' | 'conflicts';
+
+export type IncidentId = 'contextOverflow' | 'staleContext' | 'instructionConflict';
+
+/** 事件の解決アクション。ResolveIncident の Command で、事件の起きた AI Worker の Session に順に適用する */
+export type IncidentAction =
+  | { readonly type: 'SetContextFeed'; readonly feed: ContextFeed }
+  | { readonly type: 'NewSession' }
+  /** stale: 古い仕様を外す / conflicting: 矛盾するルールを外す */
+  | { readonly type: 'DropDocs'; readonly which: 'stale' | 'conflicting' };
+
+/**
+ * 事件（企画書19章）。AI が作業を始めるたびに、その Session の Context の読み取り値から発生確率を計算する。
+ * 発生した事件は、解決するまで（または条件を満たさなくなるまで）その Session の AI の作業に影響する。文言は i18n の ja.incidents
+ */
+export interface IncidentDef {
+  readonly id: IncidentId;
+  /** 発生確率 = min(max, perUnit × (読み取り値 metric − threshold))。metric が threshold 以下なら起きず、起きていれば解消する */
+  readonly trigger: {
+    readonly metric: ContextMetric;
+    readonly threshold: number;
+    readonly perUnit: number;
+    readonly max: number;
+  };
+  /** 影響。成功確率から引く量と、AI の作業時間の倍率 */
+  readonly effect: { readonly successPenalty: number; readonly aiTimeFactor: number };
+  readonly resolve: readonly IncidentAction[];
+  /** 表示に使うアイコン */
+  readonly icon: 'context' | 'warning' | 'session';
 }

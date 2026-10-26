@@ -41,6 +41,28 @@ export function validateContent(c: Content): string[] {
     if (m.steps.length === 0) errors.push(`担当モード ${m.id}: 工程がない`);
   }
   for (const p of c.projects) errors.push(...validateProject(p));
+  errors.push(...validateDocuments(c));
+  return errors;
+}
+
+/** 資料の ID の重複・未定義の案件や Task・矛盾の相手の参照・大きさを検査する */
+function validateDocuments(c: Content): string[] {
+  const errors = duplicates(
+    '資料',
+    c.documents.map((d) => d.id),
+  );
+  const docIds = new Set(c.documents.map((d) => d.id));
+  for (const d of c.documents) {
+    const project = c.projects.find((p) => p.id === d.projectId);
+    if (!project) errors.push(`資料 ${d.id}: 未定義の案件 ${d.projectId}`);
+    for (const t of d.relevantTo) {
+      if (project && !project.tasks.some((x) => x.id === t)) errors.push(`資料 ${d.id}: 未定義の Task ${t}`);
+    }
+    for (const other of d.conflictsWith) {
+      if (!docIds.has(other)) errors.push(`資料 ${d.id}: 未定義の矛盾の相手 ${other}`);
+    }
+    if (!(d.size > 0)) errors.push(`資料 ${d.id}: size が正でない`);
+  }
   return errors;
 }
 

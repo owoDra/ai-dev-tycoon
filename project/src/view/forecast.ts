@@ -37,7 +37,7 @@ const cache = new Map<string, ForecastMetrics>();
  * Task をそのモードで担当させたときの人間時間・AI 費用・品質の見込み（core のヘッドレス実行）。
  * 今の案件の進み具合からは切り離し、「前の Task が今の担当のまま終わった直後に、この Task だけを処理する」
  * 短いシミュレーションを seed を変えて SAMPLES 回行い、平均する。人の待ち時間は含めない（待ちはボトルネックで見せる）。
- * 前の Task の担当は Agent Workflow の連鎖（指示出しの省略）に効くので引き継ぐ。
+ * 前の Task の担当は Agent Workflow の連鎖（指示出しの省略）に効くので引き継ぐ。AI Worker の Session と事件もそのまま引き継ぐ。
  */
 export function forecastTask(state: GameState, projectId: string, taskId: string, mode: AssignModeId): ForecastMetrics {
   const def = getProject(projectId);
@@ -45,7 +45,9 @@ export function forecastTask(state: GameState, projectId: string, taskId: string
   const run = state.projects[projectId];
   if (!task) throw new Error(`未定義の Task: ${projectId}/${taskId}`);
   const depModes = task.deps.map((d) => run?.tasks[d]?.assignment?.mode ?? '');
-  const key = `${state.seed}|${projectId}|${taskId}|${mode}|${depModes.join(',')}`;
+  // Context（Session と事件）は AI の作業に効くので、見込みの前提に含める
+  const context = JSON.stringify([state.sessions, state.incidents]);
+  const key = `${state.seed}|${projectId}|${taskId}|${mode}|${depModes.join(',')}|${context}`;
   const hit = cache.get(key);
   if (hit) return hit;
 

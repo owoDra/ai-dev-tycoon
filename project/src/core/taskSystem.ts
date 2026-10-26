@@ -1,6 +1,7 @@
 import { stageOfPhase } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { contextApplies, contextEffects, getSession, readContext, updateSession } from './context';
+import { contextApplies, updateSession } from './context';
+import { aiCostFactor } from './contextWork';
 import { aiCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
@@ -27,7 +28,7 @@ export const taskSystem: System = (state, ctx) => {
       // Context が働く案件では、Context の使用率に応じて費用が増え、Session の履歴が溜まる
       const workerId = run.assignment?.workerId ?? '';
       if (contextApplies(projectId)) {
-        cost *= contextEffects(readContext(getSession(next, workerId), projectId, taskId)).costFactor;
+        cost *= aiCostFactor(next, workerId, projectId, taskId);
         next = updateSession(next, workerId, (s) => ({ ...s, age: s.age + tick }));
       }
       next = updateTask(next, projectId, taskId, (r) => ({

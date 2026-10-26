@@ -2,16 +2,8 @@ import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { getAiWorker, getHuman, getModel, getProject, getTask, humans } from '../content/index';
 import type { ModeStep, TaskDef } from '../content/types';
-import {
-  contextApplies,
-  contextEffects,
-  fedDocs,
-  getSession,
-  lossEffects,
-  projectNeededDocs,
-  readContext,
-  updateSession,
-} from './context';
+import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
+import { aiSuccessWithContext, aiWorkTime } from './contextWork';
 import {
   type ActorProfile,
   escapedQuality,
@@ -20,7 +12,7 @@ import {
   stepMinutes,
   successProbability,
 } from './formulas';
-import { incidentEffects, rollIncidents } from './incidents';
+import { rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
 import { forcedAiOutcome } from './tutorial';
@@ -129,8 +121,8 @@ export function enterStep(
 }
 
 /**
- * Context が働く案件で、AI の作業の所要時間を Context に応じて延ばす。
- * Tool の誤選択（確率）・発生中の事件・Reset で失った項目の把握し直し・Artifact Driven Work の保存作業。
+ * Context が働く案件で、AI の作業の所要時間を Context に応じて延ばす（core/contextWork.ts）。
+ * Tool の誤選択はここで確率で決める。
  */
 function contextWorkMinutes(
   state: GameState,
@@ -140,27 +132,9 @@ function contextWorkMinutes(
   minutes: number,
   ctx: SystemContext,
 ): number {
-  const workerId = run.assignment?.workerId ?? '';
-  const session = getSession(state, workerId);
-  const effects = contextEffects(readContext(session, projectId, task.id));
-  const toolMiss = ctx.rng.chance(effects.toolMissChance) ? 1 + balance.context.toolMissExtra : 1;
-  const speed = aiActor(run).model.speed;
-  const extraShare = lossEffects(session).relearnShare + (session.artifacts ? balance.handoff.artifactShare : 0);
-  return minutes * toolMiss * incidentEffects(state, workerId).aiTimeFactor + (task.effort * extraShare) / speed;
-}
-
-/**
- * Context が働く案件での AI の作業の成功確率。成功確率から Context・Reset で失った項目・事件の影響を引き、
- * 古い仕様を参照する確率の分だけさらに下げる。
- */
-function contextSuccess(state: GameState, run: TaskRun, projectId: string, taskId: string, p: number): number {
-  const workerId = run.assignment?.workerId ?? '';
-  const session = getSession(state, workerId);
-  const effects = contextEffects(readContext(session, projectId, taskId));
-  const penalty =
-    effects.successPenalty + lossEffects(session).successPenalty + incidentEffects(state, workerId).successPenalty;
-  const { min, max } = balance.success;
-  return Math.min(max, Math.max(min, p - penalty)) * (1 - effects.staleChance);
+  const time = aiWorkTime(state, run.assignment?.workerId ?? '', projectId, task, aiActor(run).model);
+  const toolMiss = ctx.rng.chance(time.toolMissChance) ? 1 + balance.context.toolMissExtra : 1;
+  return minutes * toolMiss * time.factor + time.extraMinutes;
 }
 
 /**
@@ -225,7 +199,7 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const forced = step.actor === 'ai' ? forcedAiOutcome(state, projectId, taskId) : null;
     const withContext = step.actor === 'ai' && contextApplies(projectId);
     let p = successProbability(getTask(projectId, taskId), actor);
-    if (withContext) p = contextSuccess(state, run, projectId, taskId, p);
+    if (withContext) p = aiSuccessWithContext(state, run.assignment?.workerId ?? '', projectId, taskId, p);
     const ok = forced === null ? ctx.rng.chance(p) : forced;
     if (withContext) next = afterContextWork(next, run, projectId, taskId);
     if (!ok) {

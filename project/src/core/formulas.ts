@@ -59,15 +59,24 @@ export function repairMinutes(task: TaskDef, model: ModelDef): number {
  * 人間の拘束時間の見込み（分）。モードの人間の工程の合計に、
  * 人間のレビューでは、それまでに残っている失敗の確率 × 手戻り時間を足す。
  * AI の自動テストは失敗を見つけて AI が直すので、それ以降に残る失敗はなくなる（連鎖による指示出しの省略は考えない）。
+ * aiSuccess で AI の作業の成功確率を補正できる（Context の影響。core/contextWork.ts）。
  */
-export function expectedHumanMinutes(task: TaskDef, mode: AssignModeDef, skill: number, model: ModelDef): number {
+export function expectedHumanMinutes(
+  task: TaskDef,
+  mode: AssignModeDef,
+  skill: number,
+  model: ModelDef,
+  aiSuccess: (p: number) => number = (p) => p,
+): number {
   const human: ActorProfile = { kind: 'human', skill };
   const ai: ActorProfile = { kind: 'ai', model };
   let minutes = 0;
   let pAllOk = 1;
   for (const step of mode.steps) {
     if (step.actor === 'human') minutes += stepMinutes(task, step, human);
-    if (step.phase === 'work') pAllOk *= successProbability(task, step.actor === 'human' ? human : ai);
+    if (step.phase === 'work') {
+      pAllOk *= step.actor === 'human' ? successProbability(task, human) : aiSuccess(successProbability(task, ai));
+    }
     if (step.phase !== 'review') continue;
     if (step.actor === 'human') minutes += (1 - pAllOk) * reworkMinutes(task, skill);
     pAllOk = 1;

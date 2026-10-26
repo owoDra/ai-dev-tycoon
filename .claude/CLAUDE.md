@@ -9,20 +9,25 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 
 ## リポジトリ構成
 
-ルートは `.claude/` `docs/` `project/`（と Phase 17 で作る `README.md`）だけに保つ。ルートにファイルを増やさない。
+ルートは `.claude/` `docs/` `project/` `mise.toml`（と Phase 17 で作る `README.md`）だけに保つ。ルートにファイルを増やさない。
 
 - `docs/`：コードで表せないもの（企画意図・計画・デザイン決定の理由）だけ
 - `project/`：ソース（`src/`）・テスト（`tests/`）・ツール（`tools/`）・設定ファイルのすべて。`node_modules` やビルド成果物もここに閉じ込める
+- `mise.toml`：ランタイム（Node 22）の指定。ルートで `mise install` を実行する
 
 ## コマンド（すべて `project/` で実行）
 
 | コマンド | 内容 |
 |---|---|
-| `npm run dev` | 開発サーバー |
+| `npm run dev` / `npm run preview` | 開発サーバー / ビルド結果のプレビュー |
 | `npm run check` | typecheck → lint → test → build → verify:dist（完了判定はこれ） |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` / `npm run format` | Biome のチェック / 自動修正 |
 | `npm test` | Vitest |
-| `npm run build` / `npm run build:explore` | 単一HTMLのビルド / デザイン比較用のビルド |
-| `npm run assets` | SVG・WebP・glb の生成（生成物は `src/assets/generated/` にコミット） |
+| `npm run build` | 単一HTML（`dist/index.html`）のビルド |
+| `npm run verify:dist` | dist が単一ファイル・外部参照なし・サイズ予算内であることの検証 |
+
+後続で追加する予定のコマンド：`npm run build:explore`（デザイン比較用のビルド。D1 で追加）、`npm run assets`（SVG・WebP・glb の生成。生成物は `src/assets/generated/` にコミット。Phase 04 で追加）。
 
 ## 正本の扱い
 
@@ -53,3 +58,7 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 ## 完了報告
 
 Phase や D の作業を終えるときは、完了条件の各項目を根拠（コマンド出力・テスト名・ファイルパス）付きで報告し、`npm run check` の結果を示し、コミットして `git status --short` が空であることを示す。
+
+## コミットルール
+
+- コミットメッセージに Co-... はつけない

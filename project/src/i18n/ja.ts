@@ -165,6 +165,35 @@ export const ja = {
     delivered: (name: string) => `${name}を納品した`,
     offeredNotice: (n: number) => `新しい依頼が${n}件届いた`,
   },
+  /** 隙間時間に少しずつ遊ぶためのカード（営業日の終わりの区切り・再開したときのあらすじ） */
+  session: {
+    dayEnded: (day: number) => `${day}日目の業務が終わりました`,
+    dayLead: 'ここで区切っても大丈夫。進み具合は保存してあります',
+    recapTitle: '前回のあらすじ',
+    away: (hours: string) => `閉じていた間に、業務が${hours}進みました`,
+    noAway: '閉じていた間は、業務を進めていません',
+    tasks: '完了した仕事',
+    tasksDone: (n: number) => `完了した仕事 ${n}件`,
+    delivered: (name: string) => `${name}を納品`,
+    incidents: (n: number) => `事件 ${n}件`,
+    profit: '利益',
+    humanTime: '人間の稼働',
+    active: '進行中の案件',
+    progress: (done: number, total: number) => `${done} / ${total}`,
+    daysLeft: (days: number) =>
+      days >= 0 ? `納期まで ${days.toFixed(1)}日` : `納期を ${Math.abs(days).toFixed(1)}日超過`,
+    next: '次にやること',
+    steps: {
+      incident: (n: number) => `事件が${n}件起きています。解決しよう`,
+      assign: (n: number) => `担当が決まっていない仕事が${n}件あります`,
+      offer: (n: number) => `受注できる依頼が${n}件あります`,
+      watch: 'いまは見守るだけ。AI と人の仕事が進みます',
+    },
+    nextDay: '次の日へ',
+    resume: '再開する',
+    quit: 'ここで中断する',
+    saved: '保存済み',
+  },
   models: {
     lite: '軽量モデル',
     standard: '標準モデル',
@@ -275,6 +304,16 @@ export const ja = {
       retry: 'もう一度',
       next: '案件ボードへ',
       toTitle: 'タイトルへ',
+      code: {
+        title: '結果コード',
+        lead: '同じ案件を遊んだ人とコードを見せ合って、結果を比べよう（インターネットには送りません）',
+        copy: 'コードをコピー',
+        copied: 'コピーしました',
+        copyFailed: 'コピーできませんでした。選択したコードを手でコピーしてください',
+        showQr: 'QRコードを表示',
+        hideQr: 'QRコードを閉じる',
+        qrLabel: '結果コードのQRコード',
+      },
     },
   },
   hud: {
@@ -559,6 +598,11 @@ export const ja = {
     mute: '音を消す',
     soundHint:
       '音は補助です。音を消しても、すべての出来事は画面の表示とアイコンで分かります。音は最初の操作の後に鳴り始めます。',
+    play: '遊び方',
+    dayBreak: '1日の終わりで一時停止する',
+    awayProgress: '閉じている間も、その日の終わりまで進める',
+    playHint: (minutes: number) =>
+      `隙間時間に少しずつ遊べるよう、1営業日（1倍速で約${Math.round(minutes)}分）ごとに区切ります。`,
   },
   audio: {
     test: {

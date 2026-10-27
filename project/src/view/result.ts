@@ -7,6 +7,7 @@ import { reduce } from '../core/commands';
 import { getSession } from '../core/context';
 import { averageSkill } from '../core/expectation';
 import { harnessOf } from '../core/harness';
+import type { ResultRecord } from '../core/resultCode';
 import { type ProjectScore, scoreProject } from '../core/scoring';
 import { createInitialState, type GameState } from '../core/state';
 import { ja } from '../i18n/ja';
@@ -98,6 +99,25 @@ function previousDelivered(state: GameState, projectId: string): string | null {
     }
   }
   return best;
+}
+
+/**
+ * 結果コード（core/resultCode.ts）に入れる値。結果画面と同じスコア・ランクを使う。案件が始まっていなければ null
+ */
+export function resultRecord(state: GameState, projectId: string): ResultRecord | null {
+  const score = scoreProject(state, projectId);
+  if (!score) return null;
+  return {
+    seed: state.seed,
+    projectId,
+    profit: score.profit,
+    profitPerHumanHour: score.profitPerHumanHour,
+    humanMinutes: score.humanMinutes,
+    aiCost: score.aiCost,
+    quality: score.quality,
+    elapsedMinutes: score.elapsedMinutes,
+    rank: rankOf(score.profitPerHumanHour, baselineProfitPerHumanHour(projectId), score.completed),
+  };
 }
 
 /** 結果画面の ViewModel（純粋関数）。案件が始まっていなければ null */

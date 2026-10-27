@@ -8,6 +8,7 @@ import { ja } from '../../i18n/ja';
 import {
   campaignGrowth,
   type ResultMetric,
+  resultRecord,
   resultView,
   type WorkflowSnapshot,
   workflowSnapshot,
@@ -15,6 +16,7 @@ import {
 import { type CounterfactualJob, counterfactualJobs, retrospective } from '../../view/retrospective';
 import { Icon } from '../Icon';
 import { ghostButton, panel, primaryButton, smallButton } from '../parts';
+import { ResultCodePanel } from './ResultCodePanel';
 
 const t = ja.screens.result;
 
@@ -31,6 +33,7 @@ function formatMetric(key: ResultMetric['key'], v: number): string {
  * 第2段：主要3指標の Before（人間だけの見込み）→ After の変形
  * 第3段（詳しく見る）：一番効いた改善・最大の無駄・次に改善できる場所の3枚のカード
  * 第4段（上級者向け）：工程別の時間・介入の時系列・AI コストの内訳。グラフは2つまでにとどめる
+ * 第2段からは、結果を見せ合って比べるための結果コード（コピーと QR コード）を出す
  * 振り返りの「それが無かった場合」の再シミュレーションは、表示中に1件ずつ間を空けて実行する（操作を止めない）
  */
 export function ResultScreen(props: {
@@ -48,6 +51,7 @@ export function ResultScreen(props: {
   const state = props.store.state();
   const cleared = state.campaign?.cleared === true;
   const view = resultView(state, props.projectId);
+  const record = resultRecord(state, props.projectId);
   const attribution = attributeProject(state, props.projectId);
   const [counterfactual, setCounterfactual] = createSignal<ReadonlyMap<string, Impact>>(new Map());
   const [refining, setRefining] = createSignal(true);
@@ -233,6 +237,8 @@ export function ResultScreen(props: {
               <Show when={stage() >= 4}>
                 <Details view={v()} />
               </Show>
+
+              <Show when={stage() >= 2 && record}>{(r) => <ResultCodePanel record={r()} />}</Show>
 
               <Show when={growth.length > 1}>
                 <section class="w-full text-left" data-campaign>

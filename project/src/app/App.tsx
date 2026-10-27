@@ -3,13 +3,16 @@ import { content } from '../content/index';
 import { uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { tutorialScript } from '../content/tutorial';
+import { catchUp, dayEnd, runsUnattended } from '../core/away';
 import { activeProjects } from '../core/campaign';
 import { createInitialState, type GameState } from '../core/state';
+import { businessDay } from '../core/team';
 import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
 import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
+import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { CampaignBoard } from '../ui/screens/CampaignBoard';
@@ -17,13 +20,15 @@ import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
 import { createSelection } from '../ui/selection';
 import { WorldCanvas } from '../ui/WorldCanvas';
+import { type DaySummary, daySummary, type Recap, recapView } from '../view/session';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
 import { markTutorialDone } from './progress';
-import { clearCampaign, loadCampaign, saveCampaign } from './save';
+import { clearCampaign, loadCampaign, loadSavedAt, saveCampaign } from './save';
 import { createScreens } from './screens';
+import { settings } from './settings';
 import { createGameStore, type GameStore } from './store';
 
 // 開発用の調整パネル。本番ビルドでは条件が定数 false になり、コードごと取り除かれる
@@ -48,6 +53,8 @@ const AUTOSAVE_MS = 5000;
  * キャンペーン1回ごとに新しい GameStore を作り、ゲームループを回す。キャンペーンはチュートリアル案件から始まり、
  * 進み具合（解放・社員・Harness・案件）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
  * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したら結果画面へ進む。
+ * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
+ * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
  */
 export function App(props: { tweak: boolean; log?: boolean }) {
   const screens = createScreens();
@@ -58,6 +65,10 @@ export function App(props: { tweak: boolean; log?: boolean }) {
   const [lookId, setLookId] = createSignal<WorldLookId>(defaultWorldLookId);
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [dayCard, setDayCard] = createSignal<DaySummary | null>(null);
+  const [recap, setRecap] = createSignal<Recap | null>(null);
+  /** 今の営業日が始まったときの state（その日の成果の比較に使う） */
+  let dayStart = game().state();
   const openSettings = () => setSettingsOpen(true);
   let director: FxDirector | undefined;
 
@@ -70,7 +81,23 @@ export function App(props: { tweak: boolean; log?: boolean }) {
 
   const useState = (state: GameState) => {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setDayCard(null);
+    setRecap(null);
+    dayStart = state;
     setGame(createGameStore(state));
+  };
+
+  /** 営業日の終わりで区切るか（設定・キャンペーンの進行中の案件・案件ボードかプレイ画面） */
+  const breaksAtDayEnd = () => {
+    const id = screens.screen().id;
+    return settings().dayBreak && (id === 'play' || id === 'select') && runsUnattended(game().state());
+  };
+
+  /** 区切りやあらすじのカードを閉じて再開する */
+  const resume = () => {
+    setDayCard(null);
+    setRecap(null);
+    if (game().state().paused) game().dispatch({ type: 'TogglePause' });
   };
 
   const save = () => {
@@ -87,12 +114,21 @@ export function App(props: { tweak: boolean; log?: boolean }) {
     screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
 
-  /** 保存したキャンペーンを読み込んで案件ボードへ進む */
+  /**
+   * 保存したキャンペーンを読み込んで案件ボードへ進む。閉じていた間の進行を適用し、一時停止したままあらすじを出す
+   * （チュートリアル中はあらすじを出さずにそのまま続ける）
+   */
   const continueCampaign = () => {
     const state = loadCampaign();
     if (!state) return newCampaign();
-    useState({ ...state, paused: false });
+    const savedAt = loadSavedAt();
+    const awaySeconds = settings().awayProgress && savedAt !== null ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
+    const { state: after, events } = catchUp(state, awaySeconds);
+    const withRecap = after.tutorial === null;
+    useState({ ...after, paused: withRecap });
+    if (withRecap) setRecap(recapView(state, after, events));
     screens.go({ type: 'Open' });
+    save();
   };
 
   const toTitle = () => {
@@ -103,7 +139,21 @@ export function App(props: { tweak: boolean; log?: boolean }) {
 
   createEffect(
     on(game, (store) => {
-      onCleanup(startLoop(store));
+      onCleanup(startLoop(store, undefined, () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null)));
+      // 営業日の終わり：一時停止して、その日の成果を出す（区切らない設定でも、成果の起点は進める）
+      let day = businessDay(store.state().clock);
+      createEffect(() => {
+        const state = store.state();
+        const now = businessDay(state.clock);
+        if (now <= day) return;
+        day = now;
+        if (breaksAtDayEnd()) {
+          setDayCard(daySummary(dayStart, state));
+          if (!state.paused) store.dispatch({ type: 'TogglePause' });
+          save();
+        }
+        dayStart = state;
+      });
       if (store.state().campaign) {
         const timer = setInterval(save, AUTOSAVE_MS);
         onCleanup(() => clearInterval(timer));
@@ -111,6 +161,11 @@ export function App(props: { tweak: boolean; log?: boolean }) {
       onCleanup(
         store.onEvents((events) => {
           if (events.some((e) => e.type === 'TutorialEnded')) markTutorialDone();
+          // HUD などから再開したら、区切りとあらすじのカードを閉じる
+          if (events.some((e) => e.type === 'PauseToggled' && !e.paused)) {
+            setDayCard(null);
+            setRecap(null);
+          }
           if (events.some((e) => e.type === 'SeatChanged' || e.type === 'ProjectsOffered')) save();
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;
@@ -207,6 +262,8 @@ export function App(props: { tweak: boolean; log?: boolean }) {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
+      <Show when={dayCard()}>{(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} />}</Show>
+      <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} />}</Show>
       <TermCards store={game()} durationMs={uiLayout.flow.termCardMs} />
       <Show when={settingsOpen()}>
         <SettingsSheet onClose={() => setSettingsOpen(false)} />

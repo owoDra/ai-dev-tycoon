@@ -12,6 +12,10 @@ export interface Settings {
   readonly feelIntensity: FeelIntensityId;
   /** 音量（0〜1）とミュート。初期値は控えめにする */
   readonly audio: AudioVolumes;
+  /** 営業日の終わりで一時停止して、その日の成果を出す（隙間時間に区切って遊ぶ） */
+  readonly dayBreak: boolean;
+  /** 閉じていた間も、その営業日の終わりまで進める（core/away.ts） */
+  readonly awayProgress: boolean;
 }
 
 const STORAGE_KEY = 'ai-dev-tycoon.settings.v1';
@@ -19,6 +23,8 @@ const DEFAULTS: Settings = {
   motion: 'system',
   feelIntensity: defaultFeelChoice.intensity,
   audio: { master: 0.6, sfx: 0.8, music: 0.45, muted: false },
+  dayBreak: true,
+  awayProgress: true,
 };
 
 /** 0〜1 の数でなければ既定値にする */
@@ -43,7 +49,14 @@ export function loadSettings(storage: Pick<Storage, 'getItem'> | undefined = saf
       music: volume(a.music, DEFAULTS.audio.music),
       muted: typeof a.muted === 'boolean' ? a.muted : DEFAULTS.audio.muted,
     };
-    return { motion, feelIntensity, audio };
+    const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback);
+    return {
+      motion,
+      feelIntensity,
+      audio,
+      dayBreak: flag(parsed.dayBreak, DEFAULTS.dayBreak),
+      awayProgress: flag(parsed.awayProgress, DEFAULTS.awayProgress),
+    };
   } catch {
     return DEFAULTS;
   }

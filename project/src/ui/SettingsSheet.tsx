@@ -2,6 +2,7 @@ import { For, onCleanup, onMount } from 'solid-js';
 import { type MotionPreference, motionPreferences, settings, updateSettings } from '../app/settings';
 import type { AudioVolumes } from '../audio/engine';
 import { audio } from '../audio/index';
+import { balance } from '../content/balance';
 import { type FeelIntensityId, feelIntensities } from '../content/look/feel';
 import { enter } from '../fx/motion';
 import { ja } from '../i18n/ja';
@@ -10,6 +11,9 @@ import { ghostButton, panel } from './parts';
 const t = ja.settings;
 const FEEL_INTENSITIES = Object.keys(feelIntensities) as FeelIntensityId[];
 const VOLUME_KEYS = ['master', 'sfx', 'music'] as const satisfies readonly (keyof AudioVolumes)[];
+const PLAY_FLAGS = ['dayBreak', 'awayProgress'] as const;
+/** 1営業日の実時間（分、1倍速） */
+const DAY_REAL_MINUTES = balance.project.minutesPerBusinessDay / balance.time.minutesPerRealSecond / 60;
 
 function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
   updateSettings({ audio: { ...settings().audio, [key]: value } });
@@ -17,7 +21,7 @@ function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
 
 /**
  * 設定シート。「動きを減らす」（OS に合わせる / 減らす / 減らさない）、「演出の強さ」（控えめ / 標準 / 派手）、
- * 音量（全体・効果音・BGM）とミュート。
+ * 音量（全体・効果音・BGM）とミュート、遊び方（1日の終わりの区切り・閉じている間の進行）。
  * 設定はゲームの state ではないので Command を通さず、app/settings.ts が localStorage に保存する。
  * 開いている間もゲームは止めない。Esc か「閉じる」で閉じ、開いたボタンにフォーカスを戻す。
  */
@@ -48,7 +52,7 @@ export function SettingsSheet(props: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        class={`${panel} flex w-full max-w-md flex-col gap-4 p-5`}
+        class={`${panel} flex max-h-full w-full max-w-md flex-col gap-4 overflow-y-auto p-5`}
       >
         <h2 id="settings-title" class="font-heading text-2xl">
           {t.title}
@@ -123,6 +127,24 @@ export function SettingsSheet(props: { onClose: () => void }) {
             <span class="font-bold">{t.mute}</span>
           </label>
           <p class="text-xs text-ink-muted">{t.soundHint}</p>
+        </fieldset>
+        <fieldset class="flex flex-col gap-2">
+          <legend class="mb-1 font-bold">{t.play}</legend>
+          <For each={PLAY_FLAGS}>
+            {(key) => (
+              <label class="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-[3px] border-line/30 px-3 has-checked:border-line has-checked:bg-accent-200">
+                <input
+                  type="checkbox"
+                  data-setting={key}
+                  checked={settings()[key]}
+                  onChange={(e) => updateSettings({ [key]: e.currentTarget.checked })}
+                  class="size-4 accent-primary-500"
+                />
+                <span class="font-bold">{t[key]}</span>
+              </label>
+            )}
+          </For>
+          <p class="text-xs text-ink-muted">{t.playHint(DAY_REAL_MINUTES)}</p>
         </fieldset>
         <button type="button" class={`${ghostButton} self-end`} onClick={close}>
           {t.close}

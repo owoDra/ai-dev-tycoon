@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearCampaign, loadCampaign, saveCampaign } from '../../src/app/save';
+import { clearCampaign, loadCampaign, loadSavedAt, saveCampaign } from '../../src/app/save';
 import { reduce } from '../../src/core/commands';
 import { createInitialState } from '../../src/core/state';
 
@@ -52,5 +52,17 @@ describe('キャンペーンの自動セーブ（app/save.ts）', () => {
     expect(() => saveCampaign(s, failing)).not.toThrow();
     expect(loadCampaign(failing)).toBeNull();
     expect(() => clearCampaign(failing)).not.toThrow();
+    expect(loadSavedAt(failing)).toBeNull();
+  });
+
+  it('保存した実時刻も残し（閉じていた間の進行に使う）、消すと一緒に消える', () => {
+    const storage = memory();
+    expect(loadSavedAt(storage)).toBeNull();
+    saveCampaign(createInitialState('c', { campaign: true }), storage, 1_700_000_000_000);
+    expect(loadSavedAt(storage)).toBe(1_700_000_000_000);
+    storage.setItem('ai-dev-tycoon.campaign.savedAt', 'later');
+    expect(loadSavedAt(storage)).toBeNull();
+    clearCampaign(storage);
+    expect(storage.data.size).toBe(0);
   });
 });

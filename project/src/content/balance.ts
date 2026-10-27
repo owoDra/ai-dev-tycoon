@@ -180,6 +180,14 @@ export const balance = {
     /** この大きさ（円換算）に満たない寄与は、振り返りのカードに出さない */
     minCardValue: 500,
   },
+  /**
+   * 閉じている間の進行（core/away.ts）。隙間時間に少しずつ遊べるよう、タブを閉じていた実時間の分だけ再開時に進める。
+   * 進めるのはその営業日の終わりまでで、判断の機会を何日分も飛ばさない
+   */
+  away: {
+    /** 閉じていた実時間をゲーム内の分に換算するときの速度の倍率 */
+    speed: 1,
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

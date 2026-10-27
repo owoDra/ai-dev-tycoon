@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGameStore } from '../../src/app/store';
+import { decodeResultCode } from '../../src/core/resultCode';
 import { ja } from '../../src/i18n/ja';
 import { ResultScreen } from '../../src/ui/screens/ResultScreen';
 import type { WorkflowSnapshot } from '../../src/view/result';
@@ -71,6 +72,37 @@ describe('結果画面', () => {
     vi.runAllTimers();
     expect(q('[data-refining]')?.dataset.refining).toBe('false');
     expect(q('[data-card="best"]')?.textContent).toMatch(/削減|節約/);
+  });
+
+  it('第2段から結果コードを出し、コピーボタンでクリップボードに書き、QR コードを開ける', async () => {
+    const writeText = vi.fn(async (_: string) => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const { q } = mount();
+    expect(q('[data-result-code]')).toBeNull();
+    vi.runOnlyPendingTimers();
+    const code = q('[data-code]')?.textContent ?? '';
+    expect(decodeResultCode(code)).toMatchObject({ ok: true, record: { projectId: P, seed: 'result-ui' } });
+
+    q<HTMLButtonElement>('[data-copy]')?.click();
+    await vi.waitFor(() => expect(q('[data-copy-state]')?.dataset.copyState).toBe('copied'));
+    expect(writeText).toHaveBeenCalledWith(code);
+    expect(q('[data-copy]')?.textContent).toContain(ja.screens.result.code.copied);
+
+    expect(q('[data-qr]')).toBeNull();
+    q<HTMLButtonElement>('[data-show-qr]')?.click();
+    expect(q('[data-qr]')?.getAttribute('aria-label')).toBe(ja.screens.result.code.qrLabel);
+    expect(q('[data-qr] path')?.getAttribute('d')).toMatch(/^M\d+ \d+h1v1h-1z/);
+    vi.unstubAllGlobals();
+  });
+
+  it('クリップボードが使えなければ、コードを選択して手でコピーするよう案内する', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined });
+    const { q } = mount();
+    vi.runOnlyPendingTimers();
+    q<HTMLButtonElement>('[data-copy]')?.click();
+    await vi.waitFor(() => expect(q('[data-copy-state]')?.dataset.copyState).toBe('failed'));
+    expect(q('[data-copy-state]')?.textContent).toBe(ja.screens.result.code.copyFailed);
+    vi.unstubAllGlobals();
   });
 
   it('「この構成を保存する」で、担当と Harness をデータとして書き出す', () => {

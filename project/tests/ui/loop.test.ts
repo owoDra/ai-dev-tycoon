@@ -58,4 +58,17 @@ describe('startLoop', () => {
     stop();
     expect(frames.pending()).toBe(0);
   });
+
+  it('止める時刻を渡すと、その時刻を越えて進めず、ちょうどその時刻に届く', () => {
+    const store = createGameStore(createInitialState('loop'));
+    let limit: number | null = 3;
+    const stop = startLoop(store, undefined, () => limit);
+    for (let i = 0; i < 10; i++) frames.step(250);
+    expect(store.state().clock).toBe(3);
+    expect(store.state().carryMinutes).toBeLessThan(0.001);
+    limit = null;
+    for (let i = 0; i < 4; i++) frames.step(250);
+    expect(store.state().clock).toBeGreaterThan(3);
+    stop();
+  });
 });

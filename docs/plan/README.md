@@ -141,6 +141,11 @@ view/     ── state → ViewModel のセレクタ（純粋・テスト可能�
 | 15 | [phase-15-party-mode.md](phase-15-party-mode.md) | 懇親会モード（Seed・結果コード・比較表） | 14 |
 | 16 | [phase-16-library-practice.md](phase-16-library-practice.md) | Workflow Library・実務モード（ROI計算） | 14 |
 | 17 | [phase-17-polish.md](phase-17-polish.md) | 全体のバランス調整・性能・サイズ・a11y・仕上げ | 15, 16 |
+| 18 | [phase-18-rebalance-person-day.md](phase-18-rebalance-person-day.md) | 担当モードの再バランス（自動テストの支配の解消）・KPI を人日へ・売値と原価 | 17 |
+| 19 | [phase-19-talent.md](phase-19-talent.md) | 人材の自動生成（能力と単価がさまざま）・採用 | 18 |
+| 20 | [phase-20-generated-projects-bidding.md](phase-20-generated-projects-bidding.md) | 案件の自動生成・コンペ（見積額＋提案力）・キャンペーンの廃止 | 19 |
+| 21 | [phase-21-growth-teams.md](phase-21-growth-teams.md) | 会社の成長・複数チーム・人間 PM / AI PM への委任（序盤は全員の担当をプレイヤーが決める） | 20 |
+| 22 | [phase-22-long-play.md](phase-22-long-play.md) | 決算・目標と実績・後半の要素・長期のバランステスト | 21 |
 
 ## 7. `/goal` の使い方
 

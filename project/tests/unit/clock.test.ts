@@ -12,7 +12,7 @@ import {
 } from '../../src/core/clock';
 import { reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { idleHours, playSpeed, step } from '../../src/core/step';
+import { awaitingAssignment, idleHours, playSpeed, step } from '../../src/core/step';
 
 const DAY = balance.time.minutesPerDay;
 const w = balance.time.workday;
@@ -95,5 +95,32 @@ describe('夜（人間が帰った後）', () => {
     const night = { ...createInitialState('idle'), clock: w.end - w.start };
     expect(idleHours(night)).toBe(true);
     expect(playSpeed(night)).toBe(balance.time.idleSkip);
+  });
+});
+
+describe('担当待ち（どの案件も進められない間は時間を止める）', () => {
+  it('進行中の案件があって、どの Task も動いていなければ担当待ち。担当を決めて動き出せば解ける', () => {
+    expect(awaitingAssignment(createInitialState('wait'))).toBe(false);
+    const started = reduce(createInitialState('wait'), { type: 'StartProject', projectId: P }).state;
+    expect(awaitingAssignment(started)).toBe(true);
+    const assigned = reduce(started, {
+      type: 'AssignTask',
+      projectId: P,
+      taskId: 'hearing',
+      mode: 'human',
+      workerId: Object.keys(started.team)[0] ?? '',
+    }).state;
+    // 担当を決めた直後（次のステップで始まる）から、時間を進める
+    expect(awaitingAssignment(assigned)).toBe(false);
+    expect(awaitingAssignment(step(assigned, balance.time.tickMinutes).state)).toBe(false);
+    // 前の Task が終わっていない後の Task だけに担当を決めても、進められないので担当待ちのまま
+    const later = reduce(started, {
+      type: 'AssignTask',
+      projectId: P,
+      taskId: 'requirements',
+      mode: 'human',
+      workerId: Object.keys(started.team)[0] ?? '',
+    }).state;
+    expect(awaitingAssignment(later)).toBe(true);
   });
 });

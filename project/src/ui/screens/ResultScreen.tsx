@@ -7,6 +7,7 @@ import { encodeResultCode } from '../../core/resultCode';
 import { feel } from '../../fx/feel';
 import { countUp, enter, morph, pop, prefersReducedMotion } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
+import { paceFormula, paceText } from '../../view/hud';
 import {
   companyGrowth,
   type ResultMetric,
@@ -105,7 +106,7 @@ export function ResultScreen(props: {
     el.querySelector<HTMLButtonElement>('[data-next], [data-retry]')?.focus();
     if (!view) return;
     const duration = prefersReducedMotion() ? 0 : feel().countUpMs;
-    if (big) stops.push(countUp(big, 0, view.score.profitPerPersonDay, ja.hud.yenPerPersonDay));
+    if (big) stops.push(countUp(big, 0, view.score.profitPerPersonDay, paceText));
     later(() => {
       if (stamp) pop(stamp, 2);
       setStage((s) => Math.max(s, 2));
@@ -156,7 +157,7 @@ export function ResultScreen(props: {
                 <span class="text-xs font-bold text-ink-muted">{t.profitPerPersonDay}</span>
                 <div class="flex items-center gap-3">
                   <span ref={big} class="font-heading text-4xl tabular-nums" data-pph>
-                    {ja.hud.yenPerPersonDay(v().score.profitPerPersonDay)}
+                    {paceText(v().score.profitPerPersonDay)}
                   </span>
                   <span
                     ref={stamp}
@@ -168,6 +169,9 @@ export function ResultScreen(props: {
                     {v().rank}
                   </span>
                 </div>
+                <p class="text-xs text-ink-muted tabular-nums" data-pace-formula>
+                  {paceFormula(v().score.profit, v().score.humanMinutes)}
+                </p>
                 <Show when={v().vsBaseline}>
                   {(ratio) => (
                     <p
@@ -179,7 +183,7 @@ export function ResultScreen(props: {
                         {t.change(ratio())}
                       </span>
                       <span class="tabular-nums">
-                        （{t.baseline} {ja.hud.yenPerPersonDay(v().baseline)}）
+                        （{t.baseline} {paceText(v().baseline)}）
                       </span>
                     </p>
                   )}
@@ -252,7 +256,7 @@ export function ResultScreen(props: {
                       {(g) => (
                         <li class="grid grid-cols-[1fr_auto] items-center gap-x-2 text-sm" data-growth={g.projectId}>
                           <span class="font-bold">{g.name}</span>
-                          <span class="tabular-nums">{ja.hud.yenPerPersonDay(g.profitPerPersonDay)}</span>
+                          <span class="tabular-nums">{paceText(g.profitPerPersonDay)}</span>
                           <span class="h-2 rounded-full bg-sunken">
                             <span
                               class="block h-2 rounded-full bg-primary-500"

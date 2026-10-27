@@ -184,7 +184,21 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
 
   createEffect(
     on(game, (store) => {
-      onCleanup(startLoop(store, undefined, () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null)));
+      onCleanup(
+        startLoop(
+          store,
+          undefined,
+          () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null),
+          // 結果（振り返り）・決算・倒産・区切りとあらすじのカード・設定を見ている間は、ゲーム内の時間を止める
+          () =>
+            screens.screen().id === 'result' ||
+            settingsOpen() ||
+            fiscal() !== null ||
+            bankrupt() ||
+            dayCard() !== null ||
+            recap() !== null,
+        ),
+      );
       // 営業日の終わり：一時停止して、その日の成果を出す（区切らない設定でも、成果の起点は進める）
       let day = businessDay(store.state().clock);
       createEffect(() => {

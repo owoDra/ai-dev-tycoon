@@ -1,4 +1,5 @@
 import { balance } from '../content/balance';
+import { getProject } from '../content/index';
 import { untilWork } from './clock';
 import type { Transition } from './commands';
 import type { GameEvent } from './events';
@@ -7,6 +8,7 @@ import { createRngCursor } from './rng';
 import type { GameState } from './state';
 import { defaultSystems, type System } from './system';
 import { isAiWorking } from './taskFlow';
+import { projectDelegated } from './teams';
 
 /** 実時間（秒）を、その速度でのゲーム内の分に換算する */
 export function toGameMinutes(realSeconds: number, speed: number): number {
@@ -21,6 +23,25 @@ export function idleHours(state: GameState): boolean {
     for (const run of Object.values(project.tasks)) if (isAiWorking(run)) return false;
   }
   return true;
+}
+
+/**
+ * 進行中の案件はあるのに、どの Task も動いていない（担当が決まっていない）。プレイヤーが担当を決めるまで時間を進めない。
+ * 管理者に任せた案件があれば、管理者が次のステップで担当を決めるので止めない。案件がなければ（見積の結果待ちなど）止めない
+ */
+export function awaitingAssignment(state: GameState): boolean {
+  const active = Object.values(state.projects).filter((p) => p.completedAt === null);
+  if (active.length === 0) return false;
+  if (active.some((p) => projectDelegated(state, p.projectId))) return false;
+  return active.every((p) =>
+    getProject(p.projectId).tasks.every((task) => {
+      const run = p.tasks[task.id];
+      if (run?.status === 'running') return false;
+      // 担当が決まっていて前の Task が終わっていれば、次のステップで始まる
+      const ready = run?.status === 'waiting' && run.assignment !== null;
+      return !(ready && task.deps.every((d) => p.tasks[d]?.status === 'done'));
+    }),
+  );
 }
 
 /**

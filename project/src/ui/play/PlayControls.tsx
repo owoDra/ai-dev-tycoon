@@ -3,7 +3,7 @@ import type { GameStore } from '../../app/store';
 import type { IconName } from '../../assets/icons';
 import { balance } from '../../content/balance';
 import { calendarDay, type DayPhase, dayPhase, minuteOfDay } from '../../core/clock';
-import { idleHours } from '../../core/step';
+import { awaitingAssignment, idleHours } from '../../core/step';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { hhmm } from '../../view/hud';
@@ -98,7 +98,8 @@ export function PlayControls(props: {
 function ClockPill(props: { store: GameStore; dense: boolean }) {
   const clock = () => props.store.state().clock;
   const phase = createMemo(() => dayPhase(clock()));
-  const skipping = () => !props.store.state().paused && idleHours(props.store.state());
+  const waiting = () => !props.store.state().paused && awaitingAssignment(props.store.state());
+  const skipping = () => !props.store.state().paused && !waiting() && idleHours(props.store.state());
   return (
     <div class="flex min-w-0 items-center gap-1.5" title={t.phaseHint[phase()]} data-clock data-phase={phase()}>
       <Icon name={phaseIcon[phase()]} class={props.dense ? 'text-lg' : 'text-2xl'} />
@@ -109,6 +110,7 @@ function ClockPill(props: { store: GameStore; dense: boolean }) {
         <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted" data-phase-label>
           {t.phase[phase()]}
           <Show when={skipping()}> · {t.skipping}</Show>
+          <Show when={waiting()}> · {t.waiting}</Show>
         </span>
       </div>
     </div>

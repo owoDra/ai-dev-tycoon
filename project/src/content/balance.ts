@@ -79,6 +79,11 @@ export const balance = {
     escapedLossByReq: 0.4,
   },
   score: {
+    /**
+     * 1か月の勤務日数。成果は「人間1人あたり、月換算でいくらの利益ペースか」（利益 / 人日 × この日数）で見せる。
+     * 1人日は8時間（balance.project.minutesPerPersonDay）なので、月160時間働いた場合の利益になる
+     */
+    workDaysPerMonth: 20,
     /** 見逃した失敗が納品後に起こす損害（値引き・補償、円）＝ effort（分）× qualityReq × この値 */
     escapedDefectCostPerEffortMinute: 300,
     /**

@@ -2,6 +2,7 @@ import { For, onMount } from 'solid-js';
 import { pop } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { DeliveryView } from '../../view/fiscal';
+import { paceText } from '../../view/hud';
 import { Icon } from '../Icon';
 import { panel, smallButton } from '../parts';
 
@@ -40,7 +41,7 @@ function Card(props: { card: DeliveryView; onReview: (id: string) => void; onClo
         <Icon name="trophy" /> {t.title(c().name)}
       </p>
       <p class="flex flex-wrap gap-x-2 tabular-nums">
-        <span class="font-bold">{ja.hud.yenPerPersonDay(c().profitPerPersonDay)}</span>
+        <span class="font-bold">{paceText(c().profitPerPersonDay)}</span>
         <span>{ja.score.yen(c().profit)}</span>
       </p>
       <p class="flex flex-wrap gap-x-2 text-xs">

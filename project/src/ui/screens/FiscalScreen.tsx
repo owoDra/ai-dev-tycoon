@@ -5,6 +5,7 @@ import { feel } from '../../fx/feel';
 import { countUp, enter, pop, prefersReducedMotion } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { type FiscalMetric, fiscalRecord, fiscalView } from '../../view/fiscal';
+import { paceFormula, paceText } from '../../view/hud';
 import { Icon } from '../Icon';
 import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
 import { ResultCodePanel } from './ResultCodePanel';
@@ -39,7 +40,7 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
     enter(el, 'below');
     el.querySelector<HTMLButtonElement>('[data-next]')?.focus();
     if (!view) return;
-    if (big) stops.push(countUp(big, 0, view.report.profitPerPersonDay, ja.hud.yenPerPersonDay));
+    if (big) stops.push(countUp(big, 0, view.report.profitPerPersonDay, paceText));
     const duration = prefersReducedMotion() ? 0 : feel().countUpMs;
     timers.push(
       setTimeout(() => {
@@ -78,7 +79,10 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
               <section class="flex flex-col items-center gap-1 text-center" data-stage="1">
                 <span class="text-xs font-bold text-ink-muted">{t.ppd}</span>
                 <span ref={big} class="font-heading text-3xl tabular-nums" data-fiscal-ppd>
-                  {ja.hud.yenPerPersonDay(v().report.profitPerPersonDay)}
+                  {paceText(v().report.profitPerPersonDay)}
+                </span>
+                <span class="text-xs text-ink-muted tabular-nums" data-pace-formula>
+                  {paceFormula(v().report.profit, v().report.humanMinutes)}
                 </span>
                 <span class="flex items-center gap-2 text-sm">
                   <span
@@ -150,8 +154,7 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
                         <li class="flex flex-wrap justify-between gap-x-2" data-team-row={row.teamId}>
                           <span class="font-bold">{row.name}</span>
                           <span class="tabular-nums">
-                            {t.teamRow(row.delivered)} · {ja.funds.oku(row.profit)} ·{' '}
-                            {ja.hud.yenPerPersonDay(row.profitPerPersonDay)}
+                            {t.teamRow(row.delivered)} · {ja.funds.oku(row.profit)} · {paceText(row.profitPerPersonDay)}
                           </span>
                         </li>
                       )}
@@ -160,15 +163,14 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
                   <Show when={v().best}>
                     {(b) => (
                       <p data-best>
-                        <Icon name="success" /> {t.best}：{b().name}（{ja.hud.yenPerPersonDay(b().profitPerPersonDay)}）
+                        <Icon name="success" /> {t.best}：{b().name}（{paceText(b().profitPerPersonDay)}）
                       </p>
                     )}
                   </Show>
                   <Show when={v().worst}>
                     {(w) => (
                       <p data-worst>
-                        <Icon name="warning" /> {t.worst}：{w().name}（{ja.hud.yenPerPersonDay(w().profitPerPersonDay)}
-                        ）
+                        <Icon name="warning" /> {t.worst}：{w().name}（{paceText(w().profitPerPersonDay)}）
                       </p>
                     )}
                   </Show>

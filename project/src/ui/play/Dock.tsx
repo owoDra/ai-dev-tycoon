@@ -9,7 +9,7 @@ import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
 import type { ProjectTabsView } from '../../view/board';
 import { contextView } from '../../view/context';
-import { type HudView, hudView, type StreakView } from '../../view/hud';
+import { type HudView, hudView, paceText, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
 import { Meter, panel } from '../parts';
@@ -126,7 +126,7 @@ function HudItem(props: {
         <Figure
           icon="money"
           label={props.hud.projected ? `${t.profit}（${t.projected}）` : t.profit}
-          value={<Num value={props.hud.profitPerPersonDay} format={t.yenPerPersonDay} chipMin={PROFIT_CHIP_MIN} />}
+          value={<Num value={props.hud.profitPerPersonDay} format={paceText} chipMin={PROFIT_CHIP_MIN} />}
           dense={props.dense}
         />
       </Match>

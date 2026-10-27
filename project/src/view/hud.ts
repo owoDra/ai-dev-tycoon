@@ -12,6 +12,7 @@ import {
   escapedDefectCost,
   escapedFixMinutes,
   laborCost,
+  monthlyPace,
   perPersonDay,
 } from '../core/formulas';
 import { type ProjectScore, scoreProject } from '../core/scoring';
@@ -19,9 +20,20 @@ import { createInitialState, type GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
 import { teamMembers } from '../core/team';
 import { MINUTES_PER_HOUR } from '../core/units';
+import { ja } from '../i18n/ja';
 
 /** 担当が決まっていない Task は、見込みの計算では人間が担当するものとみなす */
 const FALLBACK_MODE: AssignModeId = 'human';
+
+/** 1か月に人間1人が働く時間（h）。月の利益ペースの式の表示に使う */
+export const MONTH_HOURS = (balance.score.workDaysPerMonth * balance.project.minutesPerPersonDay) / MINUTES_PER_HOUR;
+
+/** 月の利益ペースの求め方（利益 ÷ 人間の時間 × 1か月の時間） */
+export const paceFormula = (profit: number, humanMinutes: number) =>
+  ja.hud.paceFormula(ja.funds.money(profit), (humanMinutes / MINUTES_PER_HOUR).toFixed(1), MONTH_HOURS);
+
+/** 利益 / 人日 を「月○万円/人」（人間1人が1か月働いた場合の利益）で表す */
+export const paceText = (profitPerPersonDay: number) => ja.hud.pace(ja.funds.money(monthlyPace(profitPerPersonDay)));
 
 export interface HudView {
   /** Profit / Person-Day。納品前は見込み（projectedProfitPerPersonDay）、納品後は確定値（core の scoreProject と同じ） */

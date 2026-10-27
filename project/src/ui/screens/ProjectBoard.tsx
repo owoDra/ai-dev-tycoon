@@ -11,6 +11,7 @@ import {
   type InquiryView,
   priceOptions,
 } from '../../view/board';
+import { paceText } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
 import { ghostButton, Meter, panel, primaryButton } from '../parts';
@@ -261,7 +262,7 @@ function Section(props: {
                           </>
                         }
                       >
-                        {(v) => <span>{ja.hud.yenPerPersonDay(v())}</span>}
+                        {(v) => <span>{paceText(v())}</span>}
                       </Show>
                     </p>
                     <Show when={p.progress > 0 && p.profitPerPersonDay === null}>

@@ -37,6 +37,21 @@ describe('startLoop', () => {
     vi.unstubAllGlobals();
   });
 
+  it('held の間（結果画面や設定を見ている間）は時間を進めず、一時停止の状態も変えない', () => {
+    const store = createGameStore(createInitialState('loop-held'));
+    let held = true;
+    const stop = startLoop(store, undefined, undefined, () => held);
+    frames.step();
+    frames.step();
+    const elapsed = () => store.state().clock + store.state().carryMinutes;
+    expect(elapsed()).toBe(0);
+    expect(store.state().paused).toBe(false);
+    held = false;
+    frames.step();
+    expect(elapsed()).toBeGreaterThan(0);
+    stop();
+  });
+
   it('進行中はフレームを要求し続け、一時停止すると止まり、再開すると回り始める', () => {
     const store = createGameStore(createInitialState('loop'));
     const stop = startLoop(store);

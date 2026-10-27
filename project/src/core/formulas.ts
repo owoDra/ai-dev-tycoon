@@ -49,6 +49,11 @@ export function personDays(minutes: number): number {
 }
 
 /** 人日あたりの値。value を人間の稼働時間（分）の人日で割る。稼働がなければ 0 */
+/** 利益 / 人日 を「人間1人が1か月（balance.score.workDaysPerMonth 日）働いた場合の利益」に換算する（表示用） */
+export function monthlyPace(profitPerPersonDay: number): number {
+  return profitPerPersonDay * balance.score.workDaysPerMonth;
+}
+
 export function perPersonDay(value: number, minutes: number): number {
   return minutes > 0 ? value / personDays(minutes) : 0;
 }

@@ -1,6 +1,6 @@
 import { balance } from '../content/balance';
 import { untilWork } from '../core/clock';
-import { idleHours, playSpeed, toGameMinutes } from '../core/step';
+import { awaitingAssignment, idleHours, playSpeed, toGameMinutes } from '../core/step';
 import type { GameStore } from './store';
 
 /** 1フレームで進める実時間の上限（秒）。復帰直後やカクつきで一度に大量のステップを回さないため */
@@ -14,12 +14,15 @@ const STOP_EPSILON = 1e-6;
  * carryMinutes が持ち越す（アキュムレータ）。描画には次のステップまでの補間係数 alpha（0〜1）を渡す。
  * タブが非表示の間と、一時停止中は次のフレームを要求しない（ループが止まる）。再開すると回り始める。
  * stopAt を渡すと、そのゲーム内時刻（分）を越えて進めない（営業日の終わりの区切り。null なら制限しない）。
+ * held が true の間（結果画面や設定を見ている間）と、担当が決まらず案件が1つも進められない間（core/step.ts の awaitingAssignment）は
+ * 時間を進めない（state の一時停止は変えない）。
  * 戻り値でループを止める。
  */
 export function startLoop(
   store: GameStore,
   render: (alpha: number) => void = () => {},
   stopAt: () => number | null = () => null,
+  held: () => boolean = () => false,
 ): () => void {
   let frame = 0;
   let last: number | undefined;
@@ -35,7 +38,7 @@ export function startLoop(
     // 早送りは始業までにとどめる（人間が働き始めたら選んだ速度に戻す）
     const wake = idleHours(state) ? clock + untilWork(clock) : null;
     const room = Math.min(stop ?? Number.POSITIVE_INFINITY, wake ?? Number.POSITIVE_INFINITY) - clock - carryMinutes;
-    if (room > 0) store.advance(dt >= room ? room + STOP_EPSILON : dt);
+    if (room > 0 && !held() && !awaitingAssignment(state)) store.advance(dt >= room ? room + STOP_EPSILON : dt);
     render(store.state().carryMinutes / balance.time.tickMinutes);
     if (store.state().paused) {
       last = undefined;

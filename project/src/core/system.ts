@@ -7,7 +7,7 @@ import { progressSystem } from './progress';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
 import { taskSystem, taskUnlockSystem } from './taskSystem';
-import { seatSystem } from './team';
+import { marketSystem, seatSystem } from './team';
 
 /** システム関数に渡す、1ステップ分の作業場所 */
 export interface SystemContext {
@@ -34,6 +34,8 @@ export const defaultSystems: readonly System[] = [
   releaseScheduledEvents,
   // 営業日が変わったら Seat の使用量を戻し、固定費を日割りで計上する
   seatSystem,
+  // 営業日が変わったら採用市場の候補を入れ替える
+  marketSystem,
   // このステップで AI が処理する分を、工程が終わって人間に回る前に数える
   autonomySystem,
   taskSystem,

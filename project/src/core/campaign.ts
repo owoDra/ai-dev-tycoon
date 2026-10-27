@@ -3,10 +3,9 @@ import type { CampaignStageDef } from '../content/types';
 import { holds } from './conditions';
 import type { GameEvent } from './events';
 import type { GameState } from './state';
-import { joinTeam } from './team';
 
 /*
- * キャンペーンの進行（content/campaign.ts）。段階の条件を満たしたら案件を受注できるようにし、社員を迎える。
+ * キャンペーンの進行（content/campaign.ts）。段階の条件を満たしたら案件を受注できるようにする（社員は採用市場で増やす）。
  * すべての案件を納品したらクリア。Command の適用後と各ステップの最後に判定する（core/progress.ts）。
  */
 
@@ -42,19 +41,15 @@ export function campaignProgress(state: GameState): { readonly done: number; rea
   return { done, total: campaignProjects.length };
 }
 
-/** 条件を満たした段階に進み（案件の受注と社員の入社）、すべて納品していればクリアにする */
+/** 条件を満たした段階に進み（案件の受注）、すべて納品していればクリアにする */
 export function applyCampaign(state: GameState, emit: (e: GameEvent) => void): GameState {
   const run = state.campaign;
   if (!run) return state;
-  let next = state;
+  const next = state;
   let reached = run.reached;
   for (const stage of campaign.stages) {
     if (reached.includes(stage.id) || !holds(next, stage.when)) continue;
     reached = [...reached, stage.id];
-    for (const staffId of stage.joins) {
-      next = joinTeam(next, staffId);
-      emit({ type: 'StaffJoined', staffId });
-    }
     emit({ type: 'ProjectsOffered', projectIds: stage.projects });
   }
   const { done, total } = campaignProgress(next);

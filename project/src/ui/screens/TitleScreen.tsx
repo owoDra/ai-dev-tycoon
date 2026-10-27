@@ -8,7 +8,7 @@ import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../
 /**
  * タイトル画面。後ろでは 3D ワールドがアイドル表示で動き（App が描く）、手前にキービジュアル（WebP）と
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
- * チュートリアルを終えた後は「チュートリアルをもう一度」を出す（onTutorial を渡したときだけ）。
+ * チュートリアルを終えた後は「チュートリアルをもう一度」と「チュートリアルなしで始める」を出す（onTutorial・onQuickStart を渡したときだけ）。
  * セーブがあれば（onContinue を渡したとき）「続きから」を先頭に出し、「はじめから」はセーブを消す確認を1回挟む。
  * 実務モード（企画書24章）への入口も置く。
  */
@@ -16,11 +16,14 @@ export function TitleScreen(props: {
   onStart: () => void;
   onContinue?: () => void;
   onTutorial?: () => void;
+  /** チュートリアルなしで始める（最初の社員は seed から生成した2人）。セーブがあれば確認を1回挟む */
+  onQuickStart?: () => void;
   /** 実務モード（実際の仕事の改善効果の試算）を開く */
   onPractice?: () => void;
   onSettings: () => void;
 }) {
   const [confirming, setConfirming] = createSignal(false);
+  const [confirmingQuick, setConfirmingQuick] = createSignal(false);
   let el!: HTMLDivElement;
   let start!: HTMLButtonElement;
   onMount(() => {
@@ -82,6 +85,31 @@ export function TitleScreen(props: {
           {(retry) => (
             <button type="button" data-retry-tutorial class={ghostButton} onClick={() => retry()()}>
               {ja.screens.title.retryTutorial}
+            </button>
+          )}
+        </Show>
+        <Show when={props.onQuickStart}>
+          {(quick) => (
+            <button
+              type="button"
+              data-quick-start
+              class={ghostButton}
+              onClick={() => (!props.onContinue || confirmingQuick() ? quick()() : setConfirmingQuick(true))}
+            >
+              <Show
+                when={confirmingQuick()}
+                fallback={
+                  <span class="flex flex-col items-center leading-tight">
+                    <span>{ja.screens.title.quickStart}</span>
+                    <span class="text-[11px] font-normal text-ink-muted">{ja.screens.title.quickStartHint}</span>
+                  </span>
+                }
+              >
+                <span class="flex items-center gap-1">
+                  <Icon name="warning" />
+                  {ja.screens.title.confirmQuick}
+                </span>
+              </Show>
             </button>
           )}
         </Show>

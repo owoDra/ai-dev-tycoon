@@ -19,6 +19,7 @@ import { allFeatures, unlockDefs } from '../content/unlocks';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
 import { hashSeed, type RngState } from './rng';
+import { initialTalent, marketCandidates } from './talent';
 
 /**
  * Task の現在の工程。rework は人間のレビューで見つかった失敗の手戻り、repair は自動テストで見つかった失敗の AI による修復。
@@ -96,6 +97,14 @@ export interface StaffRun {
   readonly seat: SeatId;
   /** 今日（state.usageDay の営業日）に、この人が運用する AI Worker が使った量 */
   readonly used: number;
+}
+
+/** 採用市場。営業日ごとに候補が入れ替わる（core/team.ts の marketSystem） */
+export interface MarketRun {
+  /** 候補を出した営業日（ゲーム開始からの営業日の番号） */
+  readonly day: number;
+  /** まだ採用していない候補の人材の id（core/talent.ts） */
+  readonly candidates: readonly string[];
 }
 
 /** 進行中のキャンペーン（content/campaign.ts） */
@@ -242,6 +251,15 @@ export interface GameState {
   readonly usageDay: number;
   /** 日割りで計上した Seat の固定費の合計（円）。会社の固定費なので案件のスコアには入れず、会社のスコアで引く */
   readonly seatCost: number;
+  /** 採用市場 */
+  readonly market: MarketRun;
+  /** 採用の契約金の合計（円）。会社の費用なので案件のスコアには入れず、会社のスコアで引く */
+  readonly hireCost: number;
+  /**
+   * 待機中の社員の給与の合計（円）。社員の原価は在籍しているだけで日割りでかかり、作業した分は案件の人件費、
+   * 作業していない分はここに計上する。Seat の固定費と同じく、進行中の案件があるときだけ数える
+   */
+  readonly idleCost: number;
   /** キャンペーン。キャンペーンでなければ null（どの案件でも始められる） */
   readonly campaign: CampaignRun | null;
   /** Workflow Library にプレイヤーが保存した Workflow（保存した順。同梱のプリセットは content/library.ts） */
@@ -258,8 +276,10 @@ export interface InitialStateOptions {
    * 機能の解放・社員・Harness 部品は案件をまたいで持ち越す
    */
   readonly campaign?: boolean;
-  /** 最初からいる社員。既定はキャンペーンの最初の社員 */
+  /** 最初からいる社員。既定はキャンペーンの最初の社員（チュートリアルの2人） */
   readonly team?: readonly string[];
+  /** 最初の社員を、平均的な能力の人材として seed から生成する（チュートリアルなしで始めるとき）。team より優先する */
+  readonly talent?: boolean;
 }
 
 /**
@@ -269,7 +289,7 @@ export interface InitialStateOptions {
 export function createInitialState(seed: string, options: InitialStateOptions = {}): GameState {
   const isCampaign = options.campaign === true;
   const tutorial = options.tutorial === true || isCampaign;
-  const team = options.team ?? campaign.team;
+  const team = options.talent ? initialTalent(seed) : (options.team ?? campaign.team);
   return {
     seed,
     rng: hashSeed(seed),
@@ -295,6 +315,9 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     team: createTeam(team),
     usageDay: 0,
     seatCost: 0,
+    market: { day: 0, candidates: marketCandidates(seed, 0) },
+    hireCost: 0,
+    idleCost: 0,
     campaign: isCampaign
       ? { reached: campaign.stages.filter((s) => s.when.type === 'start').map((s) => s.id), cleared: false }
       : null,

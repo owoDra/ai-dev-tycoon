@@ -5,6 +5,7 @@ import type { GameEvent } from '../../src/core/events';
 import { createInitialState } from '../../src/core/state';
 import { runHeadless, type TimedCommand } from '../helpers/headless';
 import { playProject, strategies } from '../helpers/strategies';
+import { AVERAGE_TEAM } from '../helpers/talent';
 
 const P = 'ecRenewal';
 const start: Command = { type: 'StartProject', projectId: P };
@@ -73,33 +74,38 @@ describe('Task の進行', () => {
     expect(state.projects[P]?.completedAt).not.toBeNull();
   });
 
+  // 所要時間を数値で確かめるので、速度がちょうど平均の2人で進める
+  const [A, B] = AVERAGE_TEAM;
+  const average = (seed: string) => createInitialState(seed, { team: AVERAGE_TEAM });
+
   it('依存が解決した Task は、前の担当者が誰でも同じ時刻に始まり、次のステップから進む', () => {
     const finish = (next: string) => {
-      const cmds = at0([start, assign('hearing', 'human', 'sato'), assign('requirements', 'human', next)]);
-      const t = runHeadless({ seed: 'u', commands: cmds, until: 400 }).state.projects[P]?.tasks;
+      const cmds = at0([start, assign('hearing', 'human', A), assign('requirements', 'human', next)]);
+      const t = runHeadless({ seed: 'u', initial: average('u'), commands: cmds, until: 400 }).state.projects[P]?.tasks;
       return [t?.requirements?.startedAt, t?.requirements?.completedAt];
     };
-    expect(finish('sato')).toEqual([90, 90 + 120]);
-    expect(finish('suzuki')).toEqual([90, 90 + 120]);
+    expect(finish(A)).toEqual([90, 90 + 120]);
+    expect(finish(B)).toEqual([90, 90 + 120]);
   });
 
   it('人間1人は同時に1件しか処理しない（同じ人に並べると直列になる）', () => {
     const solo = at0([
       start,
-      assign('hearing', 'human', 'sato'),
-      assign('requirements', 'human', 'sato'),
-      assign('uiDesign', 'human', 'sato'),
-      assign('research', 'human', 'sato'),
+      assign('hearing', 'human', A),
+      assign('requirements', 'human', A),
+      assign('uiDesign', 'human', A),
+      assign('research', 'human', A),
     ]);
     const split = at0([
       start,
-      assign('hearing', 'human', 'sato'),
-      assign('requirements', 'human', 'sato'),
-      assign('uiDesign', 'human', 'sato'),
-      assign('research', 'human', 'suzuki'),
+      assign('hearing', 'human', A),
+      assign('requirements', 'human', A),
+      assign('uiDesign', 'human', A),
+      assign('research', 'human', B),
     ]);
     const done = (cmds: TimedCommand[]) => {
-      const t = runHeadless({ seed: 'q', commands: cmds, until: 2_000 }).state.projects[P]?.tasks;
+      const t = runHeadless({ seed: 'q', initial: average('q'), commands: cmds, until: 2_000 }).state.projects[P]
+        ?.tasks;
       return Math.max(t?.uiDesign?.completedAt ?? Infinity, t?.research?.completedAt ?? Infinity);
     };
     // 90 + 120 のあと、UI設計 150 と 競合調査 120 を1人なら直列、2人なら並列で処理する

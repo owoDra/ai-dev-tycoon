@@ -74,8 +74,8 @@ export function validateCampaign(c: Content, campaign: CampaignDef): string[] {
   const errors: string[] = [];
   const humanIds = new Set(c.workers.filter((w) => w.kind === 'human').map((w) => w.id));
   const projectIds = new Set(c.projects.map((p) => p.id));
-  const joined = [...campaign.team];
   for (const id of campaign.team) if (!humanIds.has(id)) errors.push(`キャンペーン: 未定義の社員 ${id}`);
+  errors.push(...duplicates('キャンペーンの最初の社員', campaign.team));
   const earlier: string[] = [];
   campaign.stages.forEach((stage, i) => {
     const label = `キャンペーンの段階 ${stage.id}`;
@@ -84,11 +84,6 @@ export function validateCampaign(c: Content, campaign: CampaignDef): string[] {
     for (const id of stage.projects) {
       if (!projectIds.has(id)) errors.push(`${label}: 未定義の案件 ${id}`);
       if (earlier.includes(id)) errors.push(`${label}: 案件 ${id} が2回現れる`);
-    }
-    for (const id of stage.joins) {
-      if (!humanIds.has(id)) errors.push(`${label}: 未定義の社員 ${id}`);
-      if (joined.includes(id)) errors.push(`${label}: 社員 ${id} がすでに入社している`);
-      joined.push(id);
     }
     errors.push(...conditionOrder(c, stage.when, earlier).map((e) => `${label}: ${e}`));
     earlier.push(...stage.projects);

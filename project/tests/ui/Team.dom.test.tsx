@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
+import { getHuman } from '../../src/content/index';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -10,6 +11,7 @@ import { CampaignBoard } from '../../src/ui/screens/CampaignBoard';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
+import { findTalents } from '../helpers/talent';
 
 const P = 'internalTool';
 const Q = 'promoLp';
@@ -43,8 +45,11 @@ function mount(state: GameState, projectId = P) {
   return { store, root, q, switched, boards: () => boards };
 }
 
+/** テスト（test）が得意な、採用した社員 */
+const [tester] = findTalents((h) => h.strengths.includes('test'), 1);
+
 function started(...projects: string[]): GameState {
-  const store = createGameStore(createInitialState('team-ui', { team: ['sato', 'suzuki', 'watanabe'] }));
+  const store = createGameStore(createInitialState('team-ui', { team: ['sato', 'suzuki', tester.id] }));
   for (const projectId of projects) store.dispatch({ type: 'StartProject', projectId });
   return store.state();
 }
@@ -55,11 +60,11 @@ describe('社員と Seat の画面（企画書6章・47章）', () => {
     q<HTMLButtonElement>('[data-team-open]')?.click();
     expect(q('[data-team-sheet]')).not.toBeNull();
     const members = [...root.querySelectorAll<HTMLElement>('[data-member]')].map((m) => m.dataset.member);
-    expect(members).toEqual(['sato', 'suzuki', 'watanabe']);
+    expect(members).toEqual(['sato', 'suzuki', tester.id]);
     expect(q('[data-member="suzuki"]')?.textContent).toContain(ja.team.operator);
     expect(q('[data-member="suzuki"] [data-usage]')).not.toBeNull();
     expect(q('[data-member="sato"] [data-usage]')).toBeNull();
-    expect(q('[data-member="watanabe"]')?.textContent).toContain(ja.taskKinds.test);
+    expect(q(`[data-member="${tester.id}"]`)?.textContent).toContain(ja.taskKinds.test);
   });
 
   it('選んでいない Seat には「AI 容量 +400% / 費用 +¥XX,XXX / 月」が即座に出て、押すと確定してトーストが出る', () => {
@@ -161,5 +166,65 @@ describe('案件ボードとタイトル', () => {
     expect(fresh?.textContent).toContain(ja.screens.title.confirmNew);
     fresh?.click();
     expect(started).toBe(1);
+  });
+});
+
+describe('採用候補のタブと退職', () => {
+  it('採用候補のタブで売値・原価・速度・正確さ・得意分野を比べ、採用すると社員のタブに並ぶ', () => {
+    const { store, q, root } = mount(started(P));
+    q<HTMLButtonElement>('[data-team-open]')?.click();
+    const candidates = store.state().market.candidates;
+    const tab = q<HTMLButtonElement>('[data-team-tab="candidates"]');
+    expect(tab?.textContent).toContain(ja.team.candidatesTab(candidates.length));
+    tab?.click();
+    expect(tab?.getAttribute('aria-selected')).toBe('true');
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-candidate]')];
+    expect(cards.map((c) => c.dataset.candidate)).toEqual(candidates);
+    const first = cards[0];
+    const h = getHuman(candidates[0] ?? '');
+    for (const stat of ['rate', 'skill', 'accuracy', 'strengths']) {
+      expect(first?.querySelector(`[data-stat="${stat}"]`)).not.toBeNull();
+    }
+    expect(first?.textContent).toContain(ja.team.rate(h.dailyRate));
+    expect(first?.textContent).toContain(ja.team.skillValue(h.skill));
+    expect(first?.textContent).toContain(ja.team.accuracyValue(h.accuracy));
+    // 平均との比較は色だけでなく、矢印とラベルでも示す
+    const level = first?.querySelector<HTMLElement>('[data-stat="skill"] [data-level]');
+    expect(level?.textContent).toContain(ja.team.level[level?.dataset.level as 'high' | 'mid' | 'low']);
+    first?.querySelector<HTMLButtonElement>('[data-hire]')?.click();
+    expect(store.state().team[h.id]).toBeDefined();
+    expect(document.body.textContent).toContain(ja.team.joined(h.name));
+    q<HTMLButtonElement>('[data-team-tab="members"]')?.click();
+    expect(q(`[data-member="${h.id}"]`)).not.toBeNull();
+  });
+
+  it('担当中の仕事がある社員の退職ボタンは無効で理由が出て、仕事のない社員は退職できる', () => {
+    const store = createGameStore(started(P));
+    store.dispatch({ type: 'AssignTask', projectId: P, taskId: 'interview', mode: 'human', workerId: 'sato' });
+    const { store: s, q } = mount(store.state());
+    q<HTMLButtonElement>('[data-team-open]')?.click();
+    const busy = q<HTMLButtonElement>('[data-release="sato"]');
+    expect(busy?.disabled).toBe(true);
+    expect(busy?.textContent).toContain(ja.team.releaseBlocked.busy);
+    q<HTMLButtonElement>(`[data-release="${tester.id}"]`)?.click();
+    expect(s.state().team[tester.id]).toBeUndefined();
+    expect(document.body.textContent).toContain(ja.team.released(tester.name));
+  });
+
+  it('チュートリアルを終えていれば、タイトルに「チュートリアルなしで始める」が出る（セーブがあれば確認を挟む）', () => {
+    let quick = 0;
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(
+      () => <TitleScreen onStart={() => {}} onContinue={() => {}} onQuickStart={() => quick++} onSettings={() => {}} />,
+      root,
+    );
+    const button = root.querySelector<HTMLButtonElement>('[data-quick-start]');
+    expect(button?.textContent).toContain(ja.screens.title.quickStart);
+    button?.click();
+    expect(quick).toBe(0);
+    expect(button?.textContent).toContain(ja.screens.title.confirmQuick);
+    button?.click();
+    expect(quick).toBe(1);
   });
 });

@@ -176,6 +176,9 @@ export function PlayScreen(props: {
         if (e.type === 'StaffJoined') {
           notices.push({ text: ja.team.joined(getHuman(e.staffId).name), icon: 'human', tone: 'success' });
         }
+        if (e.type === 'StaffReleased') {
+          notices.push({ text: ja.team.released(getHuman(e.staffId).name), icon: 'human', tone: 'neutral' });
+        }
         if (e.type === 'ProjectsOffered') {
           notices.push({ text: ja.campaign.offeredNotice(e.projectIds.length), icon: 'project', tone: 'success' });
         }
@@ -243,7 +246,7 @@ export function PlayScreen(props: {
   const [harnessOpen, setHarnessOpen] = createSignal(false);
   // 社員と Seat の画面（企画書6章）
   const [teamOpen, setTeamOpen] = createSignal(false);
-  const teamOn = () => isUnlocked(props.store.state(), 'team');
+  const teamOn = () => isUnlocked(props.store.state(), 'team') || isUnlocked(props.store.state(), 'hire');
   const team = createMemo(() => (teamOpen() ? teamView(props.store.state()) : null));
   const openTeam = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });

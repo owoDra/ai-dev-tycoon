@@ -26,7 +26,7 @@ import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
-import { markTutorialDone } from './progress';
+import { markTutorialDone, progress } from './progress';
 import { clearCampaign, loadCampaign, loadSavedAt, saveCampaign } from './save';
 import { createScreens } from './screens';
 import { settings } from './settings';
@@ -111,6 +111,19 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     clearCampaign();
     useState(createInitialState(tutorialScript.seed, { campaign: true }));
     game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
+    save();
+    screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
+  };
+
+  /**
+   * チュートリアルなしでキャンペーンを始める。最初の社員は seed から生成した平均的な2人で、seed は毎回変える。
+   * チュートリアルの案件をコーチなしで受注し（SkipTutorial で機能をすべて解放）、プレイへ進む
+   */
+  const quickCampaign = () => {
+    clearCampaign();
+    useState(createInitialState(`run-${Date.now().toString(36)}`, { campaign: true, talent: true }));
+    game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
+    game().dispatch({ type: 'SkipTutorial' });
     save();
     screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
@@ -206,6 +219,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
           <TitleScreen
             onStart={newCampaign}
             onContinue={saved() ? continueCampaign : undefined}
+            onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
             onPractice={() => screens.go({ type: 'Practice' })}
             onSettings={openSettings}
           />

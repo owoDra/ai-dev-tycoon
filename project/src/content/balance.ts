@@ -179,6 +179,39 @@ export const balance = {
     /** 原価率。社員の1人日あたりの原価（給与）＝売値（dailyRate）× この値 */
     costRatio: 0.5,
   },
+  /**
+   * 人材の生成（core/talent.ts）。速度と正確さは [min, max] の三角分布（中央が最も多い）で、平均は中央の値。
+   * 売値は能力から決める：mean ×（1 + perSkill ×（速度 − 平均）+ perAccuracy ×（正確さ − 平均）+ perStrength × 得意分野の数
+   * − strengthOffset）を roundTo で丸め、floor を下回らない。得意分野の数の平均で strengthOffset を打ち消すので、売値の平均は mean 前後になる
+   */
+  talent: {
+    skill: { min: 0.7, max: 1.3 },
+    accuracy: { min: 0.92, max: 1.02 },
+    /** 速度と正確さの刻み（表示と比べやすさのため） */
+    statStep: 0.01,
+    /** 得意分野の数（0〜2個）の重み */
+    strengthCount: [3, 5, 2],
+    rate: {
+      mean: 80_000,
+      floor: 50_000,
+      perSkill: 1.1,
+      perAccuracy: 3,
+      perStrength: 0.08,
+      strengthOffset: 0.072,
+      roundTo: 1_000,
+    },
+  },
+  /** 採用（core/team.ts の採用市場と Hire / Release） */
+  hire: {
+    /** 営業日ごとに入れ替わる採用候補の数（Phase 21 で会社の規模から決める） */
+    candidates: 3,
+    /** 人員の上限（Phase 21 で会社の規模から決める） */
+    maxStaff: 6,
+    /** 契約金は売値の何人日分か */
+    signingDays: 3,
+    /** チュートリアルなしで始めたときに seed から生成する最初の社員の数（平均的な能力の人） */
+    initialStaff: 2,
+  },
   /** 結果画面と振り返り（view/retrospective.ts・view/rank.ts） */
   result: {
     /**
@@ -191,7 +224,7 @@ export const balance = {
     /** 再シミュレーションで、Task ごとに seed を変えて平均する回数 */
     counterfactualSamples: 6,
     /** この大きさ（円換算）に満たない寄与は、振り返りのカードに出さない */
-    minCardValue: 500,
+    minCardValue: 1_000,
   },
   /**
    * 閉じている間の進行（core/away.ts）。隙間時間に少しずつ遊べるよう、タブを閉じていた実時間の分だけ再開時に進める。

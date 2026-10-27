@@ -109,6 +109,8 @@ export interface HumanWorkerDef {
   readonly dailyRate: number;
   /** 作業速度の倍率。1 が標準 */
   readonly skill: number;
+  /** 正確さ（skill 1 のときの作業の成功確率の基礎。balance.human.competence が平均） */
+  readonly accuracy: number;
   readonly role: StaffRole;
   /** 得意分野。この種類の Task の人間の工程は balance.staff.strengthSpeed 倍の速さで進む */
   readonly strengths: readonly TaskKind[];
@@ -184,8 +186,9 @@ export type FeatureId =
   | 'harness:permission'
   | 'harness:eval'
   | 'harness:subagent'
-  /** team: 社員と Seat の画面（Seat の変更） */
-  | 'team';
+  /** team: 社員と Seat の画面（Seat の変更） / hire: 社員の画面と採用・退職 */
+  | 'team'
+  | 'hire';
 
 export interface UnlockDef {
   readonly id: string;
@@ -214,7 +217,8 @@ export type UnlockMessageId =
   | 'harnessPermission'
   | 'harnessEval'
   | 'harnessSubagent'
-  | 'team';
+  | 'team'
+  | 'hire';
 
 /** 体験の後で名前を教える用語（企画書34章）。文言（名前・平易な説明）は i18n の ja.glossary */
 export type TermId =
@@ -447,13 +451,11 @@ export interface CampaignStageDef {
   readonly projects: readonly string[];
   /** 受注できるようになる条件（前の段階の案件の納品など） */
   readonly when: Condition;
-  /** この段階で入社する社員 */
-  readonly joins: readonly string[];
 }
 
 /** キャンペーン（企画書21章）。案件の受注順・解放・難易度の上昇をデータで定義する */
 export interface CampaignDef {
-  /** 最初からいる社員 */
+  /** 最初からいる社員（チュートリアルの2人）。人員はこの後、採用市場から増やす */
   readonly team: readonly string[];
   /** 並び順は受注できるようになる順 */
   readonly stages: readonly CampaignStageDef[];

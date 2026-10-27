@@ -1,12 +1,20 @@
-import { Index, onCleanup, onMount, Show } from 'solid-js';
+import { createSignal, Index, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
 import type { SheetLayout } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import type { MemberView, SeatOptionView, SeatPreview, TeamView } from '../../view/team';
+import type {
+  CandidateView,
+  Level,
+  MemberView,
+  SeatOptionView,
+  SeatPreview,
+  TalentView,
+  TeamView,
+} from '../../view/team';
 import { Icon } from '../Icon';
-import { ghostButton, Meter, panel } from '../parts';
+import { ghostButton, Meter, panel, primaryButton } from '../parts';
 
 const t = ja.team;
 
@@ -30,6 +38,8 @@ export function SeatPreviewLine(props: { preview: SeatPreview }) {
  * （確定のトースト「✓ Premiumへ変更」は PlayScreen が SeatChanged から出す）。
  * AI ワーカーを運用している人だけが Seat の使用量を使うので、その人にだけ今日の使用量のメーターを出す。
  * 使用量は時間とともに変わるので、行は Index で並べて要素を作り直さない（押したボタンのフォーカスを保つ）。
+ * 採用が解放されたら、社員と採用候補のタブで切り替える。どちらのカードも売値・原価・速度・正確さ・得意分野を
+ * 同じ並びで出し、平均との比較を色だけでなく矢印とラベルでも示す。
  */
 export function TeamSheet(props: {
   view: TeamView;
@@ -40,6 +50,8 @@ export function TeamSheet(props: {
   onClose: () => void;
 }) {
   let el!: HTMLElement;
+  const [tab, setTab] = createSignal<'members' | 'candidates'>('members');
+  const showCandidates = () => props.view.hiring && tab() === 'candidates';
   onMount(() => {
     audio.play('panelOpen');
     onCleanup(() => audio.play('panelClose'));
@@ -73,12 +85,50 @@ export function TeamSheet(props: {
           {t.close}
         </button>
       </div>
-      <ul class="flex flex-col gap-2">
-        <Index each={props.view.members}>
-          {(m) => <MemberCard member={m()} editable={props.view.editable} dispatch={props.dispatch} />}
-        </Index>
-      </ul>
+      <Show when={props.view.hiring}>
+        <div role="tablist" aria-label={t.tabs} class="flex flex-wrap gap-1.5">
+          <TabButton
+            selected={tab() === 'members'}
+            id="members"
+            icon="human"
+            label={t.membersTab(props.view.headcount.count, props.view.headcount.max)}
+            onSelect={() => setTab('members')}
+          />
+          <TabButton
+            selected={tab() === 'candidates'}
+            id="candidates"
+            icon="success"
+            label={t.candidatesTab(props.view.candidates.length)}
+            onSelect={() => setTab('candidates')}
+          />
+        </div>
+      </Show>
+      <Show
+        when={showCandidates()}
+        fallback={
+          <ul class="flex flex-col gap-2">
+            <Index each={props.view.members}>
+              {(m) => <MemberCard member={m()} editable={props.view.editable} dispatch={props.dispatch} />}
+            </Index>
+          </ul>
+        }
+      >
+        <p class="text-xs font-bold text-ink-muted">{t.candidatesLead}</p>
+        <Show when={props.view.candidates.length > 0} fallback={<p class="text-sm text-ink-muted">{t.noCandidates}</p>}>
+          <ul class="flex flex-col gap-2">
+            <Index each={props.view.candidates}>
+              {(c) => <CandidateCard candidate={c()} dispatch={props.dispatch} />}
+            </Index>
+          </ul>
+        </Show>
+      </Show>
       <dl class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
+        <div class="flex items-center gap-2" data-payroll>
+          <dt class="flex items-center gap-1 text-ink-muted">
+            <Icon name="money" />
+          </dt>
+          <dd class="font-bold tabular-nums">{t.payroll(props.view.payroll)}</dd>
+        </div>
         <div class="flex items-center gap-2">
           <dt class="text-ink-muted">{t.total}</dt>
           <dd class="font-bold tabular-nums" data-team-total>
@@ -112,21 +162,34 @@ function MemberCard(props: { member: MemberView; editable: boolean; dispatch: (c
           <Icon name="human" class="shrink-0 text-2xl" />
           <div class="flex min-w-0 flex-col leading-tight">
             <span class="truncate font-bold">{t.member(m().name, m().role)}</span>
-            <Show when={m().strengths.length > 0}>
-              <span class="text-xs text-ink-muted">{t.strengths(m().strengths.join('・'))}</span>
-            </Show>
-            <span class="text-xs text-ink-muted" data-stat="rate">
-              {t.rate(m().dailyRate)}・{t.dailyCost(m().dailyCost)}
-            </span>
           </div>
         </div>
-        <Show when={m().operator}>
-          <span class="flex items-center gap-1 rounded-full border-2 border-line bg-accent-200 px-2 text-xs font-bold">
-            <Icon name="ai" />
-            {t.operator}
-          </span>
-        </Show>
+        <div class="flex flex-wrap items-center gap-2">
+          <Show when={m().operator}>
+            <span class="flex items-center gap-1 rounded-full border-2 border-line bg-accent-200 px-2 text-xs font-bold">
+              <Icon name="ai" />
+              {t.operator}
+            </span>
+          </Show>
+          <Show when={m().release || m().releaseBlocked}>
+            <button
+              type="button"
+              data-release={m().id}
+              disabled={!m().release}
+              title={m().releaseBlocked ?? undefined}
+              class="inline-flex min-h-8 items-center gap-1 rounded-md border-2 border-line bg-surface px-2 text-xs font-bold disabled:opacity-60"
+              onClick={() => {
+                const command = m().release;
+                if (command) props.dispatch(command);
+              }}
+            >
+              {t.release}
+              <Show when={m().releaseBlocked}>{(why) => <span class="text-ink-muted">（{why()}）</span>}</Show>
+            </button>
+          </Show>
+        </div>
       </div>
+      <TalentStats talent={m()} />
       <Show when={m().usage} fallback={<span class="text-xs text-ink-muted">{t.noUsage}</span>}>
         {(u) => (
           <div class="flex flex-wrap items-center gap-2 text-xs font-bold" data-usage>
@@ -183,5 +246,115 @@ function SeatButton(props: { option: SeatOptionView; editable: boolean; dispatch
         {(p) => <SeatPreviewLine preview={p()} />}
       </Show>
     </button>
+  );
+}
+
+function TabButton(props: {
+  selected: boolean;
+  id: string;
+  icon: 'human' | 'success';
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={props.selected}
+      data-team-tab={props.id}
+      class={`flex min-h-11 items-center gap-1.5 rounded-md border-[3px] border-line px-3 text-sm font-bold ${
+        props.selected ? 'bg-accent-200' : 'bg-sunken'
+      }`}
+      onClick={() => props.onSelect()}
+    >
+      <Icon name={props.icon} class="text-lg" />
+      {props.label}
+    </button>
+  );
+}
+
+/** 平均との比較。色だけでなく矢印とラベルでも示す */
+const levelMark: Record<Level, string> = { high: '▲', mid: '−', low: '▼' };
+const levelColor: Record<Level, string> = { high: 'text-success-700', mid: 'text-ink-muted', low: 'text-danger-700' };
+
+function LevelTag(props: { level: Level }) {
+  return (
+    <span class={`text-[11px] font-bold ${levelColor[props.level]}`} data-level={props.level}>
+      {levelMark[props.level]}
+      {t.level[props.level]}
+    </span>
+  );
+}
+
+/** 売値・原価・速度・正確さ・得意分野。社員と採用候補で同じ並びにして比べやすくする */
+function TalentStats(props: { talent: TalentView }) {
+  const v = () => props.talent;
+  return (
+    <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4" data-talent-stats>
+      <div class="flex flex-col" data-stat="rate">
+        <dt class="flex items-center gap-1 text-ink-muted">
+          <Icon name="money" />
+          {t.rate(v().dailyRate)}
+        </dt>
+        <dd class="text-ink-muted">{t.dailyCost(v().dailyCost)}</dd>
+      </div>
+      <div class="flex flex-col" data-stat="skill">
+        <dt class="flex items-center gap-1 text-ink-muted">
+          <Icon name="clock" />
+          {t.skill}
+        </dt>
+        <dd class="flex items-center gap-1 font-bold tabular-nums">
+          {t.skillValue(v().skill)}
+          <LevelTag level={v().skillLevel} />
+        </dd>
+      </div>
+      <div class="flex flex-col" data-stat="accuracy">
+        <dt class="flex items-center gap-1 text-ink-muted">
+          <Icon name="review" />
+          {t.accuracy}
+        </dt>
+        <dd class="flex items-center gap-1 font-bold tabular-nums">
+          {t.accuracyValue(v().accuracy)}
+          <LevelTag level={v().accuracyLevel} />
+        </dd>
+      </div>
+      <div class="flex flex-col" data-stat="strengths">
+        <dt class="flex items-center gap-1 text-ink-muted">
+          <Icon name="skill" />
+          {v().strengths.length > 0 ? t.strengths(v().strengths.join('・')) : t.noStrengths}
+        </dt>
+      </div>
+    </dl>
+  );
+}
+
+function CandidateCard(props: { candidate: CandidateView; dispatch: (command: Command) => void }) {
+  const c = () => props.candidate;
+  return (
+    <li class="flex flex-col gap-2 rounded-lg border-[3px] border-line bg-sunken p-3" data-candidate={c().id}>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex min-w-0 items-center gap-2">
+          <Icon name="human" class="shrink-0 text-2xl" />
+          <span class="truncate font-bold">{t.member(c().name, c().role)}</span>
+        </div>
+        <span class="text-xs font-bold tabular-nums" data-fee>
+          {t.fee(c().fee)}
+        </span>
+      </div>
+      <TalentStats talent={c()} />
+      <button
+        type="button"
+        data-hire={c().id}
+        disabled={!c().hire}
+        class={`${primaryButton} disabled:opacity-60`}
+        onClick={() => {
+          const command = c().hire;
+          if (command) props.dispatch(command);
+        }}
+      >
+        <Icon name="success" tone="mono" />
+        {c().hire ? t.hire : t.hireFull}
+      </button>
+    </li>
   );
 }

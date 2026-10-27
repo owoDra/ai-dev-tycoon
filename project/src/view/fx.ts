@@ -1,8 +1,9 @@
 import { getAssignMode } from '../content/assignModes';
 import { type FxSignalKind, fxRules } from '../content/fx';
-import { content, getModel, getProject, humans } from '../content/index';
+import { content, getModel, getProject } from '../content/index';
 import type { AssignModeId } from '../content/types';
 import type { GameEvent } from '../core/events';
+import { averageSkill } from '../core/expectation';
 import { expectedHumanMinutes } from '../core/formulas';
 import { MINUTES_PER_HOUR } from '../core/units';
 import { type EntityId, humanActorId, islandId } from './world';
@@ -32,14 +33,14 @@ export interface FxContext {
 
 /**
  * 担当モードで作業したときに、人間がやった場合より減る人間時間の見込み（h）。
- * 人間の熟練度は全員の平均で見積もる（view/hud.ts の見込みと同じ考え方）
+ * 人間の熟練度は平均的な人（core/expectation.ts の averageSkill）で見積もる
  */
 export function savedHumanHours(projectId: string, taskId: string, modeId: AssignModeId): number {
   const task = getProject(projectId).tasks.find((t) => t.id === taskId);
   const ai = content.workers.find((w) => w.kind === 'ai');
-  if (!task || !ai || humans.length === 0) return 0;
+  if (!task || !ai) return 0;
   const model = getModel(ai.modelId);
-  const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;
+  const skill = averageSkill();
   const human = expectedHumanMinutes(task, getAssignMode('human'), skill, model);
   const mode = expectedHumanMinutes(task, getAssignMode(modeId), skill, model);
   return (human - mode) / MINUTES_PER_HOUR;

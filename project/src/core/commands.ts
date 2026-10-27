@@ -13,7 +13,7 @@ import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
-import { inTeam, setSeat } from './team';
+import { hire, inTeam, release, setSeat } from './team';
 import { isAllowed } from './tutorial';
 import { isUnlocked } from './unlocks';
 
@@ -23,6 +23,10 @@ export type Command =
   | { readonly type: 'TogglePause' }
   /** 案件を始める（受注する）。キャンペーンでは受注できるようになった案件だけ。進行中の案件と同時に進められる */
   | { readonly type: 'StartProject'; readonly projectId: string }
+  /** 採用市場の候補を採用する。契約金を払って入社する。人員の上限に達していたらできない */
+  | { readonly type: 'Hire'; readonly staffId: string }
+  /** 社員を退職させる。担当している Task が終わっていなければできない。最後の1人は退職できない */
+  | { readonly type: 'Release'; readonly staffId: string }
   /** 社員の Seat を変える（企画書6章）。固定費は日割りなので、変えた時点から新しい月額で計上する */
   | { readonly type: 'SetSeat'; readonly staffId: string; readonly seat: SeatId }
   /**
@@ -140,6 +144,20 @@ function apply(state: GameState, command: Command): Transition {
         .map((feature) => ({ type: 'FeatureUnlocked', feature }));
       events.push({ type: 'TutorialEnded', skipped: true });
       return { state: { ...state, tutorial: null, unlocked: allFeatures }, events };
+    }
+    case 'Hire': {
+      if (!isUnlocked(state, 'hire')) return unchanged(state);
+      const next = hire(state, command.staffId);
+      return next === state
+        ? unchanged(state)
+        : { state: next, events: [{ type: 'StaffJoined', staffId: command.staffId }] };
+    }
+    case 'Release': {
+      if (!isUnlocked(state, 'hire')) return unchanged(state);
+      const next = release(state, command.staffId);
+      return next === state
+        ? unchanged(state)
+        : { state: next, events: [{ type: 'StaffReleased', staffId: command.staffId }] };
     }
     case 'SetSeat': {
       const { staffId, seat } = command;

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
-import { getModel, getTask } from '../../src/content/index';
+import { getHuman, getModel, getTask } from '../../src/content/index';
 import { getSeat } from '../../src/content/seats';
 import { type Command, reduce } from '../../src/core/commands';
 import { scoreCompany } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { humanSpeed, seatDailyCost, teamDailyCost, usageSpeed } from '../../src/core/team';
 import { runHeadless } from '../helpers/headless';
+import { findTalents } from '../helpers/talent';
 
 const P = 'ecRenewal';
 const DAY = balance.project.minutesPerBusinessDay;
@@ -110,7 +111,7 @@ describe('Seat（core/team.ts）', () => {
     expect(r.state.team.suzuki?.seat).toBe('premium');
     expect(r.events).toEqual([{ type: 'SeatChanged', staffId: 'suzuki', seat: 'premium' }]);
     // 会社にいない社員・同じ Seat は変わらない
-    expect(reduce(s, { type: 'SetSeat', staffId: 'ito', seat: 'premium' }).state).toBe(s);
+    expect(reduce(s, { type: 'SetSeat', staffId: s.market.candidates[0] ?? '', seat: 'premium' }).state).toBe(s);
     expect(reduce(s, { type: 'SetSeat', staffId: 'suzuki', seat: 'standard' }).state).toBe(s);
     // キャンペーンでは解放されるまで変えられない
     const campaign = createInitialState('c', { campaign: true });
@@ -118,7 +119,9 @@ describe('Seat（core/team.ts）', () => {
   });
 
   it('得意分野の Task は速く、会社にいない社員には担当させられない', () => {
-    const team = ['sato', 'suzuki', 'watanabe'];
+    // テスト（test）が得意な人材と、会社にいない人材
+    const [tester, outsider] = findTalents((h) => h.strengths.includes('test') && !h.strengths.includes('planning'));
+    const team = ['sato', 'suzuki', tester.id];
     const s = reduce(createInitialState('s', { team }), start).state;
     const assignQa = (workerId: string): Command => ({
       type: 'AssignTask',
@@ -127,12 +130,15 @@ describe('Seat（core/team.ts）', () => {
       mode: 'human',
       workerId,
     });
-    expect(reduce(s, assignQa('ito')).state).toBe(s);
-    expect(reduce(s, assignQa('watanabe')).state).not.toBe(s);
+    expect(reduce(s, assignQa(outsider.id)).state).toBe(s);
+    expect(reduce(s, assignQa(tester.id)).state).not.toBe(s);
     const qa = getTask(P, 'qa');
-    expect(humanSpeed('watanabe', qa)).toBe(balance.staff.strengthSpeed);
-    expect(humanSpeed('watanabe', getTask(P, 'hearing'))).toBe(1);
-    // 創業メンバーは得意分野がなく、どの Task も標準の速さ
-    expect(humanSpeed('sato', qa)).toBe(1);
+    expect(qa.kind).toBe('test');
+    expect(humanSpeed(tester.id, qa)).toBeCloseTo(tester.skill * balance.staff.strengthSpeed);
+    expect(getTask(P, 'hearing').kind).toBe('planning');
+    expect(humanSpeed(tester.id, getTask(P, 'hearing'))).toBe(tester.skill);
+    // 創業メンバーは得意分野がなく、どの Task も同じ速さ（その人の skill）
+    expect(humanSpeed('sato', qa)).toBe(getHuman('sato').skill);
+    expect(humanSpeed('sato', getTask(P, 'hearing'))).toBe(getHuman('sato').skill);
   });
 });

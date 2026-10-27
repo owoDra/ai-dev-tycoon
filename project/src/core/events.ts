@@ -58,8 +58,10 @@ export type GameEvent =
   | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] }
   /** 社員の Seat を変えた */
   | { readonly type: 'SeatChanged'; readonly staffId: string; readonly seat: SeatId }
-  /** キャンペーンで社員が入社した */
+  /** 社員が入社した（採用市場から採用した） */
   | { readonly type: 'StaffJoined'; readonly staffId: string }
+  /** 社員が退職した */
+  | { readonly type: 'StaffReleased'; readonly staffId: string }
   /** キャンペーンで新しい案件を受注できるようになった */
   | { readonly type: 'ProjectsOffered'; readonly projectIds: readonly string[] }
   /** キャンペーンのすべての案件を納品した */

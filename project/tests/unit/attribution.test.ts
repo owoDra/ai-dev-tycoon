@@ -3,6 +3,7 @@ import { attributeProject, type Impact } from '../../src/core/attribution';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { seeds } from '../helpers/compare';
 import { type PlayConfig, playConfigured } from '../helpers/configured';
+import { AVERAGE_TEAM } from '../helpers/talent';
 
 /**
  * 寄与の記録（core/attribution.ts）。AI の作業の構成を Task に記録し、要素ごとの寄与を期待値で見積もる。
@@ -19,12 +20,13 @@ interface Realized {
 }
 
 /** seed で平均した実績（人間時間・人件費以外の費用）と、寄与の見積もりの合計 */
+/** 寄与の見込みは平均的な人の速さで数えるので、シミュレーションも速度がちょうど平均の2人で進めて比べる */
 function realize(config: PlayConfig): Realized {
   let humanMinutes = 0;
   let cost = 0;
   let attributed: Impact = { humanMinutes: 0, cost: 0, quality: 0 };
   for (const seed of SEEDS) {
-    const { state, score } = playConfigured(config, seed);
+    const { state, score } = playConfigured({ team: AVERAGE_TEAM, ...config }, seed);
     humanMinutes += score.humanMinutes / SEEDS.length;
     cost += (score.aiCost + score.accidentCost + score.reworkCost) / SEEDS.length;
     const a = attributeProject(state, config.projectId).total;

@@ -1,3 +1,4 @@
+import { generateTalent } from '../core/talent';
 import { assignModes } from './assignModes';
 import { documents } from './documents';
 import { harnessParts } from './harness/index';
@@ -61,8 +62,9 @@ export function getTask(projectId: string, taskId: string): TaskDef {
   return t;
 }
 
+/** Worker の定義。採用市場で生成した人材（core/talent.ts の `h~` で始まる id）も、id から再生成して返す */
 export function findWorker(id: string): WorkerDef | undefined {
-  return content.workers.find((w) => w.id === id);
+  return content.workers.find((w) => w.id === id) ?? generateTalent(id);
 }
 
 export function getHuman(id: string): HumanWorkerDef {
@@ -89,6 +91,7 @@ export function getHarnessPart(id: string): HarnessPartDef {
   return p;
 }
 
+/** 固定の社員（content/staff.ts）。会社にいる社員は core/team.ts の teamMembers */
 export const humans: readonly HumanWorkerDef[] = content.workers.filter((w) => w.kind === 'human');
 
 export const aiWorkers: readonly AiWorkerDef[] = content.workers.filter((w) => w.kind === 'ai');

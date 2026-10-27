@@ -3,6 +3,7 @@ import type { AssignModeId, ContextFeed } from '../../src/content/types';
 import type { Command } from '../../src/core/commands';
 import { deadlineMinutes } from '../../src/core/formulas';
 import { scoreProject } from '../../src/core/scoring';
+import { createInitialState } from '../../src/core/state';
 import { runHeadless } from './headless';
 import type { PlayResult } from './strategies';
 
@@ -16,6 +17,8 @@ export interface PlayConfig {
   readonly parts?: readonly string[];
   readonly modelId?: string;
   readonly feed?: ContextFeed;
+  /** 会社にいる社員。既定は createInitialState の既定（チュートリアルの2人） */
+  readonly team?: readonly string[];
 }
 
 /**
@@ -35,6 +38,7 @@ export function playConfigured(config: PlayConfig, seed: string): PlayResult {
   ];
   const result = runHeadless({
     seed,
+    ...(config.team ? { initial: createInitialState(seed, { team: config.team }) } : {}),
     commands: commands.map((command) => ({ at: 0, command })),
     until: deadlineMinutes(getProject(projectId)) * 4,
   });

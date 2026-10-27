@@ -33,18 +33,24 @@ describe('キャンペーンの進行（core/campaign.ts）', () => {
     expect(reduce(s, { type: 'StartProject', projectId: 'tutorialLp' }).state.projects.tutorialLp).toBeDefined();
   });
 
-  it('案件を納品すると次の案件を受注できるようになり、社員が入社する', () => {
+  it('案件を納品すると次の案件を受注できるようになり、採用市場から社員を迎えられるようになる', () => {
     let s = reduce(createInitialState('c', { campaign: true }), {
       type: 'StartProject',
       projectId: 'tutorialLp',
     }).state;
+    const candidate = s.market.candidates[0] ?? '';
+    // チュートリアルの間は採用できない
+    expect(reduce(s, { type: 'Hire', staffId: candidate }).state).toBe(s);
     const r = apply(deliver(s, 'tutorialLp'), pause);
     s = r.state;
     expect(offeredProjects(s)).toEqual(['ecRenewal']);
-    expect(r.events).toContainEqual({ type: 'StaffJoined', staffId: 'takahashi' });
     expect(r.events).toContainEqual({ type: 'ProjectsOffered', projectIds: ['ecRenewal'] });
-    expect(s.team.takahashi).toEqual({ seat: 'standard', used: 0 });
-    expect(s.humanQueues.takahashi).toEqual([]);
+    expect(r.events).toContainEqual({ type: 'FeatureUnlocked', feature: 'hire' });
+    const hired = apply(s, { type: 'Hire', staffId: candidate });
+    s = hired.state;
+    expect(hired.events).toContainEqual({ type: 'StaffJoined', staffId: candidate });
+    expect(s.team[candidate]).toEqual({ seat: 'standard', used: 0 });
+    expect(s.humanQueues[candidate]).toEqual([]);
   });
 
   it('コーポレートサイトの途中で SaaS 機能を受注でき、2件を同時に進められる', () => {
@@ -86,7 +92,8 @@ describe('キャンペーンの進行（core/campaign.ts）', () => {
     }
     expect(s.campaign?.cleared).toBe(true);
     expect(events.filter((e) => e.type === 'CampaignCleared')).toHaveLength(1);
-    expect(Object.keys(s.team).sort()).toEqual(['ito', 'sato', 'suzuki', 'takahashi', 'watanabe']);
+    // 段階の進行では社員は増えない（採用市場から採用する）
+    expect(Object.keys(s.team)).toEqual(campaign.team);
     expect(boardView(s)).toMatchObject({ cleared: true, progress: { done: 7, total: 7 }, offered: [], active: [] });
     expect(apply(s, pause).events.some((e) => e.type === 'CampaignCleared')).toBe(false);
   });

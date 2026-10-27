@@ -14,6 +14,7 @@ import {
 } from '../../src/view/world';
 import { runHeadless } from '../helpers/headless';
 import { playProject, strategies } from '../helpers/strategies';
+import { AVERAGE_TEAM } from '../helpers/talent';
 
 const P = 'ecRenewal';
 const look = worldLooks.standard;
@@ -26,8 +27,16 @@ const assign = (taskId: string, mode: AssignModeId, workerId: string): Command =
   workerId,
 });
 
+/** 工程の所要時間を数値で確かめるので、速度がちょうど平均の2人（A・B）で進める */
+const [A, B] = AVERAGE_TEAM;
+
 function viewAt(until: number, commands: Command[]): WorldViewModel {
-  const { state } = runHeadless({ seed: 'world', commands: commands.map((command) => ({ at: 0, command })), until });
+  const { state } = runHeadless({
+    seed: 'world',
+    initial: createInitialState('world', { team: AVERAGE_TEAM }),
+    commands: commands.map((command) => ({ at: 0, command })),
+    until,
+  });
   return worldView(state, P, look);
 }
 
@@ -50,22 +59,22 @@ describe('worldView', () => {
   });
 
   it('人間が作業中の Task は、島のデスクにパケットがあり、担当者がその島で集中している', () => {
-    const vm = viewAt(30, [start, assign('hearing', 'human', 'sato')]);
+    const vm = viewAt(30, [start, assign('hearing', 'human', A)]);
     expect(island(vm, 'hearing')).toMatchObject({ status: 'running', stage: 'work' });
     expect(island(vm, 'hearing')?.progress).toBeCloseTo(30 / 90, 1);
     expect(vm.packets).toEqual([
       expect.objectContaining({ taskId: 'hearing', place: { kind: 'desk', islandId: islandId('hearing') } }),
     ]);
-    expect(actor(vm, humanActorId('sato'))).toMatchObject({
+    expect(actor(vm, humanActorId(A))).toMatchObject({
       islandId: islandId('hearing'),
       activity: 'work',
       expression: 'focus',
     });
-    expect(actor(vm, humanActorId('suzuki'))).toMatchObject({ islandId: null, activity: 'idle' });
+    expect(actor(vm, humanActorId(B))).toMatchObject({ islandId: null, activity: 'idle' });
   });
 
   it('完了した Task の成果物はコンベアを流れ、次の Task が未着手なら島の前に積まれる（待ち行列の長さ）', () => {
-    const commands = [start, assign('hearing', 'human', 'sato')];
+    const commands = [start, assign('hearing', 'human', A)];
     const onBelt = viewAt(90 + look.flow.travelMinutes / 2, commands).packets;
     expect(onBelt).toHaveLength(1);
     expect(onBelt[0]?.place).toMatchObject({ kind: 'belt', conveyorId: 'hearing->requirements' });
@@ -79,13 +88,13 @@ describe('worldView', () => {
   it('同じ人に仕事が重なると、待っている Task は「人間待ち」になって島の前に積まれ、その人は困った顔になる', () => {
     const vm = viewAt(90 + 120 + 5, [
       start,
-      ...['hearing', 'requirements', 'uiDesign', 'research'].map((t) => assign(t, 'human', 'sato')),
+      ...['hearing', 'requirements', 'uiDesign', 'research'].map((t) => assign(t, 'human', A)),
     ]);
     const queued = vm.islands.filter((i) => i.status === 'queued');
     expect(queued).toHaveLength(1);
     expect(queued[0]?.queueLength).toBeGreaterThanOrEqual(1);
     expect(vm.packets.some((p) => p.place.kind === 'stack' && p.place.islandId === queued[0]?.id)).toBe(true);
-    expect(actor(vm, humanActorId('sato'))?.expression).toBe('trouble');
+    expect(actor(vm, humanActorId(A))?.expression).toBe('trouble');
   });
 
   it('AI が関わる Task には役割の見た目の Agent が現れ、AI の工程で集中し、終わると喜ぶ', () => {
@@ -100,7 +109,7 @@ describe('worldView', () => {
     });
     const reviewing = viewAt(10, commands);
     expect(actor(reviewing, agentActorId('hearing'))?.activity).toBe('idle');
-    expect(actor(reviewing, humanActorId('sato'))?.islandId).toBe(islandId('hearing'));
+    expect(actor(reviewing, humanActorId(A))?.islandId).toBe(islandId('hearing'));
   });
 
   it('Agent の見た目は Task の役割で変わる（Code / QA / Release）', () => {
@@ -171,9 +180,9 @@ describe('worldView', () => {
 
 describe('describeEntity', () => {
   it('選択した島・キャラクター・パケットの種類と名前を返し、消えたものは null', () => {
-    const vm = viewAt(30, [start, assign('hearing', 'human', 'sato')]);
+    const vm = viewAt(30, [start, assign('hearing', 'human', A)]);
     expect(describeEntity(vm, islandId('qa'))).toEqual({ kind: 'island', label: 'QA' });
-    expect(describeEntity(vm, humanActorId('sato'))?.kind).toBe('human');
+    expect(describeEntity(vm, humanActorId(A))?.kind).toBe('human');
     expect(describeEntity(vm, 'packet:hearing')).toEqual({ kind: 'packet', label: ja.world.packet('顧客要望整理') });
     expect(describeEntity(vm, agentActorId('qa'))).toBeNull();
   });

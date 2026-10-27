@@ -138,7 +138,11 @@ export interface CompanyScore {
   readonly harnessCost: number;
   /** Seat の固定費（日割り） */
   readonly seatCost: number;
-  /** 会社の利益 = 案件の利益の合計 − 導入コスト − Seat の固定費 */
+  /** 採用の契約金 */
+  readonly hireCost: number;
+  /** 待機中の社員の給与（日割り） */
+  readonly idleCost: number;
+  /** 会社の利益 = 案件の利益の合計 − 導入コスト − Seat の固定費 − 契約金 − 待機中の給与 */
   readonly profit: number;
   /** 人間の総稼働時間（分） */
   readonly humanMinutes: number;
@@ -147,7 +151,7 @@ export interface CompanyScore {
 }
 
 /**
- * 会社全体のスコア。案件ごとのスコア（scoreProject）を合計し、案件をまたぐ費用（Seat の固定費と、
+ * 会社全体のスコア。案件ごとのスコア（scoreProject）を合計し、案件をまたぐ費用（Seat の固定費・採用の契約金・待機中の給与と、
  * 同時に進めた案件で重なって数えられうる Harness 部品の導入コスト）は会社として1回だけ引く
  */
 export function scoreCompany(state: GameState): CompanyScore {
@@ -162,12 +166,14 @@ export function scoreCompany(state: GameState): CompanyScore {
     if (s.completed) delivered++;
   }
   const harnessCost = state.harnessLedger.reduce((sum, e) => sum + e.cost, 0);
-  const profit = projectProfit - harnessCost - state.seatCost;
+  const profit = projectProfit - harnessCost - state.seatCost - state.hireCost - state.idleCost;
   return {
     delivered,
     projectProfit,
     harnessCost,
     seatCost: state.seatCost,
+    hireCost: state.hireCost,
+    idleCost: state.idleCost,
     profit,
     humanMinutes,
     profitPerPersonDay: perPersonDay(profit, humanMinutes),

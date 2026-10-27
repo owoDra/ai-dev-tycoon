@@ -11,6 +11,7 @@ import { deserialize, SAVE_VERSION } from '../../src/core/serialize';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { applyUnlocks, isRevealed, isUnlocked } from '../../src/core/unlocks';
+import { AVERAGE_TEAM } from '../helpers/talent';
 
 const P = 'ecRenewal';
 const started = (s: GameState) => reduce(s, { type: 'StartProject', projectId: P }).state;
@@ -70,7 +71,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('v2 のセーブデータは、すべて解放済み・チュートリアルなしとして読み込む', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     const s = deserialize(JSON.stringify({ saveVersion: 2, state: v2 }));
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(s.unlocked).toEqual(allFeatures);
     expect(s.tutorial).toBeNull();
   });
@@ -87,7 +88,8 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
 
   /** 自動テストの直前に失敗を仕込み、Task が終わるまで進める */
   function runWithPlantedDefect(seed: string) {
-    let s = reduce(started(createInitialState(seed)), assignEval).state;
+    // 人間の時間を工程の作業量どおりに確かめるので、速度がちょうど平均の2人で進める
+    let s = reduce(started(createInitialState(seed, { team: AVERAGE_TEAM })), assignEval).state;
     const events: GameEvent[] = [];
     for (let i = 0; i < 600 && s.projects[P]?.tasks.hearing?.status !== 'done'; i++) {
       const run = s.projects[P]?.tasks.hearing;

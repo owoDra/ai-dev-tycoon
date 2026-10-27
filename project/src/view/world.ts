@@ -1,6 +1,6 @@
 import { agentModels, humanModels, incidentModels, type ModelId } from '../assets/catalog';
 import { getAssignMode } from '../content/assignModes';
-import { getProject, getTask, humans } from '../content/index';
+import { getProject, getTask } from '../content/index';
 import {
   type AgentRole,
   agentRoleByTask,
@@ -18,6 +18,7 @@ import { findBottleneck } from '../core/bottleneck';
 import { type ActorProfile, reworkMinutes, stepMinutes } from '../core/formulas';
 import { equippedParts, harnessModifiers } from '../core/harness';
 import { libraryWorkflows } from '../core/library';
+import { hashSeed } from '../core/rng';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
 import { humanSpeed, teamMembers } from '../core/team';
@@ -217,10 +218,9 @@ export function taskProgress(state: GameState, projectId: string, taskId: string
   return Math.min(1, (run.stepIndex + within) / steps.length);
 }
 
-/** 人間の Worker の見た目。対応表になければ humanLooks を並び順に割り当てる */
+/** 人間の Worker の見た目。対応表になければ（採用した人材）、id のハッシュで humanLooks から決める */
 export function humanModelOf(workerId: string): ModelId {
-  const index = humans.findIndex((h) => h.id === workerId);
-  const look = humanLookByWorker[workerId] ?? humanLooks[Math.max(0, index) % humanLooks.length] ?? 'bob';
+  const look = humanLookByWorker[workerId] ?? humanLooks[hashSeed(workerId) % humanLooks.length] ?? 'bob';
   return humanModels[look];
 }
 

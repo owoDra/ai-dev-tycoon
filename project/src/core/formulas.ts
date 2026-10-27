@@ -1,9 +1,12 @@
 import { balance } from '../content/balance';
 import type { AssignModeDef, ModelDef, ModeStep, ProjectDef, TaskDef } from '../content/types';
 
-/** 工程の担い手。人間は skill、AI は Model の性能で計算する */
+/**
+ * 工程の担い手。人間は skill（速さと正確さの両方に効く）と正確さ（accuracy。省けば balance.human.competence の平均的な人）、
+ * AI は Model の性能で計算する
+ */
 export type ActorProfile =
-  | { readonly kind: 'human'; readonly skill: number }
+  | { readonly kind: 'human'; readonly skill: number; readonly accuracy?: number }
   | { readonly kind: 'ai'; readonly model: ModelDef };
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -22,12 +25,13 @@ export function taskRisk(task: TaskDef): number {
 
 /**
  * 作業が成功する確率。担い手の正確さからリスクを引き、[min, max] に収める。
- * 人間はリスクの影響を riskScale 倍に抑えた安定型、AI は Model の能力を AI 適性に応じて発揮する。
+ * 人間は正確さ × skill からリスクの影響を riskScale 倍に抑えて引く安定型、AI は Model の能力を AI 適性に応じて発揮する。
  */
 export function successProbability(task: TaskDef, actor: ActorProfile): number {
   const { min, max } = balance.success;
   if (actor.kind === 'human') {
-    return clamp(balance.human.competence * actor.skill - balance.human.riskScale * taskRisk(task), min, max);
+    const accuracy = actor.accuracy ?? balance.human.competence;
+    return clamp(accuracy * actor.skill - balance.human.riskScale * taskRisk(task), min, max);
   }
   const floor = balance.ai.aptitudeFloor;
   const competence = actor.model.capability * (floor + (1 - floor) * task.aiAptitude);

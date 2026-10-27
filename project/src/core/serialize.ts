@@ -1,10 +1,12 @@
+import { balance } from '../content/balance';
 import { campaign } from '../content/campaign';
 import { glossary } from '../content/glossary';
 import { allFeatures } from '../content/unlocks';
 import { createHumanQueues, createSessions, createTeam, type GameState } from './state';
+import { marketCandidates, talentId } from './talent';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -50,7 +52,25 @@ export const MIGRATIONS: readonly Migration[] = [
   { from: 7, migrate: (s) => mapTasks(s as V4State, (t) => ({ ...t, setup: null })) },
   // v9: Workflow Library（保存した Workflow と適用の記録）を追加（Phase 16）。以前のセーブは空の棚から
   { from: 8, migrate: (s) => ({ ...(s as object), library: [], libraryUses: [] }) },
+  // v10: 採用市場・契約金・待機中の給与を追加（Phase 19）。固定の社員のうち、チュートリアルの2人以外は生成した人材に置き換える
+  { from: 9, migrate: (s) => migrateTalent(s as V9State) },
 ];
+
+/** Phase 19 で固定の定義から外した社員。セーブに残っていれば、同じ id を seed にした人材（core/talent.ts）に置き換える */
+const RETIRED_STAFF = ['takahashi', 'ito', 'watanabe'];
+
+interface V9State {
+  readonly seed: string;
+  readonly clock: number;
+}
+
+function migrateTalent(s: V9State): unknown {
+  // id は state のキーと値の両方に現れる（社員・待ち行列・Task の担い手）ので、JSON の文字列ごと置き換える
+  let json = JSON.stringify(s);
+  for (const id of RETIRED_STAFF) json = json.replaceAll(`"${id}"`, `"${talentId(id)}"`);
+  const day = Math.floor(s.clock / balance.project.minutesPerBusinessDay);
+  return { ...JSON.parse(json), market: { day, candidates: marketCandidates(s.seed, day) }, hireCost: 0, idleCost: 0 };
+}
 
 interface V4State {
   readonly projects: Readonly<Record<string, { readonly tasks: Readonly<Record<string, object>> }>>;
@@ -134,6 +154,10 @@ function isGameState(v: unknown): v is GameState {
     isRecord(v.team) &&
     typeof v.usageDay === 'number' &&
     typeof v.seatCost === 'number' &&
+    isRecord(v.market) &&
+    Array.isArray(v.market.candidates) &&
+    typeof v.hireCost === 'number' &&
+    typeof v.idleCost === 'number' &&
     (v.campaign === null || isRecord(v.campaign)) &&
     Array.isArray(v.library) &&
     Array.isArray(v.libraryUses)

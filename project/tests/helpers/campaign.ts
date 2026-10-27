@@ -1,5 +1,5 @@
 import { balance } from '../../src/content/balance';
-import { getProject } from '../../src/content/index';
+import { getHuman, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { AssignModeId, TaskDef } from '../../src/content/types';
 import { activeProjects, offeredProjects } from '../../src/core/campaign';
@@ -39,6 +39,18 @@ export const smartSeatPolicy: CampaignPolicy = {
   setup: (state) =>
     isUnlocked(state, 'team') ? [{ type: 'SetSeat', staffId: 'suzuki', seat: 'premium' } satisfies Command] : [],
 };
+
+/** smart に加えて、採用が解放されたら人員が size 人になるまで、その日の候補で一番速い人を採用する */
+export function smartHirePolicy(size: number): CampaignPolicy {
+  return {
+    ...smartPolicy,
+    setup: (state) => {
+      if (!isUnlocked(state, 'hire') || Object.keys(state.team).length >= size) return [];
+      const best = [...state.market.candidates].sort((a, b) => getHuman(b).skill - getHuman(a).skill)[0];
+      return best ? [{ type: 'Hire', staffId: best } satisfies Command] : [];
+    },
+  };
+}
 
 /** 人間だけで担う Task の担当者。得意分野の人を優先し、同じなら担当の少ない人 */
 function pickHuman(state: GameState, task: TaskDef, load: Map<string, number>): string {

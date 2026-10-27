@@ -1,6 +1,6 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { aiWorkers, findWorker, getProject, humans } from '../content/index';
+import { aiWorkers, findWorker, getProject } from '../content/index';
 import type { AssignModeDef, HarnessModifiers, ModelDef, TaskDef } from '../content/types';
 import {
   aiCostFactor,
@@ -20,6 +20,7 @@ import {
 } from './formulas';
 import { evalMinutes, harnessModel, harnessModifiers, harnessSuccess, harnessToolMiss, NEUTRAL } from './harness';
 import type { GameState } from './state';
+import { mid } from './talent';
 import { MINUTES_PER_HOUR } from './units';
 
 /*
@@ -41,9 +42,9 @@ export interface TaskExpectation {
   readonly accidentCost: number;
 }
 
-/** 人間の平均的な熟練度 */
+/** 人間の平均的な熟練度（採用市場の人材の速度の平均。見込みと「人間だけで進めた場合」の基準） */
 export function averageSkill(): number {
-  return humans.reduce((sum, h) => sum + h.skill, 0) / Math.max(1, humans.length);
+  return mid(balance.talent.skill);
 }
 
 /**

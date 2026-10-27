@@ -100,6 +100,8 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'projectsCompleted', count: 2 },
     message: 'harnessSubagent',
   },
+  // チュートリアルの案件を納品したら、採用市場で人を増やせるようにする（社員の画面もここから開ける）
+  { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 1 }, message: 'hire' },
   // 2つ目の案件を納品し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
   { id: 'team', feature: 'team', when: { type: 'projectsCompleted', count: 2 }, message: 'team' },
 ];

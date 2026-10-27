@@ -202,8 +202,12 @@ export function enterStep(
   return intervention ? rollIncidents(next, 'humanCheck', run.assignment.workerId, projectId, taskId, ctx) : next;
 }
 
-/** 人間の正確さに効く skill（得意分野は速さだけに効き、正確さには効かない） */
-const getHumanSkill = (humanId: string | null) => (humanId ? getHuman(humanId).skill : 1);
+/** 人間の成功確率に効く skill と正確さ（得意分野は速さだけに効き、正確さには効かない）。担い手がいなければ平均的な人 */
+const humanActor = (humanId: string | null): ActorProfile => {
+  if (!humanId) return { kind: 'human', skill: 1 };
+  const h = getHuman(humanId);
+  return { kind: 'human', skill: h.skill, accuracy: h.accuracy };
+};
 
 const usesAi = (run: TaskRun) => run.assignment !== null && primaryActor(getAssignMode(run.assignment.mode)) === 'ai';
 
@@ -289,9 +293,7 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const task = getTask(projectId, taskId);
     const ai = step.actor === 'ai';
     const forced = ai ? forcedAiOutcome(state, projectId, taskId) : null;
-    const p = ai
-      ? aiSuccess(state, run, projectId, task)
-      : successProbability(task, { kind: 'human', skill: getHumanSkill(run.humanId) });
+    const p = ai ? aiSuccess(state, run, projectId, task) : successProbability(task, humanActor(run.humanId));
     const ok = forced === null ? ctx.rng.chance(p) : forced;
     if (ai && contextApplies(projectId)) next = afterContextWork(next, run, projectId, taskId);
     if (!ok) {

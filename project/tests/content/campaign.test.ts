@@ -25,10 +25,9 @@ describe('キャンペーン（content/campaign.ts）', () => {
     expect(campaign.stages.at(-1)?.projects.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('すべての案件がキャンペーンに一度ずつ現れ、すべての社員がいつか入社する', () => {
+  it('すべての案件がキャンペーンに一度ずつ現れ、固定の社員は全員が最初からいる（ほかの社員は採用市場で増やす）', () => {
     expect([...campaignProjects].sort()).toEqual(content.projects.map((p) => p.id).sort());
-    const joined = [...campaign.team, ...campaign.stages.flatMap((s) => s.joins)];
-    expect([...joined].sort()).toEqual(staff.map((h) => h.id).sort());
+    expect([...campaign.team].sort()).toEqual(staff.map((h) => h.id).sort());
   });
 
   it('未定義の案件・社員・Task の参照や、後の段階の案件を待つ条件を検出する', () => {
@@ -36,8 +35,9 @@ describe('キャンペーン（content/campaign.ts）', () => {
     if (!first || !second) throw new Error('段階が足りない');
     const errors = (stages: CampaignDef['stages']) => validateCampaign(content, withStages(stages)).join('\n');
     expect(errors([first, { ...second, projects: ['nope'] }])).toContain('未定義の案件 nope');
-    expect(errors([first, { ...second, joins: ['nobody'] }])).toContain('未定義の社員 nobody');
-    expect(errors([first, { ...second, joins: ['sato'] }])).toContain('すでに入社している');
+    const teamErrors = (team: readonly string[]) => validateCampaign(content, { ...campaign, team }).join('\n');
+    expect(teamErrors(['sato', 'nobody'])).toContain('未定義の社員 nobody');
+    expect(teamErrors(['sato', 'sato'])).toContain('ID sato が重複している');
     expect(errors([first, { ...second, projects: ['tutorialLp'] }])).toContain('2回現れる');
     expect(
       errors([first, { ...second, when: { type: 'taskCompleted', projectId: 'tutorialLp', taskId: 'nope' } }]),

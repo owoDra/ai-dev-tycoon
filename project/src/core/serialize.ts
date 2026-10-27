@@ -1,7 +1,7 @@
 import type { GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -19,7 +19,22 @@ export interface Migration {
  * from の昇順に並べる。v10 以前（Phase 19 まで）は固定の案件を順に受注するキャンペーンのセーブで、
  * 案件ボードとコンペ（Phase 20）の会社に変換できないので読み込まない（OutdatedSaveError）
  */
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [
+  // v11 → v12：会社の規模・オフィスの固定費・AI Worker の一覧・チームと、案件の管理者の運営の記録（Phase 21）。最初の段階・直轄だけで始める
+  {
+    from: 11,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.projects)) return state;
+      const projects = Object.fromEntries(
+        Object.entries(state.projects).map(([id, p]) => [
+          id,
+          isRecord(p) ? { ...p, management: { minutes: 0, laborCost: 0, aiCost: 0 } } : p,
+        ]),
+      );
+      return { ...state, projects, tier: 'solo', officeCost: 0, agents: ['agent'], teams: [] };
+    },
+  },
+];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
 export class OutdatedSaveError extends Error {
@@ -96,6 +111,10 @@ function isGameState(v: unknown): v is GameState {
     typeof v.idleCost === 'number' &&
     (v.board === null || (isRecord(v.board) && Array.isArray(v.board.inquiries))) &&
     typeof v.reputation === 'number' &&
+    typeof v.tier === 'string' &&
+    typeof v.officeCost === 'number' &&
+    Array.isArray(v.agents) &&
+    Array.isArray(v.teams) &&
     Array.isArray(v.library) &&
     Array.isArray(v.libraryUses)
   );

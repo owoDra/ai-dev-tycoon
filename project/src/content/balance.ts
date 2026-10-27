@@ -203,10 +203,6 @@ export const balance = {
   },
   /** 採用（core/team.ts の採用市場と Hire / Release） */
   hire: {
-    /** 営業日ごとに入れ替わる採用候補の数（Phase 21 で会社の規模から決める） */
-    candidates: 3,
-    /** 人員の上限（Phase 21 で会社の規模から決める） */
-    maxStaff: 6,
     /** 契約金は売値の何人日分か */
     signingDays: 3,
     /** チュートリアルなしで始めたときに seed から生成する最初の社員の数（平均的な能力の人） */
@@ -240,15 +236,11 @@ export const balance = {
   },
   /**
    * 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、応募の締切に結果が出る。
-   * 数と規模の分布は Phase 21 で会社の規模から決める（それまでは固定）
+   * 数と規模の分布は会社の規模（balance.company.tiers）で決まる
    */
   board: {
-    /** 営業日ごとに届く引き合いの数 */
-    perDay: 2,
     /** 応募の締切（届いた営業日から数えて何営業日目の終わりか） */
     closeDays: 2,
-    /** 引き合いに出る規模の重み（L・XL は Phase 21 の会社の成長で出す） */
-    sizes: { S: 1, M: 1, L: 0, XL: 0 },
     /** 案件ボードに残す最近のコンペの結果の数 */
     history: 10,
   },
@@ -294,6 +286,107 @@ export const balance = {
     perLateDay: 8,
     qualityPivot: 0.9,
     perQuality: 40,
+  },
+  /**
+   * 会社の規模（content/companyTiers.ts。並び順が昇格の順）。昇格の条件（requires）は、累計の会社の利益（円）・評判・納品数のすべてを満たすこと。
+   * 段階ごとに、人員の上限（maxStaff）・AI Worker の上限（maxAiWorkers）・チーム数の上限（直轄を含む、maxTeams）・管理者を置けるか（managers）・
+   * 営業日ごとの引き合いの数（inquiries）と規模の重み（sizes）・採用候補の数（candidates）・オフィスの固定費（円/営業日、officeDaily）が変わる
+   */
+  company: {
+    tiers: {
+      solo: {
+        requires: { profit: 0, reputation: 0, delivered: 0 },
+        maxStaff: 3,
+        maxAiWorkers: 1,
+        maxTeams: 1,
+        managers: false,
+        inquiries: 2,
+        sizes: { S: 1, M: 1, L: 0, XL: 0 },
+        candidates: 3,
+        officeDaily: 0,
+      },
+      startup: {
+        requires: { profit: 1_000_000, reputation: 50, delivered: 3 },
+        maxStaff: 5,
+        maxAiWorkers: 2,
+        maxTeams: 1,
+        managers: false,
+        inquiries: 2,
+        sizes: { S: 1, M: 2, L: 0, XL: 0 },
+        candidates: 3,
+        officeDaily: 10_000,
+      },
+      small: {
+        requires: { profit: 6_000_000, reputation: 60, delivered: 10 },
+        maxStaff: 8,
+        maxAiWorkers: 3,
+        maxTeams: 2,
+        managers: true,
+        inquiries: 3,
+        sizes: { S: 1, M: 2, L: 1, XL: 0 },
+        candidates: 4,
+        officeDaily: 30_000,
+      },
+      mid: {
+        requires: { profit: 25_000_000, reputation: 70, delivered: 30 },
+        maxStaff: 12,
+        maxAiWorkers: 4,
+        maxTeams: 3,
+        managers: true,
+        inquiries: 3,
+        sizes: { S: 1, M: 2, L: 2, XL: 1 },
+        candidates: 4,
+        officeDaily: 60_000,
+      },
+      large: {
+        requires: { profit: 100_000_000, reputation: 80, delivered: 80 },
+        maxStaff: 18,
+        maxAiWorkers: 6,
+        maxTeams: 4,
+        managers: true,
+        inquiries: 4,
+        sizes: { S: 0, M: 2, L: 2, XL: 2 },
+        candidates: 5,
+        officeDaily: 120_000,
+      },
+    },
+  },
+  /**
+   * 管理者（core/manager.ts）。直轄以外のチームの担当モードと担当者を、期待値（core/expectation.ts）で決める。
+   * 各モードの評価 = −（人間の時間の人件費 + AI 費用 + 事故の損害 + 見逃しの損害 × qualityWeight）− 人間の時間（人日）× personDayValue。
+   * 見逃しの損害は、納品後の損害と修正の人件費（balance.score）
+   */
+  manager: {
+    /** 評価で人間の時間に掛ける原価（円/人日）。社員の平均的な原価 */
+    wage: 40_000,
+    /** 利益 / 人日 を上げるため、人間の時間（人日）を費用とは別に重く見る量（円/人日） */
+    personDayValue: 40_000,
+    human: {
+      /** 人間 PM は見逃しの損害を正しく見積もる */
+      qualityWeight: 1,
+      /** 評価のばらつき（各モードの評価に、−noise〜noise の一様乱数 × Task の作業量の人件費 を足す） */
+      noise: 0,
+      /**
+       * 人間 PM の稼働（人日に数える割合）。チームの作業をする社員1人あたり perMember（1人分が上限）。
+       * 給与は運営している間ずっと案件の運営の費用にかかる
+       */
+      perMember: 0.15,
+    },
+    ai: {
+      /** AI PM は見逃しの損害を軽く見る（品質要求の高い案件で見逃しが増える） */
+      qualityWeight: 0.15,
+      noise: 0.6,
+      /**
+       * AI PM の見落とし。AI PM が運営する案件の AI の作業は、Task の品質要求が qualityPivot を超えた分 × missPerQualityReq だけ成功確率が下がり、
+       * × accidentPerQualityReq の確率で事故（権限・Tool の誤用）が起きやすくなる。品質要求の低い案件には影響しない
+       */
+      qualityPivot: 0.7,
+      missPerQualityReq: 0.5,
+      accidentPerQualityReq: 0.2,
+      /** AI PM が案件を運営している間の AI 費用（円/分）と、運用者の Seat の使用量（/分） */
+      costPerMinute: 20,
+      usagePerMinute: 0.05,
+    },
   },
   /** 結果画面と振り返り（view/retrospective.ts・view/rank.ts） */
   result: {

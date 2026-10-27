@@ -23,6 +23,7 @@ export type FxSignalKind =
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
+  | 'companyPromoted'
   | 'unlock'
   | 'workflowSaved';
 
@@ -97,6 +98,7 @@ export type FxId =
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
+  | 'companyPromoted'
   | 'featureUnlocked'
   | 'workflowSaved';
 
@@ -227,6 +229,17 @@ export const fxTable: readonly FxDef[] = [
     parts: ['flash', 'cameraShake', 'rays', 'confetti', 'coinBurst', 'bigType', 'hitStop', 'actorExpression'],
     reducedAlternative: ['fadeBigType', 'actorExpression'],
     label: { key: 'projectComplete', tone: 'success' },
+    sfx: ['fanfare'],
+    expression: 'joy',
+  },
+  {
+    // 会社の規模の昇格（Phase 21）。新しく解放された要素は通知で案内する（ui/play/PlayScreen.tsx）
+    id: 'companyPromoted',
+    tier: 4,
+    signal: 'companyPromoted',
+    parts: ['flash', 'rays', 'confetti', 'coinBurst', 'bigType', 'actorExpression'],
+    reducedAlternative: ['fadeBigType', 'actorExpression'],
+    label: { key: 'companyPromoted', tone: 'accent' },
     sfx: ['fanfare'],
     expression: 'joy',
   },

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getHuman } from '../../src/content/index';
 import { type Command, reduce } from '../../src/core/commands';
+import { tierOf } from '../../src/core/company';
 import { dailyCost } from '../../src/core/formulas';
 import { scoreCompany } from '../../src/core/scoring';
 import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serialize';
@@ -49,16 +50,16 @@ describe('採用と退職（Hire / Release）', () => {
 
   it('人員の上限に達したら採用できず、社員の画面の採用ボタンも無効になる', () => {
     let s = fresh('cap');
-    while (Object.keys(s.team).length < balance.hire.maxStaff) {
-      s = hireAll(s, balance.hire.maxStaff - Object.keys(s.team).length);
+    while (Object.keys(s.team).length < tierOf(s).maxStaff) {
+      s = hireAll(s, tierOf(s).maxStaff - Object.keys(s.team).length);
       s = nextDay(s);
     }
-    expect(Object.keys(s.team)).toHaveLength(balance.hire.maxStaff);
+    expect(Object.keys(s.team)).toHaveLength(tierOf(s).maxStaff);
     const candidate = s.market.candidates[0] ?? '';
     expect(candidate).not.toBe('');
     expect(reduce(s, hireCmd(candidate)).state).toBe(s);
     expect(teamView(s).candidates.every((c) => c.hire === null)).toBe(true);
-    expect(teamView(s).headcount).toEqual({ count: balance.hire.maxStaff, max: balance.hire.maxStaff });
+    expect(teamView(s).headcount).toEqual({ count: tierOf(s).maxStaff, max: tierOf(s).maxStaff });
     // 1人退職すれば、また採用できる
     const released = reduce(s, releaseCmd('sato')).state;
     expect(reduce(released, hireCmd(candidate)).state.team[candidate]).toBeDefined();
@@ -112,12 +113,12 @@ describe('採用市場と給与', () => {
   it('営業日が変わると候補が入れ替わる（同じ seed なら同じ候補）', () => {
     const s = fresh('market');
     expect(s.market.day).toBe(0);
-    expect(s.market.candidates).toHaveLength(balance.hire.candidates);
+    expect(s.market.candidates).toHaveLength(tierOf(s).candidates);
     const mid = step(s, DAY / 2).state;
     expect(mid.market).toEqual(s.market);
     const next = nextDay(s);
     expect(next.market.day).toBe(1);
-    expect(next.market.candidates).toHaveLength(balance.hire.candidates);
+    expect(next.market.candidates).toHaveLength(tierOf(s).candidates);
     expect(next.market.candidates).not.toEqual(s.market.candidates);
     expect(nextDay(fresh('market')).market).toEqual(next.market);
   });
@@ -144,7 +145,8 @@ describe('採用市場と給与', () => {
 
 describe('セーブと再開', () => {
   it('採用した人材はセーブして再開しても同じ人で、候補・契約金もそのまま戻る', () => {
-    let s = hireAll(nextDay(hireAll(fresh('save'), 2)), 1);
+    // 5人まで採用できる規模で、4人の会社にしてからセーブする
+    let s = hireAll(nextDay(hireAll(createInitialState('save', { tier: 'startup' }), 2)), 1);
     s = reduce(s, releaseCmd('sato')).state;
     const loaded = deserialize(serialize(s));
     expect(loaded).toEqual(s);
@@ -179,7 +181,7 @@ describe('セーブと再開', () => {
     expect(loaded.team[id]).toEqual({ seat: 'premium', used: 3 });
     expect(loaded.humanQueues[id]).toHaveLength(1);
     expect(getHuman(id).id).toBe(id);
-    expect(loaded.market.candidates).toHaveLength(balance.hire.candidates);
+    expect(loaded.market.candidates).toHaveLength(tierOf(loaded).candidates);
     expect(loaded.hireCost).toBe(0);
     expect(loaded.idleCost).toBe(0);
   });

@@ -16,6 +16,7 @@ import {
 import { activeProjects, openInquiries } from '../core/board';
 import { scoreProject } from '../core/scoring';
 import type { GameState } from '../core/state';
+import { projectTeamBadge } from './teams';
 
 /** 案件のタブ（プレイ中の切り替え。3D では案件ごとのフロア） */
 export interface ProjectTabView {
@@ -26,6 +27,8 @@ export interface ProjectTabView {
   /** 完了した Task の割合（0〜1） */
   readonly progress: number;
   readonly selected: boolean;
+  /** 案件のチームと管理者の札（チームが直轄だけなら null） */
+  readonly team: string | null;
 }
 
 export interface ProjectTabsView {
@@ -50,6 +53,7 @@ export function projectTabs(state: GameState, current: string): ProjectTabsView 
       floor: i + 1,
       progress: doneRatio(state, projectId),
       selected: projectId === current,
+      team: projectTeamBadge(state, projectId),
     })),
     offers: openInquiries(state).length,
   };

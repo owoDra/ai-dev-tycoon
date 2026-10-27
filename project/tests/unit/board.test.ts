@@ -3,6 +3,7 @@ import { balance } from '../../src/content/balance';
 import { founders } from '../../src/content/staff';
 import { activeProjects, canStartProject, inquiriesOn, openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
+import { tierOf } from '../../src/core/company';
 import type { GameEvent } from '../../src/core/events';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -66,9 +67,9 @@ describe('案件ボードの進行（core/board.ts）', () => {
     // チュートリアルの間は採用できない
     expect(reduce(before, { type: 'Hire', staffId: candidate }).state).toBe(before);
     const { state: s, events } = afterTutorial();
-    const posted = inquiriesOn(s.seed, 0);
+    const posted = inquiriesOn(s.seed, 0, tierOf(s));
     expect(openInquiries(s)).toEqual(posted);
-    expect(posted).toHaveLength(balance.board.perDay);
+    expect(posted).toHaveLength(tierOf(s).inquiries);
     expect(events).toContainEqual({ type: 'InquiriesPosted', projectIds: posted });
     expect(events).toContainEqual({ type: 'FeatureUnlocked', feature: 'hire' });
     // 受注していない案件は直接始められない（コンペで受注する）

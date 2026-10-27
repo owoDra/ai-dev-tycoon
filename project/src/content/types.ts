@@ -554,3 +554,30 @@ export interface PracticeTemplateDef {
   readonly id: string;
   readonly job: PracticeJobInput;
 }
+
+/** 会社の規模の段階（balance.company.tiers の並びが昇格の順） */
+export type CompanyTierId = 'solo' | 'startup' | 'small' | 'mid' | 'large';
+
+/** 会社の規模の段階の定義（content/companyTiers.ts）。値は balance.company.tiers、名前は i18n */
+export interface CompanyTierDef {
+  readonly id: CompanyTierId;
+  readonly name: string;
+  /** 昇格の条件。累計の会社の利益（円）・評判・納品数のすべてを満たすと、この段階になる */
+  readonly requires: { readonly profit: number; readonly reputation: number; readonly delivered: number };
+  /** 人員の上限 */
+  readonly maxStaff: number;
+  /** AI Worker の上限 */
+  readonly maxAiWorkers: number;
+  /** チーム数の上限（直轄チームを含む） */
+  readonly maxTeams: number;
+  /** 管理者（人間 PM / AI PM）を置けるか */
+  readonly managers: boolean;
+  /** 営業日ごとに届く引き合いの数 */
+  readonly inquiries: number;
+  /** 引き合いに出る案件の規模の重み */
+  readonly sizes: Readonly<Record<ProjectSize, number>>;
+  /** 採用市場の候補の数 */
+  readonly candidates: number;
+  /** オフィスの固定費（円/営業日） */
+  readonly officeDaily: number;
+}

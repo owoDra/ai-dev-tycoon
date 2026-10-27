@@ -1,7 +1,8 @@
 import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
-import { aiWorkers, getHarnessPart, getHuman, getModel, getProject, getTask } from '../../content/index';
+import { getCompanyTier } from '../../content/companyTiers';
+import { findWorker, getHarnessPart, getHuman, getModel, getProject, getTask } from '../../content/index';
 import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
 import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
@@ -10,6 +11,7 @@ import { modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
 import { getIncidentDef } from '../../core/incidents';
 import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
+import { teamName } from '../../core/teams';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
@@ -19,8 +21,9 @@ import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
 import { defaultSaveMode, importPreview, libraryView, saveModes } from '../../view/library';
-import { defaultWorkerFor, workflowTasks } from '../../view/project';
+import { defaultWorkerFor, projectAgent, workflowTasks } from '../../view/project';
 import { teamView, usageWarning } from '../../view/team';
+import { promotionNotes, teamsView } from '../../view/teams';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
 import { keyAction, nextIsland } from '../keyboard';
@@ -179,6 +182,31 @@ export function PlayScreen(props: {
         if (e.type === 'StaffReleased') {
           notices.push({ text: ja.team.released(getHuman(e.staffId).name), icon: 'human', tone: 'neutral' });
         }
+        if (e.type === 'CompanyPromoted') {
+          const state = props.store.state();
+          const notes = promotionNotes(state, e.from);
+          notices.push({ text: ja.company.promoted(getCompanyTier(e.tier).name), icon: 'trophy', tone: 'success' });
+          for (const note of notes)
+            notices.push({ text: `${ja.unlocks.badge} ${note}`, icon: 'success', tone: 'success' });
+        }
+        if (e.type === 'TeamCreated') {
+          notices.push({
+            text: ja.teams.created(teamName(props.store.state(), e.teamId)),
+            icon: 'human',
+            tone: 'success',
+          });
+        }
+        if (e.type === 'AiWorkerAdded') {
+          notices.push({ text: ja.teams.agentAdded(findWorker(e.workerId)?.name ?? ''), icon: 'ai', tone: 'success' });
+        }
+        if (e.type === 'ManagerAssigned') {
+          const name = teamName(props.store.state(), e.teamId);
+          const text =
+            e.manager === null
+              ? ja.teams.managerRemoved(name)
+              : ja.teams.managerSet(name, e.manager === 'ai' ? ja.teams.aiPm : ja.teams.humanPm);
+          notices.push({ text, icon: e.manager === 'ai' ? 'ai' : 'human', tone: 'neutral' });
+        }
         if (e.type === 'InquiriesPosted' && e.projectIds.length > 0) {
           notices.push({ text: ja.board.posted(e.projectIds.length), icon: 'project', tone: 'neutral' });
         }
@@ -262,6 +290,7 @@ export function PlayScreen(props: {
   const [teamOpen, setTeamOpen] = createSignal(false);
   const teamOn = () => isUnlocked(props.store.state(), 'team') || isUnlocked(props.store.state(), 'hire');
   const team = createMemo(() => (teamOpen() ? teamView(props.store.state()) : null));
+  const teams = createMemo(() => (teamOpen() && props.store.state().board ? teamsView(props.store.state()) : null));
   const openTeam = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setContextOpen(false);
@@ -272,7 +301,7 @@ export function PlayScreen(props: {
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
-  const harnessWorker = () => aiWorkers[0]?.id ?? '';
+  const harnessWorker = () => projectAgent(props.store.state(), props.projectId);
   const harnessOn = () => isUnlocked(props.store.state(), 'harness');
   const harness = createMemo(() =>
     harnessOpen() && harnessOn() ? harnessView(props.store.state(), props.projectId, harnessWorker()) : null,
@@ -335,7 +364,7 @@ export function PlayScreen(props: {
       projectId: props.projectId,
       taskId,
       mode,
-      workerId: defaultWorkerFor(mode),
+      workerId: defaultWorkerFor(mode, props.store.state(), props.projectId),
     });
     notices.push({ text: ja.assign.assigned(getTask(props.projectId, taskId).name, ja.modes[mode]), icon: 'success' });
     if (!layout().flow.keepDetailAfterAssign) close();
@@ -521,6 +550,7 @@ export function PlayScreen(props: {
         {(v) => (
           <TeamSheet
             view={v()}
+            teams={teams()}
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}

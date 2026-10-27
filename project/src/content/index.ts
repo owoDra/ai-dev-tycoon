@@ -1,5 +1,6 @@
 import { generateProject } from '../core/projectGen';
 import { generateTalent } from '../core/talent';
+import { generateAgent } from '../core/teams';
 import { assignModes } from './assignModes';
 import { documents } from './documents';
 import { harnessParts } from './harness/index';
@@ -66,9 +67,12 @@ export function getTask(projectId: string, taskId: string): TaskDef {
   return t;
 }
 
-/** Worker の定義。採用市場で生成した人材（core/talent.ts の `h~` で始まる id）も、id から再生成して返す */
+/**
+ * Worker の定義。採用市場で生成した人材（core/talent.ts の `h~` で始まる id）と、増やした AI Worker（core/teams.ts の `ai~` で始まる id）も、
+ * id から再生成して返す
+ */
 export function findWorker(id: string): WorkerDef | undefined {
-  return content.workers.find((w) => w.id === id) ?? generateTalent(id);
+  return content.workers.find((w) => w.id === id) ?? generateTalent(id) ?? generateAgent(id);
 }
 
 export function getHuman(id: string): HumanWorkerDef {

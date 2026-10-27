@@ -20,6 +20,7 @@ const LABEL_ICON: Record<FxId, IconName> = {
   autoRepair: 'hook',
   autonomyStreak: 'automation',
   projectComplete: 'release',
+  companyPromoted: 'trophy',
   featureUnlocked: 'success',
   workflowSaved: 'workflow',
 };

@@ -5,6 +5,7 @@ import type { AssignModeId, Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
 import type { GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
+import { teamAgents, teamOfProject } from '../core/teams';
 import { ja } from '../i18n/ja';
 
 export type TaskStatusView = keyof typeof ja.project.status;
@@ -49,9 +50,16 @@ function statusOf(status: string | undefined, assigned: boolean, queued: boolean
 }
 
 /** モードを選んだときに既定で指名する Worker（モードの主な担い手の種類で最初の人） */
-export function defaultWorkerFor(mode: AssignModeId): string {
+export function defaultWorkerFor(mode: AssignModeId, state?: GameState, projectId?: string): string {
   const kind = primaryActor(getAssignMode(mode));
+  // AI が関わるモードは、案件のチームの AI Worker（いなければ会社の最初の AI Worker）
+  if (kind === 'ai' && state && projectId !== undefined) return projectAgent(state, projectId);
   return content.workers.find((w) => w.kind === kind)?.id ?? '';
+}
+
+/** 案件のチームの AI Worker（いなければ会社の最初の AI Worker）。Harness と Context の画面もこの AI Worker を見る */
+export function projectAgent(state: GameState, projectId: string): string {
+  return teamAgents(state, teamOfProject(state, projectId))[0] ?? state.agents[0] ?? '';
 }
 
 /** モードに合う Worker の候補。人間は会社にいる社員（team。既定は創業メンバー）だけ */

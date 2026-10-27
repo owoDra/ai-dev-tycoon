@@ -4,6 +4,7 @@ import { getAiWorker, getHuman, getProject, getTask } from '../content/index';
 import type { HarnessModifiers, ModeStep, TaskDef } from '../content/types';
 import { intervene } from './autonomy';
 import { rateDelivery } from './bidding';
+import { promote } from './company';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
 import { aiSuccessWithContext, aiWorkTime } from './contextWork';
 import {
@@ -28,7 +29,8 @@ import {
 import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
-import { humanSpeed, teamMembers } from './team';
+import { humanSpeed } from './team';
+import { isManager, oversight, teamOfProject, workingStaff } from './teams';
 import { forcedAiOutcome } from './tutorial';
 
 /*
@@ -70,14 +72,16 @@ export function aiActor(state: GameState, run: TaskRun, task: TaskDef): ActorPro
 }
 
 /**
- * AI の作業の成功確率。Model の能力に、Context（資料のある案件）・発生中の事件と Harness の補正を入れる。
+ * AI の作業の成功確率。Model の能力に、Context（資料のある案件）・発生中の事件と Harness の補正と、AI PM の見落とし（core/teams.ts）を入れる。
  */
 function aiSuccess(state: GameState, run: TaskRun, projectId: string, task: TaskDef): number {
   const p = successProbability(task, aiActor(state, run, task));
-  return harnessSuccess(
+  const q = harnessSuccess(
     aiSuccessWithContext(state, run.assignment?.workerId ?? '', projectId, task.id, p),
     runModifiers(state, run, task),
   );
+  const { miss } = oversight(state, projectId, task);
+  return miss > 0 ? Math.max(balance.success.min, q - miss) : q;
 }
 
 /** 今回の作業で、お願いの部品が守られるかを確率で決める（企画書14章）。お願いがなければ乱数を引かない */
@@ -96,12 +100,12 @@ function rollRequests(
 }
 
 /**
- * 人間の工程を誰に任せるか。人間だけのモードなら指名された人、それ以外は会社にいる社員のうち
- * 待ち行列の残り時間が最も短い人（同じなら、その Task が得意分野の人）
+ * 人間の工程を誰に任せるか。人間だけのモードなら指名された人、それ以外は案件のチームの作業をする社員（人間 PM を除く。
+ * いなければ PM 以外の会社の社員）のうち、待ち行列の残り時間が最も短い人（同じなら、その Task が得意分野の人）
  */
-function chooseHuman(state: GameState, run: TaskRun, task: TaskDef): string {
+function chooseHuman(state: GameState, projectId: string, run: TaskRun, task: TaskDef): string {
   const assigned = run.assignment?.workerId;
-  const team = teamMembers(state);
+  const team = humanPool(state, projectId).map(getHuman);
   if (assigned && team.some((h) => h.id === assigned)) return assigned;
   let best = team[0]?.id ?? '';
   let bestLoad = Number.POSITIVE_INFINITY;
@@ -119,6 +123,14 @@ function chooseHuman(state: GameState, run: TaskRun, task: TaskDef): string {
     }
   }
   return best;
+}
+
+/** 案件の人間の工程を担える社員。チームの作業をする社員で、いなければ人間 PM 以外の会社の社員（それもいなければ全員） */
+function humanPool(state: GameState, projectId: string): string[] {
+  const own = workingStaff(state, teamOfProject(state, projectId));
+  if (own.length > 0) return own;
+  const free = Object.keys(state.team).filter((id) => !isManager(state, id));
+  return free.length > 0 ? free : Object.keys(state.team);
 }
 
 function enqueue(state: GameState, humanId: string, projectId: string, taskId: string, front: boolean): GameState {
@@ -180,7 +192,7 @@ export function enterStep(
       evalLoops,
     }));
   }
-  const humanId = chooseHuman(state, run, task);
+  const humanId = chooseHuman(state, projectId, run, task);
   let remaining = stepMinutes(task, step, { kind: 'human', skill: humanSpeed(humanId, task) });
   // AI が関わる Task の指示出しと確認は、人間の介入（Autonomy Streak が途切れる）。Harness の補正で軽くなり（重くもなり）、
   // 人間の確認待ちの事件（Human Bottleneck）が起きていれば重くなる
@@ -330,9 +342,9 @@ function finishTestRepair(state: GameState, projectId: string, taskId: string, c
   return enterStep(next, projectId, taskId, run.stepIndex, ctx);
 }
 
-/** 事故（権限・Tool の誤用）を確率で起こす。起きたら作業は失敗扱いになり、損害はスコアで数える */
+/** 事故（権限・Tool の誤用）を確率で起こす（Harness の補正と AI PM の見落とし）。起きたら作業は失敗扱いになり、損害はスコアで数える */
 function rollAccident(state: GameState, run: TaskRun, projectId: string, task: TaskDef, ctx: SystemContext): GameState {
-  const risk = runModifiers(state, run, task).risk;
+  const risk = 1 - (1 - runModifiers(state, run, task).risk) * (1 - oversight(state, projectId, task).risk);
   if (risk <= 0 || !ctx.rng.chance(risk)) return state;
   ctx.emit({ type: 'HarnessAccident', projectId, taskId: task.id, workerId: run.assignment?.workerId ?? '' });
   return updateTask(state, projectId, task.id, (r) => ({
@@ -418,7 +430,7 @@ function completeTask(state: GameState, projectId: string, taskId: string, ctx: 
   if (project && Object.values(project.tasks).every((t) => t.status === 'done')) {
     next = { ...next, projects: { ...next.projects, [projectId]: { ...project, completedAt: state.clock } } };
     ctx.emit({ type: 'ProjectCompleted', projectId });
-    next = rateDelivery(next, projectId, ctx.emit);
+    next = promote(rateDelivery(next, projectId, ctx.emit), ctx.emit);
   }
   return next;
 }

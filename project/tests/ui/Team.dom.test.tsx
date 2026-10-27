@@ -49,8 +49,11 @@ function mount(state: GameState, projectId = P) {
 /** テスト（test）が得意な、採用した社員 */
 const [tester] = findTalents((h) => h.strengths.includes('test'), 1);
 
+/** 3人の会社。採用の余地があるよう、人員の上限が3人より多い規模で始める */
 function started(...projects: string[]): GameState {
-  const store = createGameStore(createInitialState('team-ui', { team: ['sato', 'suzuki', tester.id] }));
+  const store = createGameStore(
+    createInitialState('team-ui', { team: ['sato', 'suzuki', tester.id], tier: 'startup' }),
+  );
   for (const projectId of projects) store.dispatch({ type: 'StartProject', projectId });
   return store.state();
 }

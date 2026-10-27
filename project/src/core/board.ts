@@ -1,7 +1,8 @@
 import { balance } from '../content/balance';
 import { tutorialScript } from '../content/tutorial';
-import type { ProjectSize } from '../content/types';
+import type { CompanyTierDef, ProjectSize } from '../content/types';
 import { closeInquiries } from './bidding';
+import { tierOf } from './company';
 import type { GameEvent } from './events';
 import { generatedProjectId } from './projectGen';
 import { hashSeed, weighted } from './rng';
@@ -15,11 +16,10 @@ import { businessDay } from './team';
  * 届く案件は、ゲームの seed と営業日から決まる（state の乱数は使わない）。
  */
 
-const sizes = Object.entries(balance.board.sizes) as [ProjectSize, number][];
-
-/** その営業日に届く引き合いの案件の id */
-export function inquiriesOn(gameSeed: string, day: number): string[] {
-  return Array.from({ length: balance.board.perDay }, (_, i) => {
+/** その営業日に届く引き合いの案件の id（数と規模の分布は会社の規模で決まる） */
+export function inquiriesOn(gameSeed: string, day: number, tier: CompanyTierDef): string[] {
+  const sizes = Object.entries(tier.sizes) as [ProjectSize, number][];
+  return Array.from({ length: tier.inquiries }, (_, i) => {
     const key = `${gameSeed}:board:${day}:${i}`;
     const [size] = weighted(
       hashSeed(`${key}:size`),
@@ -58,7 +58,7 @@ export function postInquiries(state: GameState, emit: (e: GameEvent) => void): G
   const day = businessDay(state.clock);
   if (!board || state.tutorial !== null || board.day === day) return state;
   const closesAt = (day + balance.board.closeDays) * balance.project.minutesPerBusinessDay;
-  const projectIds = inquiriesOn(state.seed, day).filter(
+  const projectIds = inquiriesOn(state.seed, day, tierOf(state)).filter(
     (id) => !state.projects[id] && !board.inquiries.some((i) => i.projectId === id),
   );
   emit({ type: 'InquiriesPosted', projectIds });

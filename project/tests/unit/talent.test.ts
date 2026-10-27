@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { getCompanyTier } from '../../src/content/companyTiers';
+
+const SOLO = getCompanyTier('solo');
+
 import { balance } from '../../src/content/balance';
 import { findWorker, getHuman, getTask } from '../../src/content/index';
 import { talentRoles } from '../../src/content/talent';
@@ -101,9 +105,9 @@ describe('人材の生成（core/talent.ts）', () => {
   });
 
   it('採用市場の候補は、ゲームの seed と営業日から決まる', () => {
-    expect(marketCandidates('g', 3)).toEqual(marketCandidates('g', 3));
-    expect(marketCandidates('g', 3)).toHaveLength(balance.hire.candidates);
-    expect(marketCandidates('g', 3)).not.toEqual(marketCandidates('g', 4));
-    expect(marketCandidates('g', 3)).not.toEqual(marketCandidates('h', 3));
+    expect(marketCandidates('g', 3, SOLO.candidates)).toEqual(marketCandidates('g', 3, SOLO.candidates));
+    expect(marketCandidates('g', 3, SOLO.candidates)).toHaveLength(SOLO.candidates);
+    expect(marketCandidates('g', 3, SOLO.candidates)).not.toEqual(marketCandidates('g', 4, SOLO.candidates));
+    expect(marketCandidates('g', 3, SOLO.candidates)).not.toEqual(marketCandidates('h', 3, SOLO.candidates));
   });
 });

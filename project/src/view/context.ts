@@ -1,5 +1,5 @@
 import { artifactCovers, documentsOf, handoffItems } from '../content/documents';
-import { aiWorkers } from '../content/index';
+import { findWorker } from '../content/index';
 import type { ContextFeed, HandoffItemId, IncidentId } from '../content/types';
 import {
   type ContextReading,
@@ -14,6 +14,7 @@ import {
 } from '../core/context';
 import type { GameState } from '../core/state';
 import { isUnlocked } from '../core/unlocks';
+import { projectAgent } from './project';
 
 /** 資料のチェックリストの1行 */
 export interface DocumentRowView {
@@ -56,7 +57,7 @@ export interface ContextView {
  * 案件の AI Worker の Session を、案件全体の目で読み取る（readContext の taskId: null）。
  */
 export function contextView(state: GameState, projectId: string): ContextView | null {
-  const worker = aiWorkers[0];
+  const worker = findWorker(projectAgent(state, projectId));
   if (!worker || !contextApplies(projectId) || !isUnlocked(state, 'context')) return null;
   const session = getSession(state, worker.id);
   const reading = readContext(session, projectId, null);

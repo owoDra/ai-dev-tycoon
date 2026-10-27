@@ -116,9 +116,12 @@ export function generateTalent(id: string): HumanWorkerDef | undefined {
   return def;
 }
 
-/** 採用市場の、その営業日の候補の id（ゲームの seed と営業日から決まる。state の乱数は使わない） */
-export function marketCandidates(gameSeed: string, day: number): string[] {
-  return Array.from({ length: balance.hire.candidates }, (_, i) => talentId(shortSeed(`${gameSeed}:hire:${day}:${i}`)));
+/**
+ * 採用市場の、その営業日の候補の id（ゲームの seed と営業日から決まる。state の乱数は使わない）。
+ * count は会社の規模の候補の数で、増えても前の候補は同じまま
+ */
+export function marketCandidates(gameSeed: string, day: number, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => talentId(shortSeed(`${gameSeed}:hire:${day}:${i}`)));
 }
 
 /** チュートリアルなしで始めたときの最初の社員の id（速度と正確さが平均の人を、ゲームの seed から生成する） */

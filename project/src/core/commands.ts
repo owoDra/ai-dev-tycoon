@@ -14,8 +14,19 @@ import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
+import type { ManagerRun } from './state';
 import { createProjectRun, type GameState, updateTask } from './state';
 import { hire, inTeam, release, setSeat } from './team';
+import {
+  addAgent,
+  createTeam,
+  isManager,
+  moveMember,
+  moveProject,
+  projectDelegated,
+  setIntervened,
+  setManager,
+} from './teams';
 import { isAllowed } from './tutorial';
 import { isUnlocked } from './unlocks';
 
@@ -42,7 +53,8 @@ export type Command =
   | { readonly type: 'SetSeat'; readonly staffId: string; readonly seat: SeatId }
   /**
    * Task の担当を決める。依存が未完了でも先に決めておける。開始後は変更できない。
-   * workerId はモードの主な担い手（AI が関わるモードでは AI Worker）。人間の工程は空いている人が担う。
+   * workerId はモードの主な担い手（AI が関わるモードでは AI Worker）。人間の工程は案件のチームの空いている人が担う。
+   * 管理者に委任したチームの案件は、管理者の判断（by: 'manager'。core/manager.ts）だけが決められる
    */
   | {
       readonly type: 'AssignTask';
@@ -50,7 +62,20 @@ export type Command =
       readonly taskId: string;
       readonly mode: AssignModeId;
       readonly workerId: string;
+      readonly by?: 'manager';
     }
+  /** AI Worker を1つ増やす（会社の規模の上限まで）。直轄チームに入る */
+  | { readonly type: 'AddAiWorker' }
+  /** チームを作る（管理者を置ける規模から、チーム数の上限まで） */
+  | { readonly type: 'CreateTeam' }
+  /** 社員・AI Worker をチームに移す（teamId は core/teams.ts の DIRECT か、作ったチーム）。仕事を抱えていたら移せない */
+  | { readonly type: 'MoveMember'; readonly workerId: string; readonly teamId: string }
+  /** 進行中の案件をチームに割り当てる */
+  | { readonly type: 'MoveProject'; readonly projectId: string; readonly teamId: string }
+  /** チームの管理者を置く・替える（人間 PM はそのチームの社員）・外す（null） */
+  | { readonly type: 'SetManager'; readonly teamId: string; readonly manager: ManagerRun | null }
+  /** 委任したチームに介入する（一時的に直轄として担当を決める）・委任に戻す */
+  | { readonly type: 'Intervene'; readonly teamId: string; readonly on: boolean }
   /** チュートリアルをやめる。残りの機能をすべて解放し、案件はそのまま続ける */
   | { readonly type: 'SkipTutorial' }
   /** AI Worker の Session に渡す資料を決める（企画書10章）。pick の資料は、その AI Worker が作業する案件のもの */
@@ -149,9 +174,11 @@ function apply(state: GameState, command: Command): Transition {
       if (
         run?.status !== 'waiting' ||
         !mode ||
+        projectDelegated(state, command.projectId) !== (command.by === 'manager') ||
         !isUnlocked(state, modeFeature(mode.id)) ||
         worker?.kind !== primaryActor(mode) ||
-        (worker.kind === 'human' && !inTeam(state, worker.id))
+        (worker.kind === 'human' && (!inTeam(state, worker.id) || isManager(state, worker.id))) ||
+        (worker.kind === 'ai' && !state.agents.includes(worker.id))
       ) {
         return unchanged(state);
       }
@@ -179,6 +206,38 @@ function apply(state: GameState, command: Command): Transition {
       return next === state
         ? unchanged(state)
         : { state: next, events: [{ type: 'StaffReleased', staffId: command.staffId }] };
+    }
+    case 'AddAiWorker': {
+      const added = addAgent(state);
+      return added
+        ? { state: added.state, events: [{ type: 'AiWorkerAdded', workerId: added.workerId }] }
+        : unchanged(state);
+    }
+    case 'CreateTeam': {
+      const created = createTeam(state);
+      return created
+        ? { state: created.state, events: [{ type: 'TeamCreated', teamId: created.teamId }] }
+        : unchanged(state);
+    }
+    case 'MoveMember': {
+      const next = moveMember(state, command.workerId, command.teamId);
+      return next === state ? unchanged(state) : { state: next, events: [] };
+    }
+    case 'MoveProject': {
+      const next = moveProject(state, command.projectId, command.teamId);
+      return next === state ? unchanged(state) : { state: next, events: [] };
+    }
+    case 'SetManager': {
+      const next = setManager(state, command.teamId, command.manager);
+      if (next === state) return unchanged(state);
+      return {
+        state: next,
+        events: [{ type: 'ManagerAssigned', teamId: command.teamId, manager: command.manager?.kind ?? null }],
+      };
+    }
+    case 'Intervene': {
+      const next = setIntervened(state, command.teamId, command.on);
+      return next === state ? unchanged(state) : { state: next, events: [] };
     }
     case 'SetSeat': {
       const { staffId, seat } = command;
@@ -230,6 +289,7 @@ function apply(state: GameState, command: Command): Transition {
       const runs = taskIds.map((id) => state.projects[projectId]?.tasks[id]);
       if (
         taskIds.length < balance.assign.workflowMinTasks ||
+        projectDelegated(state, projectId) ||
         !isAi(workerId) ||
         !isUnlocked(state, modeFeature('agentWorkflow')) ||
         runs.some((r) => r?.status !== 'waiting')
@@ -252,6 +312,7 @@ function apply(state: GameState, command: Command): Transition {
     case 'ApplyLibraryWorkflow': {
       const { projectId, taskId, workflowId, workerId } = command;
       const workflow = findWorkflow(state, workflowId);
+      if (projectDelegated(state, projectId)) return unchanged(state);
       const applied = workflow && applyWorkflow(state, workflow, { projectId, taskId, workerId });
       if (!applied) return unchanged(state);
       const savedHumanHours = workerHumanHours(state, workerId) - workerHumanHours(applied.state, workerId);

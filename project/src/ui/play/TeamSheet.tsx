@@ -13,8 +13,10 @@ import type {
   TalentView,
   TeamView,
 } from '../../view/team';
+import type { TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
 import { ghostButton, Meter, panel, primaryButton } from '../parts';
+import { TeamsPanel } from './TeamsPanel';
 
 const t = ja.team;
 
@@ -43,6 +45,8 @@ export function SeatPreviewLine(props: { preview: SeatPreview }) {
  */
 export function TeamSheet(props: {
   view: TeamView;
+  /** チームと会社の規模（案件ボードのある会社だけ） */
+  teams?: TeamsView | null;
   layout: SheetLayout;
   bottom: number;
   viewHeight: number;
@@ -50,8 +54,9 @@ export function TeamSheet(props: {
   onClose: () => void;
 }) {
   let el!: HTMLElement;
-  const [tab, setTab] = createSignal<'members' | 'candidates'>('members');
+  const [tab, setTab] = createSignal<'members' | 'candidates' | 'teams'>('members');
   const showCandidates = () => props.view.hiring && tab() === 'candidates';
+  const showTeams = () => (props.teams ? tab() === 'teams' : false);
   onMount(() => {
     audio.play('panelOpen');
     onCleanup(() => audio.play('panelClose'));
@@ -85,7 +90,7 @@ export function TeamSheet(props: {
           {t.close}
         </button>
       </div>
-      <Show when={props.view.hiring}>
+      <Show when={props.view.hiring || props.teams}>
         <div role="tablist" aria-label={t.tabs} class="flex flex-wrap gap-1.5">
           <TabButton
             selected={tab() === 'members'}
@@ -94,32 +99,49 @@ export function TeamSheet(props: {
             label={t.membersTab(props.view.headcount.count, props.view.headcount.max)}
             onSelect={() => setTab('members')}
           />
-          <TabButton
-            selected={tab() === 'candidates'}
-            id="candidates"
-            icon="success"
-            label={t.candidatesTab(props.view.candidates.length)}
-            onSelect={() => setTab('candidates')}
-          />
+          <Show when={props.view.hiring}>
+            <TabButton
+              selected={tab() === 'candidates'}
+              id="candidates"
+              icon="success"
+              label={t.candidatesTab(props.view.candidates.length)}
+              onSelect={() => setTab('candidates')}
+            />
+          </Show>
+          <Show when={props.teams}>
+            <TabButton
+              selected={tab() === 'teams'}
+              id="teams"
+              icon="human"
+              label={ja.teams.tab}
+              onSelect={() => setTab('teams')}
+            />
+          </Show>
         </div>
       </Show>
-      <Show
-        when={showCandidates()}
-        fallback={
-          <ul class="flex flex-col gap-2">
-            <Index each={props.view.members}>
-              {(m) => <MemberCard member={m()} editable={props.view.editable} dispatch={props.dispatch} />}
-            </Index>
-          </ul>
-        }
-      >
-        <p class="text-xs font-bold text-ink-muted">{t.candidatesLead}</p>
-        <Show when={props.view.candidates.length > 0} fallback={<p class="text-sm text-ink-muted">{t.noCandidates}</p>}>
-          <ul class="flex flex-col gap-2">
-            <Index each={props.view.candidates}>
-              {(c) => <CandidateCard candidate={c()} dispatch={props.dispatch} />}
-            </Index>
-          </ul>
+      <Show when={showTeams() && props.teams}>{(v) => <TeamsPanel view={v()} dispatch={props.dispatch} />}</Show>
+      <Show when={!showTeams()}>
+        <Show
+          when={showCandidates()}
+          fallback={
+            <ul class="flex flex-col gap-2">
+              <Index each={props.view.members}>
+                {(m) => <MemberCard member={m()} editable={props.view.editable} dispatch={props.dispatch} />}
+              </Index>
+            </ul>
+          }
+        >
+          <p class="text-xs font-bold text-ink-muted">{t.candidatesLead}</p>
+          <Show
+            when={props.view.candidates.length > 0}
+            fallback={<p class="text-sm text-ink-muted">{t.noCandidates}</p>}
+          >
+            <ul class="flex flex-col gap-2">
+              <Index each={props.view.candidates}>
+                {(c) => <CandidateCard candidate={c()} dispatch={props.dispatch} />}
+              </Index>
+            </ul>
+          </Show>
         </Show>
       </Show>
       <dl class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">

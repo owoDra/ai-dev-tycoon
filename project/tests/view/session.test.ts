@@ -3,6 +3,7 @@ import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import { catchUp } from '../../src/core/away';
 import { openInquiries } from '../../src/core/board';
+import { tierOf } from '../../src/core/company';
 import { scoreCompany } from '../../src/core/scoring';
 import { step } from '../../src/core/step';
 import { activeProjectViews, daySummary, nextSteps, recapView } from '../../src/view/session';
@@ -56,7 +57,7 @@ describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
     expect(summary.active).toEqual([]);
     // 引き合いは営業日ごとに届き、見積を出さなければ締切まで残る
     const open = openInquiries(s).length;
-    expect(open).toBeGreaterThanOrEqual(balance.board.perDay);
+    expect(open).toBeGreaterThanOrEqual(tierOf(s).inquiries);
     expect(summary.next).toContainEqual({ kind: 'offer', count: open });
   });
 

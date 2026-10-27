@@ -4,11 +4,13 @@ import { bottleneckSystem } from './bottleneck';
 import type { GameEvent } from './events';
 import { humanQueueSystem } from './humanQueueSystem';
 import { incidentSystem } from './incidents';
+import { managerSystem } from './manager';
 import { progressSystem } from './progress';
 import type { RngCursor } from './rng';
 import type { GameState } from './state';
 import { taskSystem, taskUnlockSystem } from './taskSystem';
 import { marketSystem, seatSystem } from './team';
+import { managementSystem } from './teams';
 
 /** システム関数に渡す、1ステップ分の作業場所 */
 export interface SystemContext {
@@ -39,6 +41,10 @@ export const defaultSystems: readonly System[] = [
   marketSystem,
   // 締切を迎えた引き合いのコンペの結果を出す（受注した案件はこのステップから進む）
   boardSystem,
+  // 委任されたチームの管理者が、担当の決まっていない Task の担当を決める（Command を reduce に通す）
+  managerSystem,
+  // 管理者の運営の費用（人間 PM の稼働・AI PM の AI 費用と使用量）
+  managementSystem,
   // このステップで AI が処理する分を、工程が終わって人間に回る前に数える
   autonomySystem,
   taskSystem,

@@ -36,6 +36,17 @@ export function ProjectTabs(props: {
               <Icon name="project" class="text-lg" />
               <span class={`truncate ${props.compact ? 'max-w-28' : 'max-w-40'}`}>{tab.name}</span>
               <span class="text-[11px] text-ink-muted tabular-nums">{ja.score.percent(tab.progress)}</span>
+              <Show when={tab.team}>
+                {(team) => (
+                  <span
+                    class="flex items-center gap-0.5 rounded border-2 border-line bg-surface px-1 text-[11px]"
+                    data-tab-team
+                  >
+                    <Icon name="human" />
+                    {team()}
+                  </span>
+                )}
+              </Show>
             </button>
           )}
         </For>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
+import { getCompanyTier } from '../../src/content/companyTiers';
 import { getHuman } from '../../src/content/index';
 import type { HumanWorkerDef } from '../../src/content/types';
 import { scoreCompany } from '../../src/core/scoring';
@@ -83,7 +84,9 @@ describe('人材の売値の分布', () => {
   });
 
   it('毎日の採用市場には、安い人と高い人が混ざる（同じ単価の候補ばかりにならない）', () => {
-    const days = Array.from({ length: 200 }, (_, d) => marketCandidates('market-balance', d).map(getHuman));
+    const days = Array.from({ length: 200 }, (_, d) =>
+      marketCandidates('market-balance', d, getCompanyTier('solo').candidates).map(getHuman),
+    );
     const spread = days.map((c) => Math.max(...c.map((h) => h.dailyRate)) - Math.min(...c.map((h) => h.dailyRate)));
     expect(mean(spread)).toBeGreaterThan(10_000);
   });

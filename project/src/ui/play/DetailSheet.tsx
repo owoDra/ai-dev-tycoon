@@ -5,6 +5,7 @@ import { balance } from '../../content/balance';
 import type { SheetLayout } from '../../content/look/layout';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature } from '../../content/unlocks';
+import { projectDelegated } from '../../core/teams';
 import { isUnlocked } from '../../core/unlocks';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -156,7 +157,13 @@ export function DetailSheet(props: {
           </button>
         )}
       </Show>
-      <Show when={d().row}>
+      <Show when={d().row && projectDelegated(props.store.state(), props.projectId)}>
+        <p class="flex items-center gap-1.5 text-sm font-bold text-ink-muted" data-delegated>
+          <Icon name="automation" />
+          {ja.teams.managedByPm}
+        </p>
+      </Show>
+      <Show when={!projectDelegated(props.store.state(), props.projectId) && d().row}>
         {(row) => (
           <AssignCards
             store={props.store}

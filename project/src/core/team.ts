@@ -1,10 +1,12 @@
 import { balance } from '../content/balance';
-import { aiWorkers, findWorker, getHuman } from '../content/index';
+import { findWorker, getHuman } from '../content/index';
 import { getSeat } from '../content/seats';
 import type { HumanWorkerDef, SeatDef, SeatId, TaskDef } from '../content/types';
+import { tierOf } from './company';
 import type { GameState, StaffRun } from './state';
 import type { System } from './system';
 import { marketCandidates } from './talent';
+import { dropMember, isAgentId, staffBusy, teamOfWorker, teamOperator } from './teams';
 
 /*
  * 社員と Seat（企画書6章）・採用市場。AI Worker の使用量は運用者の Seat の上限から消費し、上限を超えると AI Worker が遅くなる。
@@ -26,19 +28,22 @@ export function seatOf(state: GameState, staffId: string): SeatDef {
 }
 
 /**
- * AI Worker を運用する社員。定義の運用者が会社にいなければ（退職した・チュートリアルなしで始めた）、最初に入社した社員が運用する。
+ * AI Worker を運用する社員。定義の運用者が会社にいなければ（退職した・チュートリアルなしで始めた）、AI Worker のチームの最初の社員
+ * （いなければ会社の最初の社員）が運用する。増やした AI Worker（core/teams.ts）は、そのチームの最初の社員が運用する。
  * 運用者のない AI Worker・社員がいなければ null で、使用量の上限はない
  */
 export function operatorOf(state: GameState, workerId: string): string | null {
   const w = findWorker(workerId);
-  const op = w?.kind === 'ai' ? w.operatorId : undefined;
-  if (op === undefined) return null;
-  return inTeam(state, op) ? op : (Object.keys(state.team)[0] ?? null);
+  if (w?.kind !== 'ai') return null;
+  const op = w.operatorId;
+  if (op === undefined && !isAgentId(w.id)) return null;
+  if (op !== undefined && inTeam(state, op)) return op;
+  return teamOperator(state, teamOfWorker(state, workerId));
 }
 
 /** 社員が運用している AI Worker の id */
 export function operatedWorkers(state: GameState, staffId: string): string[] {
-  return aiWorkers.filter((w) => operatorOf(state, w.id) === staffId).map((w) => w.id);
+  return state.agents.filter((id) => operatorOf(state, id) === staffId);
 }
 
 /** Seat の1営業日あたりの固定費（円）。月額を日割りにする */
@@ -99,8 +104,8 @@ export function signingFee(staffId: string): number {
   return getHuman(staffId).dailyRate * balance.hire.signingDays;
 }
 
-/** 人員の上限に達しているか */
-export const teamFull = (state: GameState) => Object.keys(state.team).length >= balance.hire.maxStaff;
+/** 人員の上限（会社の規模で決まる）に達しているか */
+export const teamFull = (state: GameState) => Object.keys(state.team).length >= tierOf(state).maxStaff;
 
 /** 採用できない理由。採用できるなら null */
 export function hireBlock(state: GameState, staffId: string): 'notCandidate' | 'full' | null {
@@ -122,22 +127,15 @@ export function hire(state: GameState, staffId: string): GameState {
 export function releaseBlock(state: GameState, staffId: string): 'notMember' | 'busy' | 'last' | null {
   if (!inTeam(state, staffId)) return 'notMember';
   if (Object.keys(state.team).length <= 1) return 'last';
-  const busy =
-    (state.humanQueues[staffId]?.length ?? 0) > 0 ||
-    Object.values(state.projects).some((p) =>
-      Object.values(p.tasks).some(
-        (t) => t.status !== 'done' && (t.humanId === staffId || t.assignment?.workerId === staffId),
-      ),
-    );
-  return busy ? 'busy' : null;
+  return staffBusy(state, staffId) ? 'busy' : null;
 }
 
-/** 退職させる。退職できなければ state をそのまま返す */
+/** 退職させる（チームからも外れ、人間 PM だったらそのチームの管理者もいなくなる）。退職できなければ state をそのまま返す */
 export function release(state: GameState, staffId: string): GameState {
   if (releaseBlock(state, staffId) !== null) return state;
   const { [staffId]: _run, ...team } = state.team;
   const { [staffId]: _queue, ...humanQueues } = state.humanQueues;
-  return { ...state, team, humanQueues };
+  return dropMember({ ...state, team, humanQueues }, staffId);
 }
 
 /** 人間の工程の速さ。skill に、得意分野の Task なら balance.staff.strengthSpeed を掛ける */
@@ -160,8 +158,8 @@ export const companyOpen = (state: GameState) =>
   Object.values(state.projects).some((p) => p.completedAt === null);
 
 /**
- * Seat の経済。営業日が変わったら使用量を 0 に戻し、会社が営業していれば Seat の固定費を日割りで計上する
- * （単発のプレイとチュートリアルでは案件の合間は計上しない）。待機中の社員の給与は、人間の待ち行列の処理（core/humanQueueSystem.ts）が数える
+ * Seat とオフィスの経済。営業日が変わったら使用量を 0 に戻し、会社が営業していれば Seat の固定費とオフィスの固定費（会社の規模で決まる）を
+ * 日割りで計上する（単発のプレイとチュートリアルでは案件の合間は計上しない）。待機中の社員の給与は、人間の待ち行列の処理（core/humanQueueSystem.ts）が数える
  */
 export const seatSystem: System = (state) => {
   let next = state;
@@ -171,14 +169,15 @@ export const seatSystem: System = (state) => {
     next = { ...next, team, usageDay: day };
   }
   if (!companyOpen(next)) return next;
-  const cost = (teamDailyCost(next) * balance.time.tickMinutes) / balance.project.minutesPerBusinessDay;
-  return { ...next, seatCost: next.seatCost + cost };
+  const perTick = balance.time.tickMinutes / balance.project.minutesPerBusinessDay;
+  const office = tierOf(next).officeDaily * perTick;
+  return { ...next, seatCost: next.seatCost + teamDailyCost(next) * perTick, officeCost: next.officeCost + office };
 };
 
-/** 採用市場。営業日が変わったら、その日の候補に入れ替える */
+/** 採用市場。営業日が変わったら、その日の候補（数は会社の規模で決まる）に入れ替える */
 export const marketSystem: System = (state) => {
   const day = businessDay(state.clock);
   if (day === state.market.day) return state;
-  const candidates = marketCandidates(state.seed, day).filter((id) => !inTeam(state, id));
+  const candidates = marketCandidates(state.seed, day, tierOf(state).candidates).filter((id) => !inTeam(state, id));
   return { ...state, market: { day, candidates } };
 };

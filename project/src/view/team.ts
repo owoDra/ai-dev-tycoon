@@ -1,8 +1,9 @@
 import { balance } from '../content/balance';
-import { aiWorkers, getHuman, getModel } from '../content/index';
+import { getHuman, getModel } from '../content/index';
 import { seats } from '../content/seats';
 import type { HumanWorkerDef, SeatId } from '../content/types';
 import type { Command } from '../core/commands';
+import { tierOf } from '../core/company';
 import { dailyCost } from '../core/formulas';
 import { harnessOf } from '../core/harness';
 import type { GameState } from '../core/state';
@@ -165,8 +166,8 @@ export function teamView(state: GameState): TeamView {
       hire: hiring && hireBlock(state, id) === null ? { type: 'Hire', staffId: id } : null,
     };
   });
-  const agent = aiWorkers[0];
-  const model = agent ? getModel(harnessOf(state, agent.id).modelId) : null;
+  const agent = state.agents[0];
+  const model = agent ? getModel(harnessOf(state, agent).modelId) : null;
   return {
     members,
     monthlyTotal: members.reduce((sum, m) => sum + m.monthlyCost, 0),
@@ -174,7 +175,7 @@ export function teamView(state: GameState): TeamView {
     model: model ? { name: model.name, usagePerMinute: model.usagePerMinute } : null,
     hiring,
     candidates,
-    headcount: { count: members.length, max: balance.hire.maxStaff },
+    headcount: { count: members.length, max: tierOf(state).maxStaff },
     payroll: members.reduce((sum, m) => sum + m.dailyCost, 0),
   };
 }

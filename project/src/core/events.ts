@@ -1,5 +1,13 @@
 import type { GameSpeed } from '../content/balance';
-import type { AssignModeId, FeatureId, HandoffItemId, IncidentId, SeatId, TermId } from '../content/types';
+import type {
+  AssignModeId,
+  CompanyTierId,
+  FeatureId,
+  HandoffItemId,
+  IncidentId,
+  SeatId,
+  TermId,
+} from '../content/types';
 import type { BottleneckRef } from './bottleneck';
 
 /**
@@ -77,6 +85,14 @@ export type GameEvent =
       readonly reputation: number;
     }
   /** Workflow Library に Workflow を保存した（オフィスのライブラリ棚にバインダーが1冊増える） */
+  /** 会社の規模が昇格した（core/company.ts）。Tier 4 の演出と、新しく解放された要素の案内 */
+  | { readonly type: 'CompanyPromoted'; readonly from: CompanyTierId; readonly tier: CompanyTierId }
+  /** AI Worker を増やした */
+  | { readonly type: 'AiWorkerAdded'; readonly workerId: string }
+  /** チームを作った */
+  | { readonly type: 'TeamCreated'; readonly teamId: string }
+  /** チームの管理者を置いた・替えた・外した（null） */
+  | { readonly type: 'ManagerAssigned'; readonly teamId: string; readonly manager: 'human' | 'ai' | null }
   | { readonly type: 'WorkflowSaved'; readonly workflowId: string }
   /**
    * Workflow Library の Workflow を Task に適用した。skipped はまだ解放されていないので付けなかった部品。

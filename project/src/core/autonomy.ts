@@ -1,5 +1,4 @@
 import { balance } from '../content/balance';
-import { aiWorkers } from '../content/index';
 import type { AutonomyRun, GameState } from './state';
 import type { System, SystemContext } from './system';
 import { isAiWorking } from './taskFlow';
@@ -82,8 +81,8 @@ function advance(state: GameState, workerId: string, ctx: SystemContext): GameSt
 /** AI Worker が仕事を処理している間、Streak を伸ばす */
 export const autonomySystem: System = (state, ctx) => {
   let next = state;
-  for (const w of aiWorkers) {
-    if (isWorking(next, w.id)) next = advance(next, w.id, ctx);
+  for (const id of state.agents) {
+    if (isWorking(next, id)) next = advance(next, id, ctx);
   }
   return next;
 };

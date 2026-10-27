@@ -22,6 +22,7 @@ import { hashSeed } from '../core/rng';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
 import { humanSpeed, teamMembers } from '../core/team';
+import { teamOfProject, teamStaff } from '../core/teams';
 import { ja } from '../i18n/ja';
 import { conveyorId, EXIT_ID } from '../world/layout';
 import { type TaskStatusView, taskRows } from './project';
@@ -316,27 +317,31 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
 
   // キャラクター
   const projectDone = run?.completedAt !== null && run?.completedAt !== undefined;
-  // 人は案件をまたいで共有するので、どのフロアにも会社の全員を出す（別のフロアの仕事中は休憩所に立つ）
-  const actors: ActorView[] = teamMembers(state).map((h) => {
-    const queue = state.humanQueues[h.id] ?? [];
-    const head = queue[0]?.projectId === projectId ? queue[0] : undefined;
-    const id = humanActorId(h.id);
-    const working = head !== undefined;
-    const crowded = queue.length >= 2 || flagged(id);
-    const expression: Expression = projectDone ? 'joy' : crowded ? 'trouble' : working ? 'focus' : 'normal';
-    return {
-      id,
-      kind: 'human',
-      model: humanModelOf(h.id),
-      label: h.name,
-      islandId: head ? islandId(head.taskId) : null,
-      activity: projectDone ? 'cheer' : working ? 'work' : 'idle',
-      expression,
-      bottleneck: strengthOf(id),
-      isBottleneck: flagged(id),
-      gear: NO_GEAR,
-    };
-  });
+  // 人は案件をまたいで共有するので、どのフロアにも会社の全員を出す（別のフロアの仕事中は休憩所に立つ）。
+  // チームを分けたら、案件のチームのメンバーだけを出す（チームごとに島と人をまとめて見せる）
+  const crew = state.teams.length > 0 ? teamStaff(state, teamOfProject(state, projectId)) : null;
+  const actors: ActorView[] = teamMembers(state)
+    .filter((h) => crew === null || crew.includes(h.id))
+    .map((h) => {
+      const queue = state.humanQueues[h.id] ?? [];
+      const head = queue[0]?.projectId === projectId ? queue[0] : undefined;
+      const id = humanActorId(h.id);
+      const working = head !== undefined;
+      const crowded = queue.length >= 2 || flagged(id);
+      const expression: Expression = projectDone ? 'joy' : crowded ? 'trouble' : working ? 'focus' : 'normal';
+      return {
+        id,
+        kind: 'human',
+        model: humanModelOf(h.id),
+        label: h.name,
+        islandId: head ? islandId(head.taskId) : null,
+        activity: projectDone ? 'cheer' : working ? 'work' : 'idle',
+        expression,
+        bottleneck: strengthOf(id),
+        isBottleneck: flagged(id),
+        gear: NO_GEAR,
+      };
+    });
   if (run) {
     for (const task of def.tasks) {
       const t = run.tasks[task.id];

@@ -94,6 +94,8 @@ export function FxPreview() {
           return { kind: 'autonomyStreak', entityId: null, amount: SAMPLE_STREAK_MINUTES };
         case 'projectComplete':
           return { kind: 'projectComplete', entityId: null };
+        case 'companyPromoted':
+          return { kind: 'companyPromoted', entityId: null };
         case 'featureUnlocked':
           return { kind: 'unlock', entityId: null };
         case 'workflowSaved':

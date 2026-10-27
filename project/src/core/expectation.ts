@@ -1,6 +1,6 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
-import { aiWorkers, findWorker, getProject } from '../content/index';
+import { findWorker, getProject } from '../content/index';
 import type { AssignModeDef, HarnessModifiers, ModelDef, TaskDef } from '../content/types';
 import {
   aiCostFactor,
@@ -89,7 +89,7 @@ export function expectTask(
   skill: number,
 ): TaskExpectation {
   const isAi = findWorker(workerId)?.kind === 'ai';
-  const aiId = isAi ? workerId : (aiWorkers[0]?.id ?? '');
+  const aiId = isAi ? workerId : (state.agents[0] ?? '');
   const mods: HarnessModifiers = isAi ? harnessModifiers(state, workerId, task, { expected: true }) : NEUTRAL;
   const model: ModelDef = harnessModel(state, aiId, mods);
   const safe = 1 - mods.risk;

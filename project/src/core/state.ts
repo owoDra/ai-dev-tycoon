@@ -1,9 +1,11 @@
 import { balance, type GameSpeed } from '../content/balance';
+import { companyTiers, getCompanyTier } from '../content/companyTiers';
 import { glossary } from '../content/glossary';
 import { aiWorkers, getHuman, getProject } from '../content/index';
 import { founders } from '../content/staff';
 import type {
   AssignModeId,
+  CompanyTierId,
   ContextFeed,
   ContextStatId,
   FeatureId,
@@ -95,6 +97,34 @@ export interface ProjectRun {
   readonly deadlineDays: number;
   /** TaskDef の並び順で持つ */
   readonly tasks: Readonly<Record<string, TaskRun>>;
+  /** 管理者がこの案件の運営に使った分（core/teams.ts の managementSystem）。人間 PM の稼働は人日に数える */
+  readonly management: ManagementRun;
+}
+
+/** 管理者の運営の記録。人間 PM の稼働時間（分）と人件費、AI PM の AI 費用（円） */
+export interface ManagementRun {
+  readonly minutes: number;
+  readonly laborCost: number;
+  readonly aiCost: number;
+}
+
+/** チームの管理者。人間 PM はチームの社員を1人任命する。AI PM は運用者の Seat の使用量と AI 費用を使う */
+export type ManagerRun = { readonly kind: 'human'; readonly staffId: string } | { readonly kind: 'ai' };
+
+/**
+ * 直轄以外のチーム（core/teams.ts）。どのチームにも入っていない社員・AI Worker・案件は直轄チーム（プレイヤーが直接操作する）に属する
+ */
+export interface TeamRun {
+  readonly id: string;
+  /** 作った順の番号（表示名に使う。直轄チームが 1） */
+  readonly no: number;
+  /** 所属する社員と AI Worker の id */
+  readonly members: readonly string[];
+  /** 割り当てた案件の id */
+  readonly projects: readonly string[];
+  readonly manager: ManagerRun | null;
+  /** プレイヤーが介入して、一時的に直轄として担当を決めている（管理者は判断しない） */
+  readonly intervened: boolean;
 }
 
 /** 会社にいる社員の Seat と、今日の AI の使用量 */
@@ -271,6 +301,14 @@ export interface GameState {
   readonly board: BoardRun | null;
   /** 会社の評判（balance.reputation の 0〜100）。納品のたびに納期と品質で変わり、コンペの提案力になる */
   readonly reputation: number;
+  /** 会社の規模の段階（content/companyTiers.ts）。納品のたびに昇格の条件を判定する（core/company.ts） */
+  readonly tier: CompanyTierId;
+  /** 日割りで計上したオフィスの固定費の合計（円）。会社の費用なので会社のスコアで引く */
+  readonly officeCost: number;
+  /** 会社にいる AI Worker の id（加えた順。先頭は content/workers.ts の AI Worker、後は core/teams.ts で生成した id） */
+  readonly agents: readonly string[];
+  /** 直轄以外のチーム（作った順） */
+  readonly teams: readonly TeamRun[];
   /** Workflow Library にプレイヤーが保存した Workflow（保存した順。同梱のプリセットは content/library.ts） */
   readonly library: readonly LibraryWorkflowDef[];
   /** Workflow を Task に適用した記録（適用した順。同じ Task に適用し直したら古い記録は消す） */
@@ -289,6 +327,8 @@ export interface InitialStateOptions {
   readonly team?: readonly string[];
   /** 最初の社員を、平均的な能力の人材として seed から生成する（チュートリアルなしで始めるとき）。team より優先する */
   readonly talent?: boolean;
+  /** 会社の規模の段階。既定は最初の段階 */
+  readonly tier?: CompanyTierId;
 }
 
 /**
@@ -299,6 +339,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
   const isBoard = options.board === true;
   const tutorial = options.tutorial ?? isBoard;
   const team = options.talent ? initialTalent(seed) : (options.team ?? founders);
+  const tier = options.tier ?? companyTiers[0]?.id ?? 'solo';
   return {
     seed,
     rng: hashSeed(seed),
@@ -324,11 +365,15 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     team: createTeam(team),
     usageDay: 0,
     seatCost: 0,
-    market: { day: 0, candidates: marketCandidates(seed, 0) },
+    market: { day: 0, candidates: marketCandidates(seed, 0, getCompanyTier(tier).candidates) },
     hireCost: 0,
     idleCost: 0,
     board: isBoard ? { day: null, inquiries: [], results: [] } : null,
     reputation: balance.reputation.initial,
+    tier,
+    officeCost: 0,
+    agents: aiWorkers.map((w) => w.id),
+    teams: [],
     library: [],
     libraryUses: [],
   };
@@ -366,7 +411,8 @@ export function createProjectRun(
   const def = getProject(projectId);
   const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
   const { revenue, deadlineDays } = terms ?? def;
-  return { projectId, startedAt: clock, completedAt: null, revenue, deadlineDays, tasks };
+  const management = { minutes: 0, laborCost: 0, aiCost: 0 };
+  return { projectId, startedAt: clock, completedAt: null, revenue, deadlineDays, tasks, management };
 }
 
 export function createTaskRun(): TaskRun {

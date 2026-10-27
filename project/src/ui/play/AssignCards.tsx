@@ -42,7 +42,7 @@ export function AssignCards(props: {
       projectId: props.projectId,
       taskId: props.row.id,
       mode,
-      workerId: defaultWorkerFor(mode),
+      workerId: defaultWorkerFor(mode, props.store.state(), props.projectId),
     });
   const [preview, setPreview] = createSignal<AssignModeId | null>(null);
   const [touch, setTouch] = createSignal(false);

@@ -14,7 +14,15 @@ import {
   stepMinutes,
   successProbability,
 } from './formulas';
-import { evalMinutes, harnessModel, harnessModifiers, harnessSuccess, harnessToolMiss, requestParts } from './harness';
+import {
+  evalMinutes,
+  harnessModel,
+  harnessModifiers,
+  harnessOf,
+  harnessSuccess,
+  harnessToolMiss,
+  requestParts,
+} from './harness';
 import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
@@ -151,11 +159,15 @@ export function enterStep(
     let next = step.phase === 'work' ? rollRequests(state, projectId, taskId, task, ctx) : state;
     const current = runOf(next, projectId, taskId);
     let remaining = stepMinutes(task, step, aiActor(next, current, task));
+    let setup = current.setup;
     if (step.phase === 'work') {
-      next = rollIncidents(next, 'aiWork', run.assignment.workerId, projectId, taskId, ctx);
+      // 寄与の分析のために、作業を始めたときの構成を記録する（core/attribution.ts）
+      const workerId = run.assignment.workerId;
+      setup = { harness: harnessOf(next, workerId), session: getSession(next, workerId) };
+      next = rollIncidents(next, 'aiWork', workerId, projectId, taskId, ctx);
       remaining = contextWorkMinutes(next, current, projectId, task, remaining, ctx);
     }
-    return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining }));
+    return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining, setup }));
   }
   const humanId = chooseHuman(state, run, task);
   let remaining = stepMinutes(task, step, { kind: 'human', skill: humanSpeed(humanId, task) });

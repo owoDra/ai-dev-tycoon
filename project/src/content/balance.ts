@@ -166,6 +166,20 @@ export const balance = {
     /** 得意分野の Task の人間の工程の速度の倍率 */
     strengthSpeed: 1.25,
   },
+  /** 結果画面と振り返り（view/retrospective.ts・view/rank.ts） */
+  result: {
+    /**
+     * ランク（S / A / B / C）。Profit / Human Hour が、人間だけで進めた場合の見込みの何倍になったかの下限（上から順に判定）。
+     * 納品していない・利益が出ていなければ C
+     */
+    rank: { S: 3, A: 2, B: 1.3 },
+    /** 振り返りで「それが無かった場合」を再シミュレーションする改善の数（寄与の大きい順） */
+    counterfactualTop: 2,
+    /** 再シミュレーションで、Task ごとに seed を変えて平均する回数 */
+    counterfactualSamples: 6,
+    /** この大きさ（円換算）に満たない寄与は、振り返りのカードに出さない */
+    minCardValue: 500,
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

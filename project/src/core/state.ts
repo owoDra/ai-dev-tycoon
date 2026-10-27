@@ -69,6 +69,17 @@ export interface TaskRun {
   readonly accidents: number;
   /** AI が関わる Task で人間が介入した（指示出し・確認・手戻りの工程に入った）回数 */
   readonly interventions: number;
+  /** AI が作業したときの AI Worker の構成（寄与の分析に使う。core/attribution.ts）。AI が作業していなければ null */
+  readonly setup: TaskSetup | null;
+}
+
+/**
+ * AI の作業を始めたときの AI Worker の構成（Harness と Session）。作業のたびに記録し直すので、最後の作業の構成が残る。
+ * 発生中の事件は一時的なものなので含めない
+ */
+export interface TaskSetup {
+  readonly harness: HarnessRun;
+  readonly session: SessionRun;
 }
 
 export interface ProjectRun {
@@ -321,6 +332,7 @@ export function createTaskRun(): TaskRun {
     evalLoops: 0,
     accidents: 0,
     interventions: 0,
+    setup: null,
   };
 }
 

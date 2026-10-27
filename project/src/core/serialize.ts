@@ -4,7 +4,7 @@ import { allFeatures } from '../content/unlocks';
 import { createHumanQueues, createSessions, createTeam, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -40,28 +40,28 @@ export const MIGRATIONS: readonly Migration[] = [
     from: 6,
     migrate: (s) => ({ ...(s as object), team: createTeam(campaign.team), usageDay: 0, seatCost: 0, campaign: null }),
   },
+  // v8: Task に AI の作業の構成（寄与の分析用）を追加（Phase 14）。以前の Task は記録なし
+  { from: 7, migrate: (s) => mapTasks(s as V4State, (t) => ({ ...t, setup: null })) },
 ];
 
 interface V4State {
   readonly projects: Readonly<Record<string, { readonly tasks: Readonly<Record<string, object>> }>>;
 }
 
-function migrateHarness(s: V4State): unknown {
+/** すべての案件の Task を fn で変換する */
+function mapTasks<S extends V4State>(s: S, fn: (task: object) => object): S {
   const projects = Object.fromEntries(
     Object.entries(s.projects).map(([id, p]) => [
       id,
-      {
-        ...p,
-        tasks: Object.fromEntries(
-          Object.entries(p.tasks).map(([tid, t]) => [
-            tid,
-            { ...t, skipped: [], evalLoops: 0, accidents: 0, interventions: 0 },
-          ]),
-        ),
-      },
+      { ...p, tasks: Object.fromEntries(Object.entries(p.tasks).map(([tid, t]) => [tid, fn(t)])) },
     ]),
   );
-  return { ...s, projects, harnesses: {}, ownedParts: [], harnessLedger: [] };
+  return { ...s, projects };
+}
+
+function migrateHarness(s: V4State): unknown {
+  const next = mapTasks(s, (t) => ({ ...t, skipped: [], evalLoops: 0, accidents: 0, interventions: 0 }));
+  return { ...next, harnesses: {}, ownedParts: [], harnessLedger: [] };
 }
 
 interface SaveData {

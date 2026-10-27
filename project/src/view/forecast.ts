@@ -52,42 +52,11 @@ export function forecastTask(state: GameState, projectId: string, taskId: string
   if (hit) return hit;
 
   const workerId = content.workers.find((w) => w.kind === primaryActor(getAssignMode(mode)))?.id ?? '';
-  const horizon = deadlineMinutes(def);
   let humanMinutes = 0;
   let aiCost = 0;
   let quality = 0;
   for (let i = 0; i < SAMPLES; i++) {
-    const tasks: ProjectRun['tasks'] = Object.fromEntries(
-      def.tasks.map((t) => {
-        const fresh = createTaskRun();
-        if (!task.deps.includes(t.id)) return [t.id, fresh];
-        // 前の Task は完了済み（担当は今のまま）として扱う
-        const done: TaskRun = {
-          ...fresh,
-          assignment: run?.tasks[t.id]?.assignment ?? null,
-          status: 'done',
-          quality: 1,
-          completedAt: 0,
-        };
-        return [t.id, done];
-      }),
-    );
-    let s: GameState = {
-      ...state,
-      rng: hashSeed(`${state.seed}/forecast/${i}`),
-      clock: 0,
-      carryMinutes: 0,
-      paused: false,
-      projects: { [projectId]: { projectId, startedAt: 0, completedAt: null, tasks } },
-      humanQueues: createHumanQueues(),
-      bottleneck: null,
-      pendingEvents: [],
-    };
-    s = reduce(s, { type: 'AssignTask', projectId, taskId, mode, workerId }).state;
-    while (s.clock < horizon && s.projects[projectId]?.tasks[taskId]?.status !== 'done') {
-      s = step(s, CHUNK_MINUTES).state;
-    }
-    const result = s.projects[projectId]?.tasks[taskId];
+    const result = simulateTaskAlone(state, projectId, taskId, mode, workerId, `${state.seed}/forecast/${i}`);
     humanMinutes += result?.humanMinutes ?? 0;
     aiCost += result?.aiCost ?? 0;
     quality += result?.quality ?? 0;
@@ -95,6 +64,56 @@ export function forecastTask(state: GameState, projectId: string, taskId: string
   const metrics = { humanMinutes: humanMinutes / SAMPLES, aiCost: aiCost / SAMPLES, quality: quality / SAMPLES };
   cache.set(key, metrics);
   return metrics;
+}
+
+/**
+ * 前の Task が今の担当のまま終わった直後に、この Task だけを mode と workerId で処理する短いシミュレーション（core のヘッドレス実行）。
+ * 乱数は rngSeed から始める。AI Worker の Harness・Session と事件は state のものを使う。納期までに終わった Task の状態を返す
+ */
+export function simulateTaskAlone(
+  state: GameState,
+  projectId: string,
+  taskId: string,
+  mode: AssignModeId,
+  workerId: string,
+  rngSeed: string,
+): TaskRun | undefined {
+  const def = getProject(projectId);
+  const task = def.tasks.find((t) => t.id === taskId);
+  if (!task) throw new Error(`未定義の Task: ${projectId}/${taskId}`);
+  const run = state.projects[projectId];
+  const tasks: ProjectRun['tasks'] = Object.fromEntries(
+    def.tasks.map((t) => {
+      const fresh = createTaskRun();
+      if (!task.deps.includes(t.id)) return [t.id, fresh];
+      // 前の Task は完了済み（担当は今のまま）として扱う
+      const done: TaskRun = {
+        ...fresh,
+        assignment: run?.tasks[t.id]?.assignment ?? null,
+        status: 'done',
+        quality: 1,
+        completedAt: 0,
+      };
+      return [t.id, done];
+    }),
+  );
+  let s: GameState = {
+    ...state,
+    rng: hashSeed(rngSeed),
+    clock: 0,
+    carryMinutes: 0,
+    paused: false,
+    projects: { [projectId]: { projectId, startedAt: 0, completedAt: null, tasks } },
+    humanQueues: createHumanQueues(),
+    bottleneck: null,
+    pendingEvents: [],
+  };
+  s = reduce(s, { type: 'AssignTask', projectId, taskId, mode, workerId }).state;
+  const horizon = deadlineMinutes(def);
+  while (s.clock < horizon && s.projects[projectId]?.tasks[taskId]?.status !== 'done') {
+    s = step(s, CHUNK_MINUTES).state;
+  }
+  return s.projects[projectId]?.tasks[taskId];
 }
 
 /** 担当変更のプレビュー：今の担当（Before）と、選ぼうとしているモード（After）の見込み */

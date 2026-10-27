@@ -1,16 +1,12 @@
+import { generateProject } from '../core/projectGen';
 import { generateTalent } from '../core/talent';
 import { assignModes } from './assignModes';
 import { documents } from './documents';
 import { harnessParts } from './harness/index';
 import { incidentDefs } from './incidents';
 import { models } from './models';
-import { corporateSite } from './projects/corporate-site';
-import { ecRenewal } from './projects/ec-renewal';
-import { internalTool } from './projects/internal-tool';
-import { paymentFix } from './projects/payment-fix';
-import { promoLp } from './projects/promo-lp';
-import { saasFeature } from './projects/saas-feature';
 import { tutorialLp } from './projects/tutorial-lp';
+import { projectTemplates } from './projectTemplates';
 import { seats } from './seats';
 import type {
   AiWorkerDef,
@@ -27,7 +23,10 @@ import type {
 } from './types';
 import { workers } from './workers';
 
-/** ゲームデータ一式。新しい案件は projects に足す（先頭はタイトル画面の後ろに映す案件） */
+/**
+ * ゲームデータ一式。projects は固定の案件：案件の型（content/projectTemplates.ts）の標準の案件とチュートリアルの案件
+ * （先頭はタイトル画面の後ろに映す案件）。案件ボードの案件は型から生成する（core/projectGen.ts）
+ */
 export interface Content {
   readonly projects: readonly ProjectDef[];
   readonly workers: readonly WorkerDef[];
@@ -40,7 +39,7 @@ export interface Content {
 }
 
 export const content: Content = {
-  projects: [ecRenewal, paymentFix, corporateSite, saasFeature, internalTool, promoLp, tutorialLp],
+  projects: [...projectTemplates, tutorialLp],
   workers,
   models,
   assignModes,
@@ -50,8 +49,13 @@ export const content: Content = {
   seats,
 };
 
+/** 案件の定義。生成した案件（core/projectGen.ts の `p~` で始まる id）も、id から再生成して返す。未定義なら undefined */
+export function findProject(id: string): ProjectDef | undefined {
+  return content.projects.find((x) => x.id === id) ?? generateProject(id);
+}
+
 export function getProject(id: string): ProjectDef {
-  const p = content.projects.find((x) => x.id === id);
+  const p = findProject(id);
   if (!p) throw new Error(`未定義の案件: ${id}`);
   return p;
 }

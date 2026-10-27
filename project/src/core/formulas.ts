@@ -1,5 +1,5 @@
 import { balance } from '../content/balance';
-import type { AssignModeDef, ModelDef, ModeStep, ProjectDef, TaskDef } from '../content/types';
+import type { AssignModeDef, ModelDef, ModeStep, TaskDef } from '../content/types';
 
 /**
  * 工程の担い手。人間は skill（速さと正確さの両方に効く）と正確さ（accuracy。省けば balance.human.competence の平均的な人）、
@@ -225,13 +225,19 @@ export function escapedFixMinutes(task: TaskDef): number {
   return task.effort * balance.score.escapedFixShare;
 }
 
+/** 案件の売上と納期。案件の定義（ProjectDef）か、始めた案件の契約（core/state.ts の ProjectRun） */
+export interface ProjectTerms {
+  readonly revenue: number;
+  readonly deadlineDays: number;
+}
+
 /** 納期（ゲーム内の分、案件開始からの経過） */
-export function deadlineMinutes(project: ProjectDef): number {
+export function deadlineMinutes(project: ProjectTerms): number {
   return project.deadlineDays * balance.project.minutesPerBusinessDay;
 }
 
 /** 遅延損失（円）。納期を超えた営業日数（端数も比例）× 売上 × 1日あたりの損失率 */
-export function delayLoss(elapsedMinutes: number, project: ProjectDef): number {
+export function delayLoss(elapsedMinutes: number, project: ProjectTerms): number {
   const lateDays = Math.max(0, elapsedMinutes - deadlineMinutes(project)) / balance.project.minutesPerBusinessDay;
   return lateDays * project.revenue * balance.project.delayLossPerDay;
 }

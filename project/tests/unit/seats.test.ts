@@ -114,7 +114,7 @@ describe('Seat（core/team.ts）', () => {
     expect(reduce(s, { type: 'SetSeat', staffId: s.market.candidates[0] ?? '', seat: 'premium' }).state).toBe(s);
     expect(reduce(s, { type: 'SetSeat', staffId: 'suzuki', seat: 'standard' }).state).toBe(s);
     // キャンペーンでは解放されるまで変えられない
-    const campaign = createInitialState('c', { campaign: true });
+    const campaign = createInitialState('c', { board: true });
     expect(reduce(campaign, { type: 'SetSeat', staffId: 'suzuki', seat: 'premium' }).state).toBe(campaign);
   });
 

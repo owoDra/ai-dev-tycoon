@@ -1,7 +1,7 @@
 import { balance, type GameSpeed } from '../content/balance';
-import { campaign } from '../content/campaign';
 import { glossary } from '../content/glossary';
-import { aiWorkers, getHuman } from '../content/index';
+import { aiWorkers, getHuman, getProject } from '../content/index';
+import { founders } from '../content/staff';
 import type {
   AssignModeId,
   ContextFeed,
@@ -16,6 +16,7 @@ import type {
   TermId,
 } from '../content/types';
 import { allFeatures, unlockDefs } from '../content/unlocks';
+import type { BidResult, InquiryRun } from './bidding';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
 import { hashSeed, type RngState } from './rng';
@@ -88,6 +89,10 @@ export interface ProjectRun {
   readonly projectId: string;
   readonly startedAt: number;
   readonly completedAt: number | null;
+  /** 売上（円）。コンペで受注した案件は見積額、それ以外は案件の定義の売上 */
+  readonly revenue: number;
+  /** 納期（営業日）。コンペで受注した案件は提案した納期、それ以外は案件の定義の納期 */
+  readonly deadlineDays: number;
   /** TaskDef の並び順で持つ */
   readonly tasks: Readonly<Record<string, TaskRun>>;
 }
@@ -107,12 +112,14 @@ export interface MarketRun {
   readonly candidates: readonly string[];
 }
 
-/** 進行中のキャンペーン（content/campaign.ts） */
-export interface CampaignRun {
-  /** 受注できるようになった段階の id（なった順） */
-  readonly reached: readonly string[];
-  /** すべての案件を納品した */
-  readonly cleared: boolean;
+/** 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、見積を出してコンペに勝つと受注する（core/bidding.ts） */
+export interface BoardRun {
+  /** 最後に引き合いが届いた営業日。チュートリアルの間はまだ届かない（null） */
+  readonly day: number | null;
+  /** 応募の締切前の引き合い（届いた順） */
+  readonly inquiries: readonly InquiryRun[];
+  /** 最近のコンペの結果（新しい順、balance.board.history 件まで） */
+  readonly results: readonly BidResult[];
 }
 
 /** 人間の待ち行列の1件。先頭だけが処理される */
@@ -260,8 +267,10 @@ export interface GameState {
    * 作業していない分はここに計上する。Seat の固定費と同じく、進行中の案件があるときだけ数える
    */
   readonly idleCost: number;
-  /** キャンペーン。キャンペーンでなければ null（どの案件でも始められる） */
-  readonly campaign: CampaignRun | null;
+  /** 案件ボード。会社として遊んでいなければ null（単発のプレイ・テスト。どの案件でも始められる） */
+  readonly board: BoardRun | null;
+  /** 会社の評判（balance.reputation の 0〜100）。納品のたびに納期と品質で変わり、コンペの提案力になる */
+  readonly reputation: number;
   /** Workflow Library にプレイヤーが保存した Workflow（保存した順。同梱のプリセットは content/library.ts） */
   readonly library: readonly LibraryWorkflowDef[];
   /** Workflow を Task に適用した記録（適用した順。同じ Task に適用し直したら古い記録は消す） */
@@ -272,24 +281,24 @@ export interface InitialStateOptions {
   /** チュートリアルとして始める。start の機能だけを解放し、用語はまだ明かさない */
   readonly tutorial?: boolean;
   /**
-   * キャンペーンとして始める（チュートリアルから始まる）。受注できる案件はキャンペーンの段階で決まり、
+   * 会社として始める（案件ボード）。既定ではチュートリアルから始まり、終わると引き合いが届き始める。
    * 機能の解放・社員・Harness 部品は案件をまたいで持ち越す
    */
-  readonly campaign?: boolean;
-  /** 最初からいる社員。既定はキャンペーンの最初の社員（チュートリアルの2人） */
+  readonly board?: boolean;
+  /** 最初からいる社員。既定は創業メンバー（チュートリアルの2人） */
   readonly team?: readonly string[];
   /** 最初の社員を、平均的な能力の人材として seed から生成する（チュートリアルなしで始めるとき）。team より優先する */
   readonly talent?: boolean;
 }
 
 /**
- * ゲームの初期状態。キャンペーンはチュートリアルから始まり、解放の進み具合を案件をまたいで持ち越す。
- * キャンペーンでもチュートリアルでもなければ（単発の案件・テスト）、すべての機能を解放し、すべての用語を明かした状態で始める。
+ * ゲームの初期状態。会社（案件ボード）は既定でチュートリアルから始まり、解放の進み具合を案件をまたいで持ち越す。
+ * チュートリアルでなければ（チュートリアルなしで始めた会社・単発の案件・テスト）、すべての機能を解放し、すべての用語を明かした状態で始める。
  */
 export function createInitialState(seed: string, options: InitialStateOptions = {}): GameState {
-  const isCampaign = options.campaign === true;
-  const tutorial = options.tutorial === true || isCampaign;
-  const team = options.talent ? initialTalent(seed) : (options.team ?? campaign.team);
+  const isBoard = options.board === true;
+  const tutorial = options.tutorial ?? isBoard;
+  const team = options.talent ? initialTalent(seed) : (options.team ?? founders);
   return {
     seed,
     rng: hashSeed(seed),
@@ -318,9 +327,8 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     market: { day: 0, candidates: marketCandidates(seed, 0) },
     hireCost: 0,
     idleCost: 0,
-    campaign: isCampaign
-      ? { reached: campaign.stages.filter((s) => s.when.type === 'start').map((s) => s.id), cleared: false }
-      : null,
+    board: isBoard ? { day: null, inquiries: [], results: [] } : null,
+    reputation: balance.reputation.initial,
     library: [],
     libraryUses: [],
   };
@@ -343,8 +351,22 @@ export function createSessions(): Record<string, SessionRun> {
   return Object.fromEntries(aiWorkers.map((w) => [w.id, createSession()]));
 }
 
-export function createHumanQueues(team: readonly string[] = campaign.team): Record<string, readonly QueueItem[]> {
+export function createHumanQueues(team: readonly string[] = founders): Record<string, readonly QueueItem[]> {
   return Object.fromEntries(team.map((id) => [id, []]));
+}
+
+/**
+ * 案件を始めた状態。terms はコンペで決まった売上（見積額）と納期で、省けば案件の定義の値
+ */
+export function createProjectRun(
+  projectId: string,
+  clock: number,
+  terms?: { readonly revenue: number; readonly deadlineDays: number },
+): ProjectRun {
+  const def = getProject(projectId);
+  const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
+  const { revenue, deadlineDays } = terms ?? def;
+  return { projectId, startedAt: clock, completedAt: null, revenue, deadlineDays, tasks };
 }
 
 export function createTaskRun(): TaskRun {

@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
-import { campaignProjects } from '../../src/content/campaign';
 import { getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import { scoreCompany, scoreProject } from '../../src/core/scoring';
-import { type CampaignPolicy, playCampaign, smartPolicy, smartSeatPolicy } from '../helpers/campaign';
 import { FULL_SEEDS, isFullBalance, seeds } from '../helpers/compare';
+import {
+  type CampaignPolicy,
+  playCampaign,
+  representativeRun,
+  smartPolicy,
+  smartSeatPolicy,
+} from '../helpers/representative';
 
 /**
- * キャンペーン（企画書21章「1プレイ20〜30分」）を smart 系の戦略 Bot で最初から最後まで通して遊ぶ。
+ * 1回の遊び（企画書21章「1プレイ20〜30分」）の手応え。チュートリアルから、固定 seed で生成した代表的な案件群
+ * （以前のキャンペーンの6案件と同じ型・同じ受注の順と条件。tests/helpers/representative.ts）の納品までを、smart 系の戦略 Bot で通して遊ぶ。
  * 1倍速のまま進め（早送りしない）、チュートリアルの吹き出しを読む時間と、新しい依頼を読んで担当を決める時間も時計が進む。
  */
 const TUTORIAL_THINK_SECONDS = 5;
@@ -34,7 +40,7 @@ function play(policy: CampaignPolicy, seed: string) {
   });
 }
 
-describe('キャンペーン（企画書21章）', () => {
+describe('チュートリアルと代表的な案件群（企画書21章）', () => {
   it('smart 系の Bot が最後までクリアでき、所要時間（実時間・1倍速）が20〜30分に収まる', () => {
     for (const seed of SEEDS) {
       const { state, clearedAt } = play(smartSeatPolicy, seed);
@@ -42,11 +48,11 @@ describe('キャンペーン（企画書21章）', () => {
       const minutes = realMinutes(clearedAt ?? 0);
       const company = scoreCompany(state);
       console.log(
-        `[企画書21章] seed ${seed}：キャンペーン全体 ${minutes.toFixed(1)} 分（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +
+        `[企画書21章] seed ${seed}：通し ${minutes.toFixed(1)} 分（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +
           ` / 会社の Profit/Person-Day ${fmt(company.profitPerPersonDay)} 円/人日（Seat の固定費 ${fmt(company.seatCost)} 円）`,
       );
       if (seed === tutorialScript.seed) {
-        for (const id of campaignProjects) {
+        for (const id of representativeRun) {
           const run = state.projects[id];
           const s = scoreProject(state, id);
           console.log(
@@ -56,7 +62,7 @@ describe('キャンペーン（企画書21章）', () => {
           );
         }
       }
-      expect(campaignProjects.every((id) => state.projects[id]?.completedAt !== null)).toBe(true);
+      expect(representativeRun.every((id) => (state.projects[id]?.completedAt ?? null) !== null)).toBe(true);
       expect(minutes, seed).toBeGreaterThanOrEqual(MIN_MINUTES);
       expect(minutes, seed).toBeLessThanOrEqual(MAX_MINUTES);
     }
@@ -66,7 +72,7 @@ describe('キャンペーン（企画書21章）', () => {
     const premium = play(smartSeatPolicy, tutorialScript.seed);
     const standard = play(smartPolicy, tutorialScript.seed);
     console.log(
-      `[企画書6章] キャンペーン全体：全員Standard ${realMinutes(standard.clearedAt ?? 0).toFixed(1)} 分` +
+      `[企画書6章] 通し：全員Standard ${realMinutes(standard.clearedAt ?? 0).toFixed(1)} 分` +
         ` vs 運用者だけPremium ${realMinutes(premium.clearedAt ?? 0).toFixed(1)} 分`,
     );
     expect(standard.clearedAt).not.toBeNull();

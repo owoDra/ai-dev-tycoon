@@ -16,7 +16,7 @@ import {
   workflowStats,
 } from '../../src/core/library';
 import { encodeResultCode } from '../../src/core/resultCode';
-import { deserialize, serialize } from '../../src/core/serialize';
+import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { ByteWriter, sealCode } from '../../src/lib/codec';
 import { runHeadless } from '../helpers/headless';
@@ -165,13 +165,12 @@ describe('Workflow Library（core/library.ts）', () => {
     expect(reduce(state, { type: 'SaveLibraryWorkflow', workflow: ok }).state.library).toHaveLength(1);
   });
 
-  it('保存した棚はセーブデータに残り、以前のセーブは空の棚で読める', () => {
+  it('保存した棚はセーブデータに残り、以前（キャンペーン）の形式のセーブは読み込めない', () => {
     const { state } = savedInProjectA();
     expect(deserialize(serialize(state)).library).toEqual(state.library);
+    expect(deserialize(serialize(state)).libraryUses).toEqual(state.libraryUses);
     const { library: _l, libraryUses: _u, ...v8 } = createInitialState('old');
-    const old = deserialize(JSON.stringify({ saveVersion: 8, state: v8 }));
-    expect(old.library).toEqual([]);
-    expect(old.libraryUses).toEqual([]);
+    expect(() => deserialize(JSON.stringify({ saveVersion: 8, state: v8 }))).toThrow(OutdatedSaveError);
   });
 });
 

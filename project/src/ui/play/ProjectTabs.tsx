@@ -1,9 +1,9 @@
 import { For, Show } from 'solid-js';
 import { ja } from '../../i18n/ja';
-import type { ProjectTabsView } from '../../view/campaign';
+import type { ProjectTabsView } from '../../view/board';
 import { Icon } from '../Icon';
 
-const t = ja.campaign;
+const t = ja.board;
 
 /**
  * 案件のタブ（複数の案件の同時進行）。進行中の案件ごとに1つのフロアがあり、タブで見るフロアを切り替える。

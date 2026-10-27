@@ -1,9 +1,10 @@
-import { deserialize, serialize } from '../core/serialize';
+import { deserialize, OutdatedSaveError, serialize } from '../core/serialize';
 import type { GameState } from '../core/state';
 
 /*
- * キャンペーンの自動セーブ（localStorage）。タイトルの「続きから」で読み込む。
+ * 会社（案件ボード）の自動セーブ（localStorage）。タイトルの「続きから」で読み込む。
  * 保存するのは GameState だけで、形式とバージョンの変換は core/serialize.ts が受け持つ。
+ * 保存先のキーは以前のキャンペーンと同じなので、以前のセーブが残っていれば「読み込めない」と知らせられる。
  */
 
 const SAVE_KEY = 'ai-dev-tycoon.campaign.v1';
@@ -20,25 +21,37 @@ function safeStorage(): Store | undefined {
   }
 }
 
-/** 保存されたキャンペーンを読む。ない・読めない（壊れた値・未対応のバージョン）なら null */
-export function loadCampaign(storage: Pick<Store, 'getItem'> | undefined = safeStorage()): GameState | null {
+/** 保存された会社を読む。ない・読めない（壊れた値・未対応のバージョン）なら null */
+export function loadCompany(storage: Pick<Store, 'getItem'> | undefined = safeStorage()): GameState | null {
   try {
     const raw = storage?.getItem(SAVE_KEY);
     if (!raw) return null;
     const state = deserialize(raw);
-    return state.campaign ? state : null;
+    return state.board ? state : null;
   } catch {
     return null;
   }
 }
 
-/** キャンペーンを保存する（キャンペーンでない state は保存しない）。保存した実時刻も残す。保存できなければ何もしない */
-export function saveCampaign(
+/** 保存されているのが、以前の形式（固定の案件のキャンペーン）で読み込めないセーブか */
+export function hasOutdatedSave(storage: Pick<Store, 'getItem'> | undefined = safeStorage()): boolean {
+  try {
+    const raw = storage?.getItem(SAVE_KEY);
+    if (!raw) return false;
+    deserialize(raw);
+    return false;
+  } catch (e) {
+    return e instanceof OutdatedSaveError;
+  }
+}
+
+/** 会社を保存する（案件ボードのない state は保存しない）。保存した実時刻も残す。保存できなければ何もしない */
+export function saveCompany(
   state: GameState,
   storage: Pick<Store, 'setItem'> | undefined = safeStorage(),
   now: number = Date.now(),
 ): void {
-  if (!state.campaign) return;
+  if (!state.board) return;
   try {
     storage?.setItem(SAVE_KEY, serialize(state));
     storage?.setItem(SAVED_AT_KEY, String(now));
@@ -57,7 +70,7 @@ export function loadSavedAt(storage: Pick<Store, 'getItem'> | undefined = safeSt
   }
 }
 
-export function clearCampaign(storage: Pick<Store, 'removeItem'> | undefined = safeStorage()): void {
+export function clearCompany(storage: Pick<Store, 'removeItem'> | undefined = safeStorage()): void {
   try {
     storage?.removeItem(SAVE_KEY);
     storage?.removeItem(SAVED_AT_KEY);

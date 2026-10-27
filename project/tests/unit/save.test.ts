@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearCampaign, loadCampaign, loadSavedAt, saveCampaign } from '../../src/app/save';
+import { clearCompany, loadCompany, loadSavedAt, saveCompany } from '../../src/app/save';
 import { reduce } from '../../src/core/commands';
 import { createInitialState } from '../../src/core/state';
 
@@ -17,23 +17,23 @@ function memory() {
 describe('キャンペーンの自動セーブ（app/save.ts）', () => {
   it('キャンペーンを保存して読み込める。消すと読めない', () => {
     const storage = memory();
-    expect(loadCampaign(storage)).toBeNull();
-    const s = reduce(createInitialState('c', { campaign: true }), {
+    expect(loadCompany(storage)).toBeNull();
+    const s = reduce(createInitialState('c', { board: true }), {
       type: 'StartProject',
       projectId: 'tutorialLp',
     }).state;
-    saveCampaign(s, storage);
-    expect(loadCampaign(storage)).toEqual(s);
-    clearCampaign(storage);
-    expect(loadCampaign(storage)).toBeNull();
+    saveCompany(s, storage);
+    expect(loadCompany(storage)).toEqual(s);
+    clearCompany(storage);
+    expect(loadCompany(storage)).toBeNull();
   });
 
   it('キャンペーンでない state は保存しない。壊れた値は読めないものとして扱う', () => {
     const storage = memory();
-    saveCampaign(createInitialState('s'), storage);
+    saveCompany(createInitialState('s'), storage);
     expect(storage.data.size).toBe(0);
     storage.setItem('ai-dev-tycoon.campaign.v1', '{broken');
-    expect(loadCampaign(storage)).toBeNull();
+    expect(loadCompany(storage)).toBeNull();
   });
 
   it('保存先が使えなくても例外にしない', () => {
@@ -48,21 +48,21 @@ describe('キャンペーンの自動セーブ（app/save.ts）', () => {
         throw new Error('blocked');
       },
     };
-    const s = createInitialState('c', { campaign: true });
-    expect(() => saveCampaign(s, failing)).not.toThrow();
-    expect(loadCampaign(failing)).toBeNull();
-    expect(() => clearCampaign(failing)).not.toThrow();
+    const s = createInitialState('c', { board: true });
+    expect(() => saveCompany(s, failing)).not.toThrow();
+    expect(loadCompany(failing)).toBeNull();
+    expect(() => clearCompany(failing)).not.toThrow();
     expect(loadSavedAt(failing)).toBeNull();
   });
 
   it('保存した実時刻も残し（閉じていた間の進行に使う）、消すと一緒に消える', () => {
     const storage = memory();
     expect(loadSavedAt(storage)).toBeNull();
-    saveCampaign(createInitialState('c', { campaign: true }), storage, 1_700_000_000_000);
+    saveCompany(createInitialState('c', { board: true }), storage, 1_700_000_000_000);
     expect(loadSavedAt(storage)).toBe(1_700_000_000_000);
     storage.setItem('ai-dev-tycoon.campaign.savedAt', 'later');
     expect(loadSavedAt(storage)).toBeNull();
-    clearCampaign(storage);
+    clearCompany(storage);
     expect(storage.data.size).toBe(0);
   });
 });

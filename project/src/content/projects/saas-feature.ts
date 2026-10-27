@@ -1,5 +1,5 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.saasFeature;
 
@@ -9,11 +9,14 @@ const t = ja.tasks.saasFeature;
  * （Human Bottleneck が起きやすい）。実装を AI 化すると QA が、QA も AI 化すると実装のレビューが次のボトルネックになり、
  * Eval で確認を軽くすると全工程が短くなる。
  */
-export const saasFeature: ProjectDef = {
+export const saasFeature: ProjectTemplateDef = {
   id: 'saasFeature',
   name: ja.projects.saasFeature,
   revenue: 1_800_000,
   deadlineDays: 5,
+  industries: ['saas', 'payment'],
+  scales: ['api'],
+  optional: ['helpDoc', 'migration'],
   tasks: [
     {
       id: 'spec',

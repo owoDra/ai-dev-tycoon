@@ -4,7 +4,7 @@ import { getHuman } from '../../src/content/index';
 import type { HumanWorkerDef } from '../../src/content/types';
 import { scoreCompany } from '../../src/core/scoring';
 import { marketCandidates, talentId } from '../../src/core/talent';
-import { playCampaign, smartHirePolicy, smartPolicy } from '../helpers/campaign';
+import { playCampaign, smartHirePolicy, smartPolicy } from '../helpers/representative';
 
 /**
  * 採用市場の人材の売値（企画の変更「売値は能力で変わり、人日あたり最低5万・平均8万」）。

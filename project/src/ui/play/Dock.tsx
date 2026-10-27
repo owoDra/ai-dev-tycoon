@@ -8,7 +8,7 @@ import { dockFeature } from '../../content/unlocks';
 import { isUnlocked } from '../../core/unlocks';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
-import type { ProjectTabsView } from '../../view/campaign';
+import type { ProjectTabsView } from '../../view/board';
 import { contextView } from '../../view/context';
 import { type HudView, hudView, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';

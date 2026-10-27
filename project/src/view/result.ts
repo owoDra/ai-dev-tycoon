@@ -58,7 +58,7 @@ export interface ResultView {
   readonly baseline: number;
   /** baseline に対する倍率。基準がなければ null */
   readonly vsBaseline: number | null;
-  /** キャンペーンで直前に納品した案件と比べた倍率 */
+  /** 会社で直前に納品した案件と比べた倍率 */
   readonly previous: { readonly name: string; readonly ratio: number } | null;
   readonly rank: Rank;
   readonly metrics: readonly ResultMetric[];
@@ -85,7 +85,7 @@ export function humanOnlyMetrics(projectId: string): { readonly humanMinutes: nu
   return { humanMinutes, quality };
 }
 
-/** 直前に納品した案件（キャンペーン）。なければ null */
+/** 直前に納品した案件（会社の案件）。なければ null */
 function previousDelivered(state: GameState, projectId: string): string | null {
   const at = state.projects[projectId]?.completedAt ?? null;
   if (at === null) return null;
@@ -181,7 +181,7 @@ export function resultView(state: GameState, projectId: string): ResultView | nu
   };
 }
 
-/** キャンペーンの歩みの1行（納品した順） */
+/** 会社の歩みの1行（納品した順） */
 export interface GrowthRow {
   readonly projectId: string;
   readonly name: string;
@@ -191,8 +191,8 @@ export interface GrowthRow {
   readonly profitPerPersonDay: number;
 }
 
-/** キャンペーン全体の成長の推移：納品した案件を納品した順に、人間の時間の減少と Profit / Person-Day の上昇を並べる */
-export function campaignGrowth(state: GameState): GrowthRow[] {
+/** 会社の成長の推移：納品した案件を納品した順に、人間の時間の減少と Profit / Person-Day の上昇を並べる */
+export function companyGrowth(state: GameState): GrowthRow[] {
   return Object.entries(state.projects)
     .filter(([, run]) => run.completedAt !== null)
     .sort(([, a], [, b]) => (a.completedAt ?? 0) - (b.completedAt ?? 0))

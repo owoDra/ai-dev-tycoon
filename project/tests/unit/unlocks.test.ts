@@ -7,7 +7,7 @@ import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
 import { autoTestCatch, expectedHumanMinutes, repairMinutes } from '../../src/core/formulas';
-import { deserialize, SAVE_VERSION } from '../../src/core/serialize';
+import { deserialize, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { applyUnlocks, isRevealed, isUnlocked } from '../../src/core/unlocks';
@@ -68,12 +68,15 @@ describe('機能の解放（core/unlocks.ts）', () => {
     expect(holds(s, { type: 'projectCompleted', projectId: P })).toBe(false);
   });
 
-  it('v2 のセーブデータは、すべて解放済み・チュートリアルなしとして読み込む', () => {
+  // v10 以前（キャンペーン）のセーブは案件ボードの会社に変換できないので読み込まず、タイトルでその旨を出す（Phase 20）
+  it('解放の進み具合はセーブを通っても残り、v2 などキャンペーン以前の形式のセーブは読み込めない（OutdatedSaveError）', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
-    const s = deserialize(JSON.stringify({ saveVersion: 2, state: v2 }));
-    expect(SAVE_VERSION).toBe(10);
-    expect(s.unlocked).toEqual(allFeatures);
-    expect(s.tutorial).toBeNull();
+    expect(() => deserialize(JSON.stringify({ saveVersion: 2, state: v2 }))).toThrow(OutdatedSaveError);
+    expect(SAVE_VERSION).toBe(11);
+    const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
+    const loaded = deserialize(serialize(s));
+    expect(loaded.unlocked).toEqual(allFeatures);
+    expect(loaded.tutorial).toBeNull();
   });
 });
 

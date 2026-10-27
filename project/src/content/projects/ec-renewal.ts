@@ -1,5 +1,5 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.ecRenewal;
 
@@ -10,11 +10,14 @@ const t = ja.tasks.ecRenewal;
  * （並行して進める配置の工夫が生まれる）。
  * 実装は人間だと8時間かかり、AI 化すると QA やレビューが次のボトルネックになる（企画書20章）。
  */
-export const ecRenewal: ProjectDef = {
+export const ecRenewal: ProjectTemplateDef = {
   id: 'ecRenewal',
   name: ja.projects.ecRenewal,
   revenue: 1_500_000,
   deadlineDays: 5,
+  industries: ['ec', 'media'],
+  scales: ['implementation'],
+  optional: ['research'],
   tasks: [
     {
       id: 'hearing',

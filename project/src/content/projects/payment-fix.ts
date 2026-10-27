@@ -1,5 +1,5 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.paymentFix;
 
@@ -8,11 +8,14 @@ const t = ja.tasks.paymentFix;
  * どの Task も AI 適性が高いが、資料が多く（content/documents.ts）、何を渡すかで AI の成否が大きく変わる。
  * 「すべての資料」は古い仕様と矛盾するルールを含み、長く続けた Session は履歴で散らかる。
  */
-export const paymentFix: ProjectDef = {
+export const paymentFix: ProjectTemplateDef = {
   id: 'paymentFix',
   name: ja.projects.paymentFix,
   revenue: 900_000,
   deadlineDays: 3,
+  industries: ['payment', 'ec', 'saas'],
+  scales: ['fix'],
+  optional: ['spec'],
   tasks: [
     {
       id: 'reproduce',

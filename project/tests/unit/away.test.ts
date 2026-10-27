@@ -16,15 +16,23 @@ describe('営業日の終わりと、閉じている間の進行（core/away.ts�
     expect(dayEnd(DAY)).toBe(DAY * 2);
   });
 
-  it('キャンペーンで、チュートリアルを終えていて、進行中の案件があるときだけ対象になる', () => {
+  it('案件ボードのある会社で、チュートリアルを終えていて、進行中の案件か結果待ちの見積があるときだけ対象になる', () => {
     expect(runsUnattended(createInitialState('s'))).toBe(false);
-    const tutorial = reduce(createInitialState('s', { campaign: true }), {
+    const tutorial = reduce(createInitialState('s', { board: true }), {
       type: 'StartProject',
       projectId: 'tutorialLp',
     }).state;
     expect(runsUnattended(tutorial)).toBe(false);
     expect(awayMinutes(tutorial, 600)).toBe(0);
     expect(runsUnattended(campaignInProgress())).toBe(true);
+    // 案件の合間でも、見積の結果を待っていれば時間が進む（締切に結果が出る）
+    const waiting = { ...campaignInProgress(), projects: {} };
+    expect(runsUnattended(waiting)).toBe(false);
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 960, bid: null };
+    const board = { day: 0, inquiries: [inquiry], results: [] };
+    expect(runsUnattended({ ...waiting, board })).toBe(false);
+    const bid = { price: 'base' as const, deadline: 'standard' as const, amount: 1, deadlineDays: 1, winChance: 0.5 };
+    expect(runsUnattended({ ...waiting, board: { ...board, inquiries: [{ ...inquiry, bid }] } })).toBe(true);
   });
 
   it('閉じていた実時間を1倍速で換算し、その営業日の終わりまでで止める', () => {

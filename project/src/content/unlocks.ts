@@ -4,8 +4,8 @@ import type { AssignModeId, FeatureId, ModeFeatureId, UnlockDef } from './types'
 /**
  * 機能の解放（企画書50章「必要になる前に説明しない」）。条件を満たした時点で core/unlocks.ts が解放し、
  * FeatureUnlocked を出す（Tier 2 の演出と「NEW」バッジ）。
- * キャンペーンはチュートリアル（start の機能だけ）から始まり、解放の進み具合を案件をまたいで持ち越す（セーブにも残る）。
- * キャンペーンでない単発のプレイ（テストなど）は、すべて解放済みで始まる。
+ * 会社（案件ボード）はチュートリアル（start の機能だけ）から始まり、解放の進み具合を案件をまたいで持ち越す（セーブにも残る）。
+ * チュートリアルなしで始めた会社と、案件ボードのない単発のプレイ（テストなど）は、すべて解放済みで始まる。
  */
 export const unlockDefs: readonly UnlockDef[] = [
   { id: 'human', feature: 'mode:human', when: { type: 'start' }, message: 'basic' },
@@ -57,11 +57,11 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'contextStat', stat: 'resets', count: 1 },
     message: 'artifacts',
   },
-  // 決済画面の修正を納品したら、最後に Context Router（Phase 11 で Harness Builder に統合する）
+  // 決済画面の修正（の型の案件）を納品したら、最後に Context Router（Phase 11 で Harness Builder に統合する）
   {
     id: 'contextRouter',
     feature: 'context:router',
-    when: { type: 'projectCompleted', projectId: 'paymentFix' },
+    when: { type: 'templateCompleted', templateId: 'paymentFix' },
     message: 'contextRouter',
   },
   // Harness Builder（企画書35章）。AI に任せる経験を積んで「Harness Engineering」の名前を知った後に、Model と Skill から

@@ -5,9 +5,10 @@ import { getHuman } from '../../src/content/index';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
 import { createInitialState, type GameState } from '../../src/core/state';
+import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
-import { CampaignBoard } from '../../src/ui/screens/CampaignBoard';
+import { ProjectBoard } from '../../src/ui/screens/ProjectBoard';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
@@ -93,8 +94,8 @@ describe('社員と Seat の画面（企画書6章・47章）', () => {
     expect(q('[data-over-limit]')?.textContent).toContain(ja.team.overLimit);
   });
 
-  it('社員の画面が解放されるまではボタンを出さない（キャンペーンの序盤）', () => {
-    const store = createGameStore(createInitialState('c', { campaign: true }));
+  it('社員の画面が解放されるまではボタンを出さない（チュートリアルの間）', () => {
+    const store = createGameStore(createInitialState('c', { board: true }));
     store.dispatch({ type: 'StartProject', projectId: 'tutorialLp' });
     const { q } = mount(store.state(), 'tutorialLp');
     expect(q('[data-team-open]')).toBeNull();
@@ -107,7 +108,7 @@ describe('複数案件の同時進行', () => {
     const tabs = [...root.querySelectorAll<HTMLElement>('[data-project-tab]')];
     expect(tabs.map((t) => t.dataset.projectTab)).toEqual([P, Q]);
     expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[1]?.textContent).toContain(ja.campaign.floor(2));
+    expect(tabs[1]?.textContent).toContain(ja.board.floor(2));
     q<HTMLButtonElement>(`[data-project-tab="${Q}"]`)?.click();
     expect(switched).toEqual([Q]);
   });
@@ -117,36 +118,64 @@ describe('複数案件の同時進行', () => {
     expect(q('[data-project-tab]')).toBeNull();
   });
 
-  it('キャンペーンで新しい依頼が届くと、案件ボードへ戻るボタンが出る', () => {
-    const store = createGameStore(createInitialState('c', { campaign: true }));
+  it('案件ボードに見積を出していない引き合いがあると、案件ボードへ戻るボタンが出る', () => {
+    const store = createGameStore(createInitialState('c', { board: true }));
     store.dispatch({ type: 'StartProject', projectId: 'tutorialLp' });
     const s = store.state();
-    const offered: GameState = {
-      ...s,
-      campaign: { reached: ['tutorial', 'ec'], cleared: false },
-    };
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 960, bid: null };
+    const offered: GameState = { ...s, board: { day: 0, inquiries: [inquiry], results: [] } };
     const { q, boards } = mount(offered, 'tutorialLp');
     const button = q<HTMLButtonElement>('[data-board-open]');
-    expect(button?.textContent).toContain(ja.campaign.offers(1));
+    expect(button?.textContent).toContain(ja.board.offers(1));
     button?.click();
     expect(boards()).toBe(1);
   });
 });
 
 describe('案件ボードとタイトル', () => {
-  it('案件ボードで受注すると案件が始まり、その案件を開く', () => {
-    const base = createInitialState('c', { campaign: true });
-    const store = createGameStore({ ...base, campaign: { reached: ['tutorial', 'ec'], cleared: false } });
+  it('案件ボードで見積を出すと結果待ちになり、コンペに勝って受注した案件を開ける', () => {
+    const base = createInitialState('c', { board: true, tutorial: false });
+    const store = createGameStore(step(base, 1).state);
     const opened: string[] = [];
     const root = document.createElement('div');
     document.body.append(root);
-    dispose = render(() => <CampaignBoard store={store} onOpen={(id) => opened.push(id)} onBack={() => {}} />, root);
-    const offered = [...root.querySelectorAll<HTMLElement>('[data-board-project]')].map((e) => e.dataset.boardProject);
-    expect(offered).toEqual(['tutorialLp', 'ecRenewal']);
-    root.querySelector<HTMLButtonElement>('[data-board-project="ecRenewal"] [data-start]')?.click();
-    expect(store.state().projects.ecRenewal).toBeDefined();
-    expect(opened).toEqual(['ecRenewal']);
-    expect(root.querySelector('[data-board-project="ecRenewal"] [data-resume]')).not.toBeNull();
+    dispose = render(() => <ProjectBoard store={store} onOpen={(id) => opened.push(id)} onBack={() => {}} />, root);
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-inquiry]')].map((e) => e.dataset.inquiry ?? '');
+    expect(cards.length).toBe(2);
+    const id = cards[0] ?? '';
+    const card = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
+    card?.querySelector<HTMLButtonElement>('[data-price="minus20"]')?.click();
+    const shown = card?.querySelector('[data-win-after]')?.textContent;
+    card?.querySelector<HTMLButtonElement>('[data-submit]')?.click();
+    const bid = store.state().board?.inquiries.find((i) => i.projectId === id)?.bid;
+    expect(bid?.price).toBe('minus20');
+    // 表示した勝率で見積を出す
+    expect(shown).toBe(ja.score.percent(bid?.winChance ?? -1));
+    // 出した後の引き合いのカードには、提出済みの印と出した見積の選択が残る
+    const after1 = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
+    expect(after1?.querySelector('[data-submitted]')).not.toBeNull();
+    expect(after1?.querySelector('[data-price="minus20"]')?.getAttribute('aria-pressed')).toBe('true');
+    // 勝ったことにして締切まで進めると受注し、進行中の案件に並んで開ける（売上は見積額）
+    dispose?.();
+    root.replaceChildren();
+    const s = store.state();
+    const won = bid ? { ...bid, winChance: 1 } : null;
+    const inquiries = s.board?.inquiries.map((i) => (i.projectId === id ? { ...i, bid: won } : i)) ?? [];
+    const after = step({ ...s, board: s.board ? { ...s.board, inquiries } : null }, 960).state;
+    expect(after.projects[id]?.revenue).toBe(bid?.amount);
+    dispose = render(
+      () => <ProjectBoard store={createGameStore(after)} onOpen={(x) => opened.push(x)} onBack={() => {}} />,
+      root,
+    );
+    root.querySelector<HTMLButtonElement>(`[data-board-project="${id}"] [data-resume]`)?.click();
+    expect(opened).toEqual([id]);
+  });
+
+  it('以前の形式のセーブが残っていれば、タイトルで読み込めないことを知らせる', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(() => <TitleScreen onStart={() => {}} onSettings={() => {}} outdatedSave />, root);
+    expect(root.querySelector('[data-outdated-save]')?.textContent).toContain(ja.board.outdatedSave);
   });
 
   it('セーブがあればタイトルに「続きから」が出て、「はじめから」は確認を1回挟む', () => {

@@ -1,4 +1,5 @@
 import { autonomySystem } from './autonomy';
+import { boardSystem } from './board';
 import { bottleneckSystem } from './bottleneck';
 import type { GameEvent } from './events';
 import { humanQueueSystem } from './humanQueueSystem';
@@ -36,6 +37,8 @@ export const defaultSystems: readonly System[] = [
   seatSystem,
   // 営業日が変わったら採用市場の候補を入れ替える
   marketSystem,
+  // 締切を迎えた引き合いのコンペの結果を出す（受注した案件はこのステップから進む）
+  boardSystem,
   // このステップで AI が処理する分を、工程が終わって人間に回る前に数える
   autonomySystem,
   taskSystem,

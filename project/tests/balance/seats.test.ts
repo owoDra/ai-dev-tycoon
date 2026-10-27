@@ -5,8 +5,8 @@ import { compare, seeds } from '../helpers/compare';
 import { FULL_TEAM, playConcurrent, RUSH } from '../helpers/concurrent';
 
 /**
- * Seat の設計意図（企画書6章「全員 Premium にすれば強いとは限らない」）を、キャンペーンの最後の同時進行
- * （社内ツールの改修とキャンペーンLP制作）で確かめる。全社員がそろい、AI 適性の高い Task は
+ * Seat の設計意図（企画書6章「全員 Premium にすれば強いとは限らない」）を、短納期の2件の同時進行
+ * （固定 seed で生成した、社内ツールの改修とキャンペーンLP制作の型の案件）で確かめる。全社員がそろい、AI 適性の高い Task は
  * 「AI → 自動テスト → 確認」に Eval を付けて任せる（AI Worker の使用量が多い、終盤の構成）。Seat だけを変えて比べる。
  */
 const SEEDS = seeds(30);
@@ -18,7 +18,7 @@ const play = (seats: Readonly<Record<string, SeatId>>) => (seed: string) =>
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
-describe('Seat のバランス（企画書6章・キャンペーンの最後の同時進行）', () => {
+describe('Seat のバランス（企画書6章・短納期の2件の同時進行）', () => {
   it('全員 Premium は最適ではない：AI Worker を運用する人だけ Premium の方が Profit / Person-Day が高い', () => {
     const allPremium = Object.fromEntries(FULL_TEAM.map((id) => [id, 'premium' as const]));
     const r = compare(

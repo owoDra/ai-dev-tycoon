@@ -1,12 +1,17 @@
-import { campaign as defaultCampaign } from './campaign';
 import type { Content } from './index';
-import type { CampaignDef, Condition, ProjectDef } from './types';
+import { projectTemplates as defaultTemplates } from './projectTemplates';
+import { founders as defaultFounders } from './staff';
+import type { ProjectDef, ProjectTemplateDef } from './types';
 
 /**
  * ゲームデータの整合性を検査し、問題を文言の配列で返す（問題がなければ空配列）。
  * ID の重複・未定義の参照・依存グラフの循環・0〜1 であるべき値の範囲外を検出する。
  */
-export function validateContent(c: Content, campaign: CampaignDef = defaultCampaign): string[] {
+export function validateContent(
+  c: Content,
+  templates: readonly ProjectTemplateDef[] = defaultTemplates,
+  founders: readonly string[] = defaultFounders,
+): string[] {
   const errors: string[] = [];
   errors.push(
     ...duplicates(
@@ -45,7 +50,10 @@ export function validateContent(c: Content, campaign: CampaignDef = defaultCampa
   errors.push(...validateDocuments(c));
   errors.push(...validateHarness(c));
   errors.push(...validateTeam(c));
-  errors.push(...validateCampaign(c, campaign));
+  errors.push(...validateTemplates(templates));
+  const humanIds = new Set(c.workers.filter((w) => w.kind === 'human').map((w) => w.id));
+  for (const id of founders) if (!humanIds.has(id)) errors.push(`創業メンバー: 未定義の社員 ${id}`);
+  errors.push(...duplicates('創業メンバー', founders));
   return errors;
 }
 
@@ -66,53 +74,23 @@ function validateTeam(c: Content): string[] {
   return errors;
 }
 
-/**
- * キャンペーンの参照と順序を検査する。案件・社員・条件の参照先が存在し、各案件は一度だけ現れ、
- * 段階の条件は前の段階までの案件だけを参照する（受注できない案件の納品を待つような矛盾がない）
- */
-export function validateCampaign(c: Content, campaign: CampaignDef): string[] {
-  const errors: string[] = [];
-  const humanIds = new Set(c.workers.filter((w) => w.kind === 'human').map((w) => w.id));
-  const projectIds = new Set(c.projects.map((p) => p.id));
-  for (const id of campaign.team) if (!humanIds.has(id)) errors.push(`キャンペーン: 未定義の社員 ${id}`);
-  errors.push(...duplicates('キャンペーンの最初の社員', campaign.team));
-  const earlier: string[] = [];
-  campaign.stages.forEach((stage, i) => {
-    const label = `キャンペーンの段階 ${stage.id}`;
-    if (i === 0 && stage.when.type !== 'start') errors.push(`${label}: 最初の段階は最初から受注できる必要がある`);
-    if (stage.projects.length === 0) errors.push(`${label}: 案件がない`);
-    for (const id of stage.projects) {
-      if (!projectIds.has(id)) errors.push(`${label}: 未定義の案件 ${id}`);
-      if (earlier.includes(id)) errors.push(`${label}: 案件 ${id} が2回現れる`);
-    }
-    errors.push(...conditionOrder(c, stage.when, earlier).map((e) => `${label}: ${e}`));
-    earlier.push(...stage.projects);
-  });
-  errors.push(
-    ...duplicates(
-      'キャンペーンの段階',
-      campaign.stages.map((s) => s.id),
-    ),
+/** 案件の型の検査。業種があり、複製する Task と省く Task が型の中にあり、省いても Task が残る */
+export function validateTemplates(templates: readonly ProjectTemplateDef[]): string[] {
+  const errors = duplicates(
+    '案件の型',
+    templates.map((t) => t.id),
   );
-  return errors;
-}
-
-/** 条件が、前の段階までに受注できる案件だけを参照しているか */
-function conditionOrder(c: Content, when: Condition, earlier: readonly string[]): string[] {
-  switch (when.type) {
-    case 'projectCompleted':
-    case 'taskAssigned':
-    case 'taskCompleted': {
-      if (!earlier.includes(when.projectId)) return [`まだ受注できない案件 ${when.projectId} を待っている`];
-      if (when.type === 'projectCompleted') return [];
-      const project = c.projects.find((p) => p.id === when.projectId);
-      return project?.tasks.some((t) => t.id === when.taskId) ? [] : [`未定義の Task ${when.projectId}/${when.taskId}`];
+  for (const t of templates) {
+    const ids = new Set(t.tasks.map((x) => x.id));
+    if (t.industries.length === 0) errors.push(`案件の型 ${t.id}: 業種がない`);
+    for (const id of [...t.scales, ...t.optional]) {
+      if (!ids.has(id)) errors.push(`案件の型 ${t.id}: 未定義の Task ${id}`);
     }
-    case 'projectsCompleted':
-      return when.count > earlier.length ? [`前の段階までの案件は${earlier.length}件しかない`] : [];
-    default:
-      return [];
+    if (t.optional.length >= t.tasks.length) errors.push(`案件の型 ${t.id}: 省くと Task が残らない`);
+    if (t.scales.some((id) => t.optional.includes(id)))
+      errors.push(`案件の型 ${t.id}: 複製する Task を省こうとしている`);
   }
+  return errors;
 }
 
 /** Harness 部品の ID の重複と、group の部品どうしのカテゴリの一致を検査する（値の範囲は tests/content/harness.test.ts） */
@@ -149,7 +127,7 @@ function validateDocuments(c: Content): string[] {
   return errors;
 }
 
-function validateProject(p: ProjectDef): string[] {
+export function validateProject(p: ProjectDef): string[] {
   const errors = duplicates(
     `案件 ${p.id} の Task`,
     p.tasks.map((t) => t.id),

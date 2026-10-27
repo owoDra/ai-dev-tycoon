@@ -2,11 +2,12 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import type { GameStore } from '../../app/store';
 import { textureUrl } from '../../assets/registry';
 import { attributeProject, type Impact } from '../../core/attribution';
+import { deliveryRating } from '../../core/bidding';
 import { feel } from '../../fx/feel';
 import { countUp, enter, morph, pop, prefersReducedMotion } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import {
-  campaignGrowth,
+  companyGrowth,
   type ResultMetric,
   resultRecord,
   resultView,
@@ -39,9 +40,9 @@ function formatMetric(key: ResultMetric['key'], v: number): string {
 export function ResultScreen(props: {
   store: GameStore;
   projectId: string;
-  /** もう一度（単発のプレイ）。キャンペーンでは渡さない */
+  /** もう一度（単発のプレイ）。会社（案件ボード）では渡さない */
   onRetry?: () => void;
-  /** 案件ボードへ戻る（キャンペーン） */
+  /** 案件ボードへ戻る（会社） */
   onNext?: () => void;
   onTitle: () => void;
   /** 「この構成を保存する」（Workflow Library への保存は Phase 16） */
@@ -49,7 +50,7 @@ export function ResultScreen(props: {
 }) {
   // 結果画面の表示中に state は変わらないので、開いた時点の値で計算する
   const state = props.store.state();
-  const cleared = state.campaign?.cleared === true;
+  const rating = state.board ? deliveryRating(state, props.projectId) : null;
   const view = resultView(state, props.projectId);
   const record = resultRecord(state, props.projectId);
   const attribution = attributeProject(state, props.projectId);
@@ -58,7 +59,7 @@ export function ResultScreen(props: {
   const retro = createMemo(() =>
     view ? retrospective(state, props.projectId, view.score, attribution, counterfactual()) : null,
   );
-  const growth = cleared ? campaignGrowth(state) : [];
+  const growth = state.board ? companyGrowth(state) : [];
   const [stage, setStage] = createSignal(1);
   const [saved, setSaved] = createSignal(false);
 
@@ -142,12 +143,13 @@ export function ResultScreen(props: {
               <section class="flex flex-col items-center gap-2" data-stage="1">
                 <Icon name="trophy" label={t.trophy} class="text-6xl" />
                 <p class="font-heading text-2xl">{t.title}</p>
-                <Show when={cleared}>
+                <Show when={rating !== null}>
                   <p
-                    class="rounded-full border-[3px] border-line bg-accent-200 px-4 py-1 font-heading text-lg"
-                    data-cleared
+                    class="flex items-center gap-1 rounded-full border-[3px] border-line bg-accent-200 px-4 py-1 font-heading text-lg"
+                    data-reputation
                   >
-                    {ja.campaign.cleared}
+                    <Icon name={(rating ?? 0) >= 0 ? 'success' : 'warning'} class="text-xl" />
+                    {ja.board.reputationChanged(rating ?? 0)}
                   </p>
                 </Show>
                 <span class="text-xs font-bold text-ink-muted">{t.profitPerPersonDay}</span>

@@ -1,6 +1,6 @@
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
-import { activeProjects, offeredProjects } from '../core/campaign';
+import { activeProjects, openInquiries } from '../core/board';
 import type { GameEvent } from '../core/events';
 import { deadlineMinutes } from '../core/formulas';
 import { scoreCompany } from '../core/scoring';
@@ -26,6 +26,7 @@ export interface ActiveProjectView {
 export type NextStep =
   | { readonly kind: 'incident'; readonly count: number }
   | { readonly kind: 'assign'; readonly count: number }
+  /** 見積を出していない引き合い */
   | { readonly kind: 'offer'; readonly count: number }
   /** やることがなく、見守るだけ */
   | { readonly kind: 'watch' };
@@ -69,13 +70,13 @@ export function activeProjectViews(state: GameState): ActiveProjectView[] {
         name: def.name,
         done: tasks.filter((t) => t.status === 'done').length,
         total: tasks.length,
-        daysLeft: (deadlineMinutes(def) - (state.clock - run.startedAt)) / balance.project.minutesPerBusinessDay,
+        daysLeft: (deadlineMinutes(run) - (state.clock - run.startedAt)) / balance.project.minutesPerBusinessDay,
       },
     ];
   });
 }
 
-/** 次にやること。事件 → 担当が決まっていない Task → 受注できる案件の順。何もなければ見守る */
+/** 次にやること。事件 → 担当が決まっていない Task → 見積を出していない引き合いの順。何もなければ見守る */
 export function nextSteps(state: GameState): NextStep[] {
   const steps: NextStep[] = [];
   if (state.incidents.length > 0) steps.push({ kind: 'incident', count: state.incidents.length });
@@ -83,7 +84,7 @@ export function nextSteps(state: GameState): NextStep[] {
     .flatMap((id) => Object.values(state.projects[id]?.tasks ?? {}))
     .filter((t) => t.status === 'waiting' && t.assignment === null).length;
   if (unassigned > 0) steps.push({ kind: 'assign', count: unassigned });
-  const offered = offeredProjects(state).length;
+  const offered = openInquiries(state).length;
   if (offered > 0) steps.push({ kind: 'offer', count: offered });
   return steps.length > 0 ? steps : [{ kind: 'watch' }];
 }

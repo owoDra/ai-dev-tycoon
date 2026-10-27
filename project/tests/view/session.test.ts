@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import { catchUp } from '../../src/core/away';
+import { openInquiries } from '../../src/core/board';
 import { scoreCompany } from '../../src/core/scoring';
 import { step } from '../../src/core/step';
 import { activeProjectViews, daySummary, nextSteps, recapView } from '../../src/view/session';
@@ -42,7 +43,7 @@ describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
     expect(daySummary(end, next).day).toBe(2);
   });
 
-  it('納品した日は、その案件を成果に出し、次にやることに受注できる依頼を出す', () => {
+  it('納品した日は、その案件を成果に出し、次にやることに見積を出していない引き合いを出す', () => {
     let s = campaignInProgress('deliver');
     let prev = s;
     for (let day = 0; day < 6 && s.projects[SESSION_PROJECT]?.completedAt === null; day++) {
@@ -53,7 +54,10 @@ describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
     const summary = daySummary(prev, s);
     expect(summary.delivered).toEqual([getProject(SESSION_PROJECT).name]);
     expect(summary.active).toEqual([]);
-    expect(summary.next).toContainEqual({ kind: 'offer', count: 1 });
+    // 引き合いは営業日ごとに届き、見積を出さなければ締切まで残る
+    const open = openInquiries(s).length;
+    expect(open).toBeGreaterThanOrEqual(balance.board.perDay);
+    expect(summary.next).toContainEqual({ kind: 'offer', count: open });
   });
 
   it('あらすじ：閉じていた間に進んだ時間と完了した仕事を、閉じていた間の進行の events から数える', () => {

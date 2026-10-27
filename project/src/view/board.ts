@@ -1,0 +1,210 @@
+import { balance } from '../content/balance';
+import { getProject } from '../content/index';
+import type { ClientFocus, IndustryId, ProjectSize } from '../content/types';
+import {
+  type BidRun,
+  baseAmount,
+  bidDeadlineDays,
+  type DeadlineStep,
+  deadlineSteps,
+  estimatePersonDays,
+  type PriceStep,
+  priceSteps,
+  proposalOf,
+  quoteBid,
+} from '../core/bidding';
+import { activeProjects, openInquiries } from '../core/board';
+import { scoreProject } from '../core/scoring';
+import type { GameState } from '../core/state';
+
+/** 案件のタブ（プレイ中の切り替え。3D では案件ごとのフロア） */
+export interface ProjectTabView {
+  readonly projectId: string;
+  readonly name: string;
+  /** フロアの番号（1から、進行中の案件を始めた順） */
+  readonly floor: number;
+  /** 完了した Task の割合（0〜1） */
+  readonly progress: number;
+  readonly selected: boolean;
+}
+
+export interface ProjectTabsView {
+  readonly tabs: readonly ProjectTabView[];
+  /** まだ見積を出していない引き合いの数 */
+  readonly offers: number;
+}
+
+const doneRatio = (state: GameState, projectId: string) => {
+  const tasks = Object.values(state.projects[projectId]?.tasks ?? {});
+  return tasks.length > 0 ? tasks.filter((t) => t.status === 'done').length / tasks.length : 0;
+};
+
+/** プレイ中のタブ。進行中の案件（と、いま開いている案件）を始めた順に並べる */
+export function projectTabs(state: GameState, current: string): ProjectTabsView {
+  const ids = activeProjects(state);
+  if (!ids.includes(current) && state.projects[current]) ids.push(current);
+  return {
+    tabs: ids.map((projectId, i) => ({
+      projectId,
+      name: getProject(projectId).name,
+      floor: i + 1,
+      progress: doneRatio(state, projectId),
+      selected: projectId === current,
+    })),
+    offers: openInquiries(state).length,
+  };
+}
+
+/** 案件ボードの進行中・納品済みの1件 */
+export interface BoardProjectView {
+  readonly projectId: string;
+  readonly name: string;
+  /** 売上（受注した案件は見積額） */
+  readonly revenue: number;
+  readonly deadlineDays: number;
+  readonly tasks: number;
+  /** 完了した Task の割合（進行中の案件） */
+  readonly progress: number;
+  /** 納品した案件の Profit / Person-Day */
+  readonly profitPerPersonDay: number | null;
+}
+
+/** 引き合いの1件（コンペの前） */
+export interface InquiryView {
+  readonly projectId: string;
+  readonly name: string;
+  readonly client: string;
+  readonly industry: IndustryId;
+  readonly size: ProjectSize;
+  readonly focus: ClientFocus;
+  readonly budget: number;
+  readonly rivals: number;
+  readonly tasks: number;
+  /** 見積人日と、見積の基準額（見積人日 × 平均売値） */
+  readonly personDays: number;
+  readonly base: number;
+  /** 標準の納期（営業日） */
+  readonly deadlineDays: number;
+  /** 応募の締切までの残り（ゲーム内の分） */
+  readonly closesIn: number;
+  /** 出した見積。まだなら null */
+  readonly bid: BidRun | null;
+}
+
+/** コンペの結果の1件（新しい順） */
+export interface BidResultView {
+  readonly projectId: string;
+  readonly name: string;
+  readonly won: boolean;
+  readonly amount: number;
+  readonly winChance: number;
+}
+
+export interface BoardView {
+  /** 会社の評判（0〜100） */
+  readonly reputation: number;
+  readonly inquiries: readonly InquiryView[];
+  readonly active: readonly BoardProjectView[];
+  readonly done: readonly BoardProjectView[];
+  readonly results: readonly BidResultView[];
+}
+
+/** 案件ボード：引き合い（届いた順）・進行中の案件（始めた順）・納品した案件（納品した順）・最近のコンペの結果 */
+export function boardView(state: GameState): BoardView {
+  const item = (projectId: string): BoardProjectView => {
+    const def = getProject(projectId);
+    const run = state.projects[projectId];
+    const score = scoreProject(state, projectId);
+    return {
+      projectId,
+      name: def.name,
+      revenue: run?.revenue ?? def.revenue,
+      deadlineDays: run?.deadlineDays ?? def.deadlineDays,
+      tasks: def.tasks.length,
+      progress: doneRatio(state, projectId),
+      profitPerPersonDay: score?.completed ? score.profitPerPersonDay : null,
+    };
+  };
+  const inquiries = (state.board?.inquiries ?? []).flatMap((i): InquiryView[] => {
+    const def = getProject(i.projectId);
+    const brief = def.brief;
+    if (!brief) return [];
+    return [
+      {
+        projectId: i.projectId,
+        name: def.name,
+        client: brief.client,
+        industry: brief.industry,
+        size: brief.size,
+        focus: brief.focus,
+        budget: brief.budget,
+        rivals: brief.rivals,
+        tasks: def.tasks.length,
+        personDays: estimatePersonDays(def),
+        base: baseAmount(def),
+        deadlineDays: def.deadlineDays,
+        closesIn: Math.max(0, i.closesAt - state.clock),
+        bid: i.bid,
+      },
+    ];
+  });
+  const done = Object.values(state.projects)
+    .filter((p) => p.completedAt !== null)
+    .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0))
+    .map((p) => item(p.projectId));
+  return {
+    reputation: state.reputation,
+    inquiries,
+    active: activeProjects(state).map(item),
+    done,
+    results: (state.board?.results ?? []).map((r) => ({
+      projectId: r.projectId,
+      name: getProject(r.projectId).name,
+      won: r.won,
+      amount: r.amount,
+      winChance: r.winChance,
+    })),
+  };
+}
+
+/** 見積の選択肢の1つ（価格か納期）と、それを選んだときの勝率 */
+export interface BidOptionView<K> {
+  readonly id: K;
+  /** 基準に対する倍率 */
+  readonly ratio: number;
+}
+
+export const priceOptions: readonly BidOptionView<PriceStep>[] = priceSteps.map((id) => ({
+  id,
+  ratio: balance.bid.prices[id],
+}));
+/** 納期の選択肢。days は標準の納期から、その選択肢で提案する納期（営業日）を返す */
+export const deadlineOptions: readonly (BidOptionView<DeadlineStep> & { days: (standard: number) => number })[] =
+  deadlineSteps.map((id) => ({
+    id,
+    ratio: balance.bid.deadlines[id],
+    days: (standard: number) => bidDeadlineDays(standard, id),
+  }));
+
+/** 見積の Before / After。Before は出した見積（まだなら基準の価格・標準の納期）、After は選んでいる見積 */
+export interface BidPreview {
+  readonly before: BidRun;
+  readonly after: BidRun;
+  /** 予算の上限を超えている（選ばれない） */
+  readonly overBudget: boolean;
+  /** 提案力の内訳（0〜1） */
+  readonly proposal: { readonly reputation: number; readonly track: number; readonly ai: number };
+}
+
+export function bidPreview(state: GameState, projectId: string, price: PriceStep, deadline: DeadlineStep): BidPreview {
+  const def = getProject(projectId);
+  const submitted = state.board?.inquiries.find((i) => i.projectId === projectId)?.bid ?? null;
+  const after = quoteBid(state, projectId, price, deadline);
+  const { reputation, track, ai } = proposalOf(state, def);
+  return {
+    before: submitted ?? quoteBid(state, projectId, 'base', 'standard'),
+    after,
+    overBudget: after.amount > (def.brief?.budget ?? Number.POSITIVE_INFINITY),
+    proposal: { reputation, track, ai },
+  };
+}

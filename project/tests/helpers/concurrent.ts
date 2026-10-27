@@ -1,4 +1,3 @@
-import { campaign } from '../../src/content/campaign';
 import { getProject } from '../../src/content/index';
 import { staff } from '../../src/content/staff';
 import type { AssignModeId, SeatId, TaskDef } from '../../src/content/types';
@@ -6,10 +5,13 @@ import { type Command, reduce } from '../../src/core/commands';
 import { deadlineMinutes } from '../../src/core/formulas';
 import { type CompanyScore, scoreCompany } from '../../src/core/scoring';
 import { createInitialState } from '../../src/core/state';
+import { representativeProject } from './generated';
 import { runHeadless } from './headless';
 
-/** キャンペーンの最後の段階（短納期の2件を同時に進める）。全社員がそろっている */
-export const RUSH = campaign.stages.at(-1)?.projects ?? [];
+/**
+ * 短納期の2件の同時進行（以前のキャンペーンの最後の段階）。固定 seed で生成した社内ツールの改修とキャンペーンLP制作の型の案件
+ */
+export const RUSH = [representativeProject('internalTool'), representativeProject('promoLp')];
 export const FULL_TEAM = staff.map((h) => h.id);
 const AGENT = 'agent';
 

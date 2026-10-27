@@ -2,19 +2,48 @@ import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { AssignModeId, TaskDef } from '../../src/content/types';
-import { activeProjects, offeredProjects } from '../../src/core/campaign';
+import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
-import { createInitialState, type GameState } from '../../src/core/state';
+import { createInitialState, createProjectRun, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { humanSpeed, teamMembers } from '../../src/core/team';
 import { currentTutorialStep } from '../../src/core/tutorial';
 import { isUnlocked } from '../../src/core/unlocks';
+import { representativeProject } from './generated';
 
 /*
- * キャンペーンを最初から最後まで遊ぶ戦略 Bot（画面なし）。プレイヤーと同じく1倍速のまま進め（早送りしない）、
- * 新しい依頼を読んで担当を決めるまでの時間（考える時間）も時計が進む。
+ * チュートリアルから、固定 seed で生成した代表的な案件群を受注していく流れ（以前のキャンペーン）を遊ぶ戦略 Bot（画面なし）。
+ * 案件ボードのある会社で始め、チュートリアルを納品したら、以前のキャンペーンの段階と同じ順と条件で代表的な案件を受注したことにする
+ * （コンペの勝敗は tests/balance/bidding.test.ts で確かめる。ここでは決まった仕事量の進め方を比べる）。
+ * プレイヤーと同じく1倍速のまま進め（早送りしない）、受注した案件を読んで担当を決めるまでの時間（考える時間）も時計が進む。
  */
+
+/** 代表的な案件群の段階。前の段階の後、条件を満たすと受注する */
+interface Stage {
+  readonly projects: readonly string[];
+  readonly when: (state: GameState) => boolean;
+}
+
+const done = (state: GameState, id: string) => (state.projects[id]?.completedAt ?? null) !== null;
+const EC = representativeProject('ecRenewal');
+const PAYMENT = representativeProject('paymentFix');
+const SITE = representativeProject('corporateSite');
+const SAAS = representativeProject('saasFeature');
+const STAGES: readonly Stage[] = [
+  { projects: [EC], when: (s) => done(s, tutorialScript.projectId) },
+  { projects: [PAYMENT], when: (s) => done(s, EC) },
+  { projects: [SITE], when: (s) => done(s, PAYMENT) },
+  // コーポレートサイトのサイトマップができたら、SaaS 機能を受注する（初めての同時進行）
+  { projects: [SAAS], when: (s) => s.projects[SITE]?.tasks.sitemap?.status === 'done' },
+  {
+    projects: [representativeProject('internalTool'), representativeProject('promoLp')],
+    when: (s) => Object.values(s.projects).filter((p) => p.completedAt !== null).length >= 5,
+  },
+];
+
+/** 代表的な案件群（チュートリアルを除く、受注する順） */
+export const representativeRun: readonly string[] = STAGES.flatMap((s) => s.projects);
 
 const AI_WORKER = 'agent';
 /** smart 系の Bot が AI に任せる AI 適性の下限（tests/helpers/strategies.ts の smart と同じ） */
@@ -116,14 +145,14 @@ export interface CampaignOptions {
 export interface CampaignResult {
   readonly state: GameState;
   readonly events: readonly GameEvent[];
-  /** クリアしたゲーム内時刻（分）。打ち切ったら null */
+  /** チュートリアルと代表的な案件群をすべて納品したゲーム内時刻（分）。打ち切ったら null */
   readonly clearedAt: number | null;
 }
 
-/** キャンペーンを最初から遊ぶ。1分ずつ進め、考える時間が過ぎたら Command を出す */
+/** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、考える時間が過ぎたら Command を出す */
 export function playCampaign(options: CampaignOptions): CampaignResult {
   const perSecond = balance.time.minutesPerRealSecond;
-  let state = createInitialState(options.seed ?? tutorialScript.seed, { campaign: true });
+  let state = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
   const events: GameEvent[] = [];
   const apply = (commands: readonly Command[]) => {
     for (const c of commands) {
@@ -135,14 +164,19 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
   /** 依頼を受注する時刻と、チュートリアルの次の操作の時刻 */
   const acceptAt = new Map<string, number>();
   let tutorialAt = null as { readonly step: number; readonly at: number } | null;
+  let reached = 0;
+  const all = [tutorialScript.projectId, ...representativeRun];
+  apply([{ type: 'StartProject', projectId: tutorialScript.projectId }]);
 
-  while (!state.campaign?.cleared && state.clock < options.limitMinutes) {
-    for (const id of offeredProjects(state)) {
-      if (!acceptAt.has(id)) acceptAt.set(id, state.clock + options.thinkSeconds * perSecond);
-      if (state.clock < (acceptAt.get(id) ?? 0)) continue;
-      apply([{ type: 'StartProject', projectId: id }]);
-      if (!state.tutorial)
-        apply([...(options.policy.setup?.(state) ?? []), ...assignProject(state, id, options.policy)]);
+  while (!all.every((id) => done(state, id)) && state.clock < options.limitMinutes) {
+    while (reached < STAGES.length && STAGES[reached]?.when(state)) {
+      for (const id of STAGES[reached]?.projects ?? []) acceptAt.set(id, state.clock);
+      reached++;
+    }
+    for (const [id, offeredAt] of acceptAt) {
+      if (state.projects[id] || state.clock < offeredAt + options.thinkSeconds * perSecond) continue;
+      state = { ...state, projects: { ...state.projects, [id]: createProjectRun(id, state.clock) } };
+      apply([...(options.policy.setup?.(state) ?? []), ...assignProject(state, id, options.policy)]);
     }
     if (state.tutorial) {
       const current = state.tutorial.step;
@@ -160,6 +194,5 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
     state = r.state;
     events.push(...r.events);
   }
-  const cleared = events.some((e) => e.type === 'CampaignCleared');
-  return { state, events, clearedAt: cleared ? state.clock : null };
+  return { state, events, clearedAt: all.every((id) => done(state, id)) ? state.clock : null };
 }

@@ -75,7 +75,6 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   const run = state.projects[projectId];
   const score = scoreProject(state, projectId);
   if (!run || !score) return null;
-  const def = getProject(projectId);
   const perDay = balance.project.minutesPerBusinessDay;
 
   const profitPerPersonDay = score.completed
@@ -83,7 +82,7 @@ export function hudView(state: GameState, projectId: string): HudView | null {
     : projectedProfitPerPersonDay(state, projectId, score);
 
   const elapsed = score.elapsedMinutes;
-  const left = deadlineMinutes(def) - elapsed;
+  const left = deadlineMinutes(run) - elapsed;
   const span = Math.abs(left);
 
   const humans = teamMembers(state);
@@ -152,7 +151,7 @@ export function projectedProfitPerPersonDay(state: GameState, projectId: string,
       e.pEscape * escapedDefectCost(task) +
       laborCost(fix, balance.score.escapedFixDailyCost);
   }
-  return perPersonDay(def.revenue - cost, human);
+  return perPersonDay(run.revenue - cost, human);
 }
 
 /**

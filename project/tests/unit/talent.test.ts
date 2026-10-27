@@ -76,7 +76,7 @@ describe('人材の生成（core/talent.ts）', () => {
   });
 
   it('チュートリアルなしで始めると、最初の社員は seed から生成した平均的な2人（得意分野なし）', () => {
-    const s = createInitialState('quick', { campaign: true, talent: true });
+    const s = createInitialState('quick', { board: true, talent: true });
     const team = Object.keys(s.team);
     expect(team).toEqual(initialTalent('quick'));
     expect(team).toHaveLength(balance.hire.initialStaff);
@@ -88,7 +88,7 @@ describe('人材の生成（core/talent.ts）', () => {
     }
     expect(initialTalent('another')).not.toEqual(team);
     // チュートリアルは固定の2人のまま
-    expect(Object.keys(createInitialState('quick', { campaign: true }).team)).toEqual(['sato', 'suzuki']);
+    expect(Object.keys(createInitialState('quick', { board: true }).team)).toEqual(['sato', 'suzuki']);
   });
 
   it('創業メンバーの佐藤と鈴木は、市場の平均より速くて正確で、売値も高い', () => {

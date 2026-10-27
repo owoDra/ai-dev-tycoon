@@ -1,10 +1,12 @@
 import { primaryActor } from '../content/assignModes';
 import { balance, type GameSpeed } from '../content/balance';
-import { content, findWorker } from '../content/index';
+import { findDocument } from '../content/documents';
+import { content, findProject, findWorker } from '../content/index';
 import { seats } from '../content/seats';
 import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
 import { allFeatures, modeFeature } from '../content/unlocks';
-import { canStartProject } from './campaign';
+import { type DeadlineStep, type PriceStep, submitBid } from './bidding';
+import { canStartProject } from './board';
 import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
@@ -12,7 +14,7 @@ import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
-import { createTaskRun, type GameState, updateTask } from './state';
+import { createProjectRun, type GameState, updateTask } from './state';
 import { hire, inTeam, release, setSeat } from './team';
 import { isAllowed } from './tutorial';
 import { isUnlocked } from './unlocks';
@@ -21,8 +23,17 @@ import { isUnlocked } from './unlocks';
 export type Command =
   | { readonly type: 'SetSpeed'; readonly speed: GameSpeed }
   | { readonly type: 'TogglePause' }
-  /** 案件を始める（受注する）。キャンペーンでは受注できるようになった案件だけ。進行中の案件と同時に進められる */
+  /**
+   * 案件を始める。案件ボードのある会社では、チュートリアルの案件だけ（ほかの案件はコンペで受注する）。進行中の案件と同時に進められる
+   */
   | { readonly type: 'StartProject'; readonly projectId: string }
+  /** 案件ボードの引き合いに見積を出す（締切までは出し直せる）。価格と納期は選択肢から選ぶ（core/bidding.ts） */
+  | {
+      readonly type: 'SubmitBid';
+      readonly projectId: string;
+      readonly price: PriceStep;
+      readonly deadline: DeadlineStep;
+    }
   /** 採用市場の候補を採用する。契約金を払って入社する。人員の上限に達していたらできない */
   | { readonly type: 'Hire'; readonly staffId: string }
   /** 社員を退職させる。担当している Task が終わっていなければできない。最後の1人は退職できない */
@@ -115,11 +126,21 @@ function apply(state: GameState, command: Command): Transition {
       return { state: { ...state, paused }, events: [{ type: 'PauseToggled', paused }] };
     }
     case 'StartProject': {
-      const def = content.projects.find((p) => p.id === command.projectId);
+      const def = findProject(command.projectId);
       if (!def || !canStartProject(state, def.id)) return unchanged(state);
-      const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
-      const run = { projectId: def.id, startedAt: state.clock, completedAt: null, tasks };
+      const run = createProjectRun(def.id, state.clock);
       return { state: { ...state, projects: { ...state.projects, [def.id]: run } }, events: [] };
+    }
+    case 'SubmitBid': {
+      const { projectId, price, deadline } = command;
+      if (!(price in balance.bid.prices) || !(deadline in balance.bid.deadlines)) return unchanged(state);
+      const next = submitBid(state, projectId, price, deadline);
+      const bid = next.board?.inquiries.find((i) => i.projectId === projectId)?.bid;
+      if (next === state || !bid) return unchanged(state);
+      return {
+        state: next,
+        events: [{ type: 'BidSubmitted', projectId, amount: bid.amount, winChance: bid.winChance }],
+      };
     }
     case 'AssignTask': {
       const run = state.projects[command.projectId]?.tasks[command.taskId];
@@ -167,7 +188,7 @@ function apply(state: GameState, command: Command): Transition {
     }
     case 'SetContextFeed': {
       const { feed, workerId } = command;
-      const valid = feed.mode !== 'pick' || feed.docs.every((id) => content.documents.some((d) => d.id === id));
+      const valid = feed.mode !== 'pick' || feed.docs.every((id) => findDocument(id) !== undefined);
       if (!isAi(workerId) || !valid || !isUnlocked(state, feedFeature[feed.mode])) return unchanged(state);
       return { state: updateSession(state, workerId, (s) => ({ ...s, feed })), events: [] };
     }

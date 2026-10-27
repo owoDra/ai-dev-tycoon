@@ -63,11 +63,53 @@ export interface TaskDef {
 export interface ProjectDef {
   readonly id: string;
   readonly name: string;
-  /** 売上（円） */
+  /**
+   * 売上（円）。生成した案件では市場の標準価格（見積の基準。core/bidding.ts）で、受注した案件の売上は見積額になる
+   * （core/state.ts の ProjectRun.revenue）
+   */
   readonly revenue: number;
-  /** 納期（営業日） */
+  /** 納期（営業日）。生成した案件では標準の納期で、受注した案件の納期は提案した納期になる */
   readonly deadlineDays: number;
   readonly tasks: readonly TaskDef[];
+  /** 生成した案件（core/projectGen.ts）の素性。固定の案件にはない */
+  readonly brief?: ProjectBrief;
+}
+
+/** 案件の規模。Task の数・作業量・品質要求・納期・価格が変わる（balance.projectGen.sizes） */
+export type ProjectSize = 'S' | 'M' | 'L' | 'XL';
+
+/** 発注者の業種。文言は i18n の ja.projectGen.industries、補正は content/projectTemplates.ts の industries */
+export type IndustryId = 'ec' | 'saas' | 'internal' | 'media' | 'payment';
+
+/** 発注者の性格。コンペで何を重く見るか（balance.bid.focus） */
+export type ClientFocus = 'price' | 'quality' | 'deadline';
+
+/** 生成した案件の素性。コンペ（core/bidding.ts）と案件ボードの表示に使う */
+export interface ProjectBrief {
+  /** 案件の型（content/projectTemplates.ts の id） */
+  readonly templateId: string;
+  readonly industry: IndustryId;
+  readonly size: ProjectSize;
+  /** 発注者の名前 */
+  readonly client: string;
+  readonly focus: ClientFocus;
+  /** 予算の上限（円）。これを超える見積は選ばれない */
+  readonly budget: number;
+  /** 競合の数 */
+  readonly rivals: number;
+}
+
+/**
+ * 案件の型。工程の依存関係と Task の性質を持ち、業種と規模を掛け合わせて案件を生成する（core/projectGen.ts）。
+ * revenue・deadlineDays・tasks は規模 M・業種の補正なしの値で、id のまま引くとこの値の案件（標準の案件）になる
+ */
+export interface ProjectTemplateDef extends ProjectDef {
+  /** この型の案件を出す業種 */
+  readonly industries: readonly IndustryId[];
+  /** 規模 L 以上で、並行する複製を増やして作業を分ける Task（依存する Task はすべての複製を待つ） */
+  readonly scales: readonly string[];
+  /** 規模 S では省く Task（依存していた Task は、その Task の依存を引き継ぐ） */
+  readonly optional: readonly string[];
 }
 
 export interface ModelDef {
@@ -155,6 +197,8 @@ export type Condition =
   | { readonly type: 'taskCompleted'; readonly projectId: string; readonly taskId: string }
   /** 特定の案件を納品した */
   | { readonly type: 'projectCompleted'; readonly projectId: string }
+  /** その型（content/projectTemplates.ts）の案件を納品した。生成した案件と、型の id の標準の案件の両方を数える */
+  | { readonly type: 'templateCompleted'; readonly templateId: string }
   /** Context の記録（core/state.ts の ContextStats）の値が count 以上 */
   | { readonly type: 'contextStat'; readonly stat: ContextStatId; readonly count: number }
   /** どれかの AI Worker の Session が、Reset からこの時間（AI が作業した分）以上続いている */
@@ -442,23 +486,6 @@ export interface HarnessPartDef {
   readonly group?: string;
   /** この機能が解放されると選べる */
   readonly unlock: FeatureId;
-}
-
-/** キャンペーンの1段階。条件を満たすと案件を受注できるようになり、社員が加わる */
-export interface CampaignStageDef {
-  readonly id: string;
-  /** この段階で受注できるようになる案件（複数なら同時に進める） */
-  readonly projects: readonly string[];
-  /** 受注できるようになる条件（前の段階の案件の納品など） */
-  readonly when: Condition;
-}
-
-/** キャンペーン（企画書21章）。案件の受注順・解放・難易度の上昇をデータで定義する */
-export interface CampaignDef {
-  /** 最初からいる社員（チュートリアルの2人）。人員はこの後、採用市場から増やす */
-  readonly team: readonly string[];
-  /** 並び順は受注できるようになる順 */
-  readonly stages: readonly CampaignStageDef[];
 }
 
 /**

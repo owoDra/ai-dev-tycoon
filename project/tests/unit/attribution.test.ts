@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { attributeProject, type Impact } from '../../src/core/attribution';
-import { deserialize, serialize } from '../../src/core/serialize';
+import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serialize';
 import { seeds } from '../helpers/compare';
 import { type PlayConfig, playConfigured } from '../helpers/configured';
 import { AVERAGE_TEAM } from '../helpers/talent';
@@ -55,7 +55,7 @@ describe('寄与の記録', () => {
     for (const t of Object.values(human.state.projects.corporateSite?.tasks ?? {})) expect(t.setup).toBeNull();
   });
 
-  it('記録はセーブを通っても残り、v7 のセーブは記録なしで読み込める', () => {
+  it('記録はセーブを通っても残り、v7（キャンペーン）の形式のセーブは読み込めない', () => {
     const { state } = playConfigured({ projectId: 'corporateSite', mode: 'ai', parts: ['hookUnitTest'] }, 'attr-save');
     expect(deserialize(serialize(state))).toEqual(state);
     const v7 = JSON.parse(serialize(state)) as {
@@ -64,8 +64,9 @@ describe('寄与の記録', () => {
     };
     for (const p of Object.values(v7.state.projects)) for (const t of Object.values(p.tasks)) delete t.setup;
     v7.saveVersion = 7;
-    const loaded = deserialize(JSON.stringify(v7));
-    for (const t of Object.values(loaded.projects.corporateSite?.tasks ?? {})) expect(t.setup).toBeNull();
+    expect(() => deserialize(JSON.stringify(v7))).toThrow(OutdatedSaveError);
+    const loaded = deserialize(serialize(state));
+    for (const t of Object.values(loaded.projects.corporateSite?.tasks ?? {})) expect(t.setup).not.toBeNull();
   });
 
   it('要素ごとの寄与の合計は、構成全体の差分（記録した構成 − 基準の構成）に一致する', () => {

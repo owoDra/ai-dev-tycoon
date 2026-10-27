@@ -94,8 +94,8 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
   }
 
   humanMinutes += aftercareMinutes;
-  const revenue = completed ? def.revenue : 0;
-  const delay = delayLoss(elapsedMinutes, def);
+  const revenue = completed ? run.revenue : 0;
+  const delay = delayLoss(elapsedMinutes, run);
   const end = run.completedAt ?? state.clock;
   const harnessCost = state.harnessLedger
     .filter((e) => e.at >= run.startedAt && e.at <= end)

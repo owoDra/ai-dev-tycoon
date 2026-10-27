@@ -8,7 +8,7 @@ import { marketCandidates } from './talent';
 
 /*
  * 社員と Seat（企画書6章）・採用市場。AI Worker の使用量は運用者の Seat の上限から消費し、上限を超えると AI Worker が遅くなる。
- * Seat の固定費と待機中の社員の給与は日割りで、進行中の案件があるときだけ計上する。
+ * Seat の固定費と待機中の社員の給与は日割りで、会社が営業しているときだけ計上する（companyOpen）。
  */
 
 /** 会社にいる社員（入社した順） */
@@ -150,12 +150,18 @@ export function humanSpeed(humanId: string, task: TaskDef): number {
 /** ゲーム開始からの営業日の番号（0 から） */
 export const businessDay = (clock: number) => Math.floor(clock / balance.project.minutesPerBusinessDay);
 
-/** 進行中の案件があるか。Seat の固定費と待機中の給与は、このときだけ計上する */
-export const hasActiveProject = (state: GameState) => Object.values(state.projects).some((p) => p.completedAt === null);
+/**
+ * 会社が営業していて、Seat の固定費と待機中の給与がかかっているか。進行中の案件があるときと、
+ * チュートリアルを終えた案件ボードのある会社（案件の合間に引き合いを待つ間も給与はかかる）。
+ * 単発のプレイとチュートリアルでは、案件の合間を数えない
+ */
+export const companyOpen = (state: GameState) =>
+  (state.board !== null && state.tutorial === null) ||
+  Object.values(state.projects).some((p) => p.completedAt === null);
 
 /**
- * Seat の経済。営業日が変わったら使用量を 0 に戻し、進行中の案件があれば Seat の固定費を日割りで計上する
- * （案件の合間は計上しない）。待機中の社員の給与は、人間の待ち行列の処理（core/humanQueueSystem.ts）が数える
+ * Seat の経済。営業日が変わったら使用量を 0 に戻し、会社が営業していれば Seat の固定費を日割りで計上する
+ * （単発のプレイとチュートリアルでは案件の合間は計上しない）。待機中の社員の給与は、人間の待ち行列の処理（core/humanQueueSystem.ts）が数える
  */
 export const seatSystem: System = (state) => {
   let next = state;
@@ -164,7 +170,7 @@ export const seatSystem: System = (state) => {
     const team = Object.fromEntries(Object.entries(state.team).map(([id, r]) => [id, { ...r, used: 0 }]));
     next = { ...next, team, usageDay: day };
   }
-  if (!hasActiveProject(next)) return next;
+  if (!companyOpen(next)) return next;
   const cost = (teamDailyCost(next) * balance.time.tickMinutes) / balance.project.minutesPerBusinessDay;
   return { ...next, seatCost: next.seatCost + cost };
 };

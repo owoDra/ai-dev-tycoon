@@ -1,17 +1,20 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.promoLp;
 
 /**
- * キャンペーンLP制作（キャンペーンの最後の同時進行）。企画 → コピー / ビジュアル → ページ実装 → 公開前チェック。
+ * キャンペーンLP制作（短納期の小さな案件）。企画 → コピー / ビジュアル → ページ実装 → 公開前チェック。
  * 小さな案件だが公開前チェックの品質要求が高く、同時に進む社内ツールと人間の確認を取り合う。
  */
-export const promoLp: ProjectDef = {
+export const promoLp: ProjectTemplateDef = {
   id: 'promoLp',
   name: ja.projects.promoLp,
   revenue: 1_000_000,
   deadlineDays: 1,
+  industries: ['ec', 'media', 'saas'],
+  scales: ['build'],
+  optional: ['visual'],
   tasks: [
     {
       id: 'brief',

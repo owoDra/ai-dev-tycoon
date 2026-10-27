@@ -3,6 +3,7 @@ import { balance } from '../content/balance';
 import { getAiWorker, getHuman, getProject, getTask } from '../content/index';
 import type { HarnessModifiers, ModeStep, TaskDef } from '../content/types';
 import { intervene } from './autonomy';
+import { rateDelivery } from './bidding';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
 import { aiSuccessWithContext, aiWorkTime } from './contextWork';
 import {
@@ -417,6 +418,7 @@ function completeTask(state: GameState, projectId: string, taskId: string, ctx: 
   if (project && Object.values(project.tasks).every((t) => t.status === 'done')) {
     next = { ...next, projects: { ...next.projects, [projectId]: { ...project, completedAt: state.clock } } };
     ctx.emit({ type: 'ProjectCompleted', projectId });
+    next = rateDelivery(next, projectId, ctx.emit);
   }
   return next;
 }

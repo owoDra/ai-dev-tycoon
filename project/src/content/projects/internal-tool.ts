@@ -1,18 +1,21 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.internalTool;
 
 /**
- * 社内ツールの改修（キャンペーンの最後の同時進行）。業務ヒアリング → 自動化スクリプト / 管理画面 → 動作テスト → 引き継ぎ。
+ * 社内ツールの改修（短納期の小さな案件）。業務ヒアリング → 自動化スクリプト / 管理画面 → 動作テスト → 引き継ぎ。
  * AI に向いた実装が多く納期も短いので、キャンペーンLP制作と並べると AI Worker の使用量が一気に減り、
  * 運用者の Seat が足りるか（Premium にするか、Workflow と Context を見直すか）が問われる。
  */
-export const internalTool: ProjectDef = {
+export const internalTool: ProjectTemplateDef = {
   id: 'internalTool',
   name: ja.projects.internalTool,
   revenue: 1_400_000,
   deadlineDays: 1,
+  industries: ['internal', 'saas'],
+  scales: ['automation'],
+  optional: ['dashboard'],
   tasks: [
     {
       id: 'interview',

@@ -212,6 +212,89 @@ export const balance = {
     /** チュートリアルなしで始めたときに seed から生成する最初の社員の数（平均的な能力の人） */
     initialStaff: 2,
   },
+  /**
+   * 案件の生成（core/projectGen.ts）。規模ごとに、作業量・市場の標準価格・納期の倍率、並行する複製の数（型の scales の Task）、
+   * 省く Task（型の optional）を省くか、品質要求に足す量を決める
+   */
+  projectGen: {
+    sizes: {
+      S: { effort: 0.6, price: 0.6, deadline: 0.7, copies: 0, dropOptional: true, qualityReq: -0.05 },
+      M: { effort: 1, price: 1, deadline: 1, copies: 0, dropOptional: false, qualityReq: 0 },
+      L: { effort: 1.5, price: 1.5, deadline: 1.3, copies: 1, dropOptional: false, qualityReq: 0.05 },
+      XL: { effort: 2.2, price: 2.2, deadline: 1.6, copies: 2, dropOptional: false, qualityReq: 0.1 },
+    },
+    /** Task ごとの作業量のばらつき（倍率の範囲）と、丸める刻み（分） */
+    effortJitter: { min: 0.85, max: 1.15 },
+    effortStep: 10,
+    /** 案件ごとの標準価格のばらつき（倍率の範囲）と、丸める刻み（円） */
+    priceJitter: { min: 0.9, max: 1.1 },
+    priceStep: 10_000,
+    /** 発注者の性格ごとの予算の上限（標準価格に対する倍率の範囲） */
+    budget: {
+      price: { min: 1.02, max: 1.12 },
+      quality: { min: 1.12, max: 1.3 },
+      deadline: { min: 1.06, max: 1.22 },
+    },
+    /** 競合の数の範囲 */
+    rivals: { min: 2, max: 4 },
+  },
+  /**
+   * 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、応募の締切に結果が出る。
+   * 数と規模の分布は Phase 21 で会社の規模から決める（それまでは固定）
+   */
+  board: {
+    /** 営業日ごとに届く引き合いの数 */
+    perDay: 2,
+    /** 応募の締切（届いた営業日から数えて何営業日目の終わりか） */
+    closeDays: 2,
+    /** 引き合いに出る規模の重み（L・XL は Phase 21 の会社の成長で出す） */
+    sizes: { S: 1, M: 1, L: 0, XL: 0 },
+    /** 案件ボードに残す最近のコンペの結果の数 */
+    history: 10,
+  },
+  /**
+   * コンペ（core/bidding.ts）。見積の基準額 = 見積人日 × 平均売値（balance.talent.rate.mean）。
+   * 見積人日は市場の標準価格を平均売値で割った値（請求の人日。ゲーム内の作業時間はこれより短く縮めてある）。
+   * 各社の評価 = −価格の比 × price ＋ 提案力 × proposal − 納期の比 × deadline（重みは発注者の性格ごと）で、
+   * 勝率 = exp(評価 / temperature) を競合とあわせて正規化した値。予算の上限を超える見積は 0
+   */
+  bid: {
+    /** 選べる価格（基準額に対する倍率）。中央が基準 */
+    prices: { minus20: 0.8, minus10: 0.9, base: 1, plus10: 1.1, plus20: 1.2 },
+    /** 選べる納期（標準の納期に対する倍率。営業日に丸め、1日以上） */
+    deadlines: { short: 0.8, standard: 1, long: 1.2 },
+    /** 見積人日を丸める刻み */
+    personDayStep: 0.5,
+    /** 金額を丸める刻み（円） */
+    amountStep: 10_000,
+    temperature: 0.1,
+    focus: {
+      price: { price: 1.5, proposal: 0.4, deadline: 0.4 },
+      quality: { price: 0.7, proposal: 1.2, deadline: 0.4 },
+      deadline: { price: 0.7, proposal: 0.4, deadline: 1.2 },
+    },
+    /** 提案力（0〜1）= 評判 × reputation ＋ 同業種の実績（trackCap 件で頭打ち）× track ＋ AI 体制（aiCap で頭打ち）× ai */
+    proposal: { reputation: 1, track: 0.15, trackCap: 3, ai: 0.15, aiCap: 4 },
+    /** 競合の価格の比・提案力・納期の比の範囲（三角分布） */
+    rival: {
+      price: { min: -0.15, max: 0.15 },
+      proposal: { min: 0.35, max: 0.65 },
+      deadline: { min: -0.2, max: 0.2 },
+    },
+  },
+  /**
+   * 評判（0〜100）。納品のたびに変わる：納期内なら onTime を足し、遅れたら遅れた営業日（切り上げ）× perLateDay を引く。
+   * さらに品質（作業量で重み付けした平均）が qualityPivot より高いほど足し、低いほど引く（× perQuality）
+   */
+  reputation: {
+    initial: 50,
+    min: 0,
+    max: 100,
+    onTime: 4,
+    perLateDay: 8,
+    qualityPivot: 0.9,
+    perQuality: 40,
+  },
   /** 結果画面と振り返り（view/retrospective.ts・view/rank.ts） */
   result: {
     /**

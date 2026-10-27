@@ -1,10 +1,9 @@
 import { createEffect, createSignal, lazy, Match, on, onCleanup, Show, Switch } from 'solid-js';
-import { content } from '../content/index';
 import { uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { tutorialScript } from '../content/tutorial';
 import { catchUp, dayEnd, runsUnattended } from '../core/away';
-import { activeProjects } from '../core/campaign';
+import { activeProjects } from '../core/board';
 import { createInitialState, type GameState } from '../core/state';
 import { businessDay } from '../core/team';
 import type { FxDirector } from '../fx/director';
@@ -16,7 +15,7 @@ import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
 import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
-import { CampaignBoard } from '../ui/screens/CampaignBoard';
+import { ProjectBoard } from '../ui/screens/ProjectBoard';
 import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
 import { createSelection } from '../ui/selection';
@@ -27,7 +26,7 @@ import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
 import { markTutorialDone, progress } from './progress';
-import { clearCampaign, loadCampaign, loadSavedAt, saveCampaign } from './save';
+import { clearCompany, hasOutdatedSave, loadCompany, loadSavedAt, saveCompany } from './save';
 import { createScreens } from './screens';
 import { settings } from './settings';
 import { createGameStore, type GameStore } from './store';
@@ -51,8 +50,8 @@ const AUTOSAVE_MS = 5000;
 
 /**
  * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → 案件ボード → プレイ → 結果、タイトル → 実務モード）を重ねる。
- * キャンペーン1回ごとに新しい GameStore を作り、ゲームループを回す。キャンペーンはチュートリアル案件から始まり、
- * 進み具合（解放・社員・Harness・案件）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
+ * 会社1つごとに新しい GameStore を作り、ゲームループを回す。会社はチュートリアル案件から始まり、終えると案件ボードに引き合いが届く。
+ * 進み具合（解放・社員・Harness・案件・評判）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
  * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したら結果画面へ進む。
  * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
  * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
@@ -61,7 +60,8 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const screens = createScreens();
   const selection = createSelection();
   const [game, setGame] = createSignal<GameStore>(createGameStore(createInitialState(IDLE_SEED)));
-  const [saved, setSaved] = createSignal(loadCampaign() !== null);
+  const [saved, setSaved] = createSignal(loadCompany() !== null);
+  const [outdated, setOutdated] = createSignal(hasOutdatedSave());
   const [world, setWorld] = createSignal<{ world: World; vm: () => WorldViewModel }>();
   const [lookId, setLookId] = createSignal<WorldLookId>(defaultWorldLookId);
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
@@ -77,7 +77,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const worldProject = () => {
     const s = screens.screen();
     if (s.id === 'play' || s.id === 'result') return s.projectId;
-    return activeProjects(game().state())[0] ?? content.projects[0]?.id ?? '';
+    return activeProjects(game().state())[0] ?? tutorialScript.projectId;
   };
 
   const useState = (state: GameState) => {
@@ -88,7 +88,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     setGame(createGameStore(state));
   };
 
-  /** 営業日の終わりで区切るか（設定・キャンペーンの進行中の案件・案件ボードかプレイ画面） */
+  /** 営業日の終わりで区切るか（設定・会社の進行中の案件か結果待ちの見積・案件ボードかプレイ画面） */
   const breaksAtDayEnd = () => {
     const id = screens.screen().id;
     return settings().dayBreak && (id === 'play' || id === 'select') && runsUnattended(game().state());
@@ -102,38 +102,38 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   };
 
   const save = () => {
-    saveCampaign(game().state());
-    setSaved(game().state().campaign !== null);
+    saveCompany(game().state());
+    if (game().state().board === null) return;
+    setSaved(true);
+    setOutdated(false);
   };
 
-  /** キャンペーンをはじめから始める。最初の案件（チュートリアル）をすぐに受注してプレイへ進む */
+  /** 会社をはじめから始める。最初の案件（チュートリアル）をすぐに始めてプレイへ進む。終えると案件ボードへ */
   const newCampaign = () => {
-    clearCampaign();
-    useState(createInitialState(tutorialScript.seed, { campaign: true }));
+    clearCompany();
+    useState(createInitialState(tutorialScript.seed, { board: true }));
     game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
     save();
     screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
 
   /**
-   * チュートリアルなしでキャンペーンを始める。最初の社員は seed から生成した平均的な2人で、seed は毎回変える。
-   * チュートリアルの案件をコーチなしで受注し（SkipTutorial で機能をすべて解放）、プレイへ進む
+   * チュートリアルなしで会社を始める。最初の社員は seed から生成した平均的な2人で、seed は毎回変える。
+   * 機能をすべて解放した状態で、引き合いの届いた案件ボードへ進む
    */
   const quickCampaign = () => {
-    clearCampaign();
-    useState(createInitialState(`run-${Date.now().toString(36)}`, { campaign: true, talent: true }));
-    game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
-    game().dispatch({ type: 'SkipTutorial' });
+    clearCompany();
+    useState(createInitialState(`run-${Date.now().toString(36)}`, { board: true, talent: true, tutorial: false }));
     save();
-    screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
+    screens.go({ type: 'Open' });
   };
 
   /**
-   * 保存したキャンペーンを読み込んで案件ボードへ進む。閉じていた間の進行を適用し、一時停止したままあらすじを出す
+   * 保存した会社を読み込んで案件ボードへ進む。閉じていた間の進行を適用し、一時停止したままあらすじを出す
    * （チュートリアル中はあらすじを出さずにそのまま続ける）
    */
   const continueCampaign = () => {
-    const state = loadCampaign();
+    const state = loadCompany();
     if (!state) return newCampaign();
     const savedAt = loadSavedAt();
     const awaySeconds = settings().awayProgress && savedAt !== null ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
@@ -168,7 +168,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         }
         dayStart = state;
       });
-      if (store.state().campaign) {
+      if (store.state().board) {
         const timer = setInterval(save, AUTOSAVE_MS);
         onCleanup(() => clearInterval(timer));
       }
@@ -180,7 +180,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
             setDayCard(null);
             setRecap(null);
           }
-          if (events.some((e) => e.type === 'SeatChanged' || e.type === 'ProjectsOffered')) save();
+          if (events.some((e) => e.type === 'SeatChanged' || e.type === 'BidWon' || e.type === 'BidSubmitted')) save();
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;
           save();
@@ -222,13 +222,14 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
             onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
             onPractice={() => screens.go({ type: 'Practice' })}
             onSettings={openSettings}
+            outdatedSave={outdated() && !saved()}
           />
         </Match>
         <Match when={screens.screen().id === 'practice'}>
           <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
         </Match>
         <Match when={screens.screen().id === 'select'}>
-          <CampaignBoard
+          <ProjectBoard
             store={game()}
             onOpen={(projectId) => {
               selection.dispatch({ type: 'SelectEntity', entityId: null });

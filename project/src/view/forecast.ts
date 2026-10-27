@@ -4,7 +4,14 @@ import type { AssignModeId } from '../content/types';
 import { reduce } from '../core/commands';
 import { deadlineMinutes } from '../core/formulas';
 import { hashSeed } from '../core/rng';
-import { createHumanQueues, createTaskRun, type GameState, type ProjectRun, type TaskRun } from '../core/state';
+import {
+  createHumanQueues,
+  createProjectRun,
+  createTaskRun,
+  type GameState,
+  type ProjectRun,
+  type TaskRun,
+} from '../core/state';
 import { step } from '../core/step';
 
 /** 担当を変えたときの見込み（1つの Task だけの値） */
@@ -103,7 +110,14 @@ export function simulateTaskAlone(
     clock: 0,
     carryMinutes: 0,
     paused: false,
-    projects: { [projectId]: { projectId, startedAt: 0, completedAt: null, tasks } },
+    projects: {
+      [projectId]: {
+        ...(state.projects[projectId] ?? createProjectRun(projectId, 0)),
+        startedAt: 0,
+        completedAt: null,
+        tasks,
+      },
+    },
     humanQueues: createHumanQueues(),
     bottleneck: null,
     pendingEvents: [],

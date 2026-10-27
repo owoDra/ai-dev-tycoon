@@ -1,5 +1,5 @@
 import { balance } from '../content/balance';
-import { activeProjects } from './campaign';
+import { activeProjects, pendingBids } from './board';
 import type { Transition } from './commands';
 import type { GameState } from './state';
 import { step, toGameMinutes } from './step';
@@ -15,9 +15,13 @@ export function dayEnd(clock: number): number {
   return (businessDay(clock) + 1) * balance.project.minutesPerBusinessDay;
 }
 
-/** 区切りと閉じている間の進行の対象か。キャンペーンで、チュートリアルを終えていて、進行中の案件がある */
+/** 区切りと閉じている間の進行の対象か。案件ボードのある会社で、チュートリアルを終えていて、進行中の案件か結果待ちの見積がある */
 export function runsUnattended(state: GameState): boolean {
-  return state.campaign !== null && state.tutorial === null && activeProjects(state).length > 0;
+  return (
+    state.board !== null &&
+    state.tutorial === null &&
+    (activeProjects(state).length > 0 || pendingBids(state).length > 0)
+  );
 }
 
 /** 閉じていた実時間（秒）のうち、再開時に進めるゲーム内の分。その営業日の終わりまで */

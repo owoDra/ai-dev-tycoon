@@ -1,12 +1,7 @@
-import { balance } from '../content/balance';
-import { campaign } from '../content/campaign';
-import { glossary } from '../content/glossary';
-import { allFeatures } from '../content/unlocks';
-import { createHumanQueues, createSessions, createTeam, type GameState } from './state';
-import { marketCandidates, talentId } from './talent';
+import type { GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -20,76 +15,17 @@ export interface Migration {
   readonly migrate: (state: unknown) => unknown;
 }
 
-/** from の昇順に並べる */
-export const MIGRATIONS: readonly Migration[] = [
-  // v2: 案件・人間の待ち行列・ボトルネックを追加（Phase 03）
-  { from: 1, migrate: (s) => ({ ...(s as object), projects: {}, humanQueues: createHumanQueues(), bottleneck: null }) },
-  // v3: 機能の解放・用語・チュートリアルを追加（Phase 09）。以前のセーブはすべて解放済みとして扱う
-  {
-    from: 2,
-    migrate: (s) => ({ ...(s as object), unlocked: allFeatures, revealed: glossary.map((g) => g.id), tutorial: null }),
-  },
-  // v4: AI Worker の Session・事件・Context の記録を追加（Phase 10）
-  {
-    from: 3,
-    migrate: (s) => ({
-      ...(s as object),
-      sessions: createSessions(),
-      incidents: [],
-      contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
-    }),
-  },
-  // v5: AI Worker の Harness と導入コストの記録、Task の Harness の記録を追加（Phase 11）
-  { from: 4, migrate: (s) => migrateHarness(s as V4State) },
-  // v6: AI Worker の自律の記録（Autonomy Streak と介入間隔）を追加（Phase 12）
-  { from: 5, migrate: (s) => ({ ...(s as object), autonomy: {} }) },
-  // v7: 社員と Seat・使用量・Seat の固定費・キャンペーンを追加（Phase 13）。以前のセーブはキャンペーンでない単発のプレイ
-  {
-    from: 6,
-    migrate: (s) => ({ ...(s as object), team: createTeam(campaign.team), usageDay: 0, seatCost: 0, campaign: null }),
-  },
-  // v8: Task に AI の作業の構成（寄与の分析用）を追加（Phase 14）。以前の Task は記録なし
-  { from: 7, migrate: (s) => mapTasks(s as V4State, (t) => ({ ...t, setup: null })) },
-  // v9: Workflow Library（保存した Workflow と適用の記録）を追加（Phase 16）。以前のセーブは空の棚から
-  { from: 8, migrate: (s) => ({ ...(s as object), library: [], libraryUses: [] }) },
-  // v10: 採用市場・契約金・待機中の給与を追加（Phase 19）。固定の社員のうち、チュートリアルの2人以外は生成した人材に置き換える
-  { from: 9, migrate: (s) => migrateTalent(s as V9State) },
-];
+/**
+ * from の昇順に並べる。v10 以前（Phase 19 まで）は固定の案件を順に受注するキャンペーンのセーブで、
+ * 案件ボードとコンペ（Phase 20）の会社に変換できないので読み込まない（OutdatedSaveError）
+ */
+export const MIGRATIONS: readonly Migration[] = [];
 
-/** Phase 19 で固定の定義から外した社員。セーブに残っていれば、同じ id を seed にした人材（core/talent.ts）に置き換える */
-const RETIRED_STAFF = ['takahashi', 'ito', 'watanabe'];
-
-interface V9State {
-  readonly seed: string;
-  readonly clock: number;
-}
-
-function migrateTalent(s: V9State): unknown {
-  // id は state のキーと値の両方に現れる（社員・待ち行列・Task の担い手）ので、JSON の文字列ごと置き換える
-  let json = JSON.stringify(s);
-  for (const id of RETIRED_STAFF) json = json.replaceAll(`"${id}"`, `"${talentId(id)}"`);
-  const day = Math.floor(s.clock / balance.project.minutesPerBusinessDay);
-  return { ...JSON.parse(json), market: { day, candidates: marketCandidates(s.seed, day) }, hireCost: 0, idleCost: 0 };
-}
-
-interface V4State {
-  readonly projects: Readonly<Record<string, { readonly tasks: Readonly<Record<string, object>> }>>;
-}
-
-/** すべての案件の Task を fn で変換する */
-function mapTasks<S extends V4State>(s: S, fn: (task: object) => object): S {
-  const projects = Object.fromEntries(
-    Object.entries(s.projects).map(([id, p]) => [
-      id,
-      { ...p, tasks: Object.fromEntries(Object.entries(p.tasks).map(([tid, t]) => [tid, fn(t)])) },
-    ]),
-  );
-  return { ...s, projects };
-}
-
-function migrateHarness(s: V4State): unknown {
-  const next = mapTasks(s, (t) => ({ ...t, skipped: [], evalLoops: 0, accidents: 0, interventions: 0 }));
-  return { ...next, harnesses: {}, ownedParts: [], harnessLedger: [] };
+/** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
+export class OutdatedSaveError extends Error {
+  constructor(readonly version: number) {
+    super(`古い形式のセーブデータ（バージョン ${version} からのマイグレーションがない）`);
+  }
 }
 
 interface SaveData {
@@ -103,7 +39,7 @@ export function serialize(state: GameState): string {
 
 /**
  * セーブデータを読み込み、必要ならマイグレーションを順に適用して現在の形にする。
- * 壊れたデータや未来のバージョンは例外にする。
+ * 壊れたデータや未来のバージョンは例外にし、変換できない古いバージョンは OutdatedSaveError にする。
  */
 export function deserialize(
   json: string,
@@ -118,7 +54,7 @@ export function deserialize(
   let { saveVersion: version, state } = data;
   while (version < currentVersion) {
     const m = migrations.find((x) => x.from === version);
-    if (!m) throw new Error(`バージョン ${version} からのマイグレーションがない`);
+    if (!m) throw new OutdatedSaveError(version);
     state = m.migrate(state);
     version++;
   }
@@ -158,7 +94,8 @@ function isGameState(v: unknown): v is GameState {
     Array.isArray(v.market.candidates) &&
     typeof v.hireCost === 'number' &&
     typeof v.idleCost === 'number' &&
-    (v.campaign === null || isRecord(v.campaign)) &&
+    (v.board === null || (isRecord(v.board) && Array.isArray(v.board.inquiries))) &&
+    typeof v.reputation === 'number' &&
     Array.isArray(v.library) &&
     Array.isArray(v.libraryUses)
   );

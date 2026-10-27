@@ -35,7 +35,7 @@ const mean = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / xs.lengt
 export const mid = (range: Range) => mean([range.min, range.max]);
 
 /** [min, max] の三角分布（2つの一様乱数の平均）。中央の値が最も多く、端は少ない */
-function triangular(rng: RngState, range: Range): [number, RngState] {
+export function triangular(rng: RngState, range: Range): [number, RngState] {
   const [a, s1] = next(rng);
   const [b, s2] = next(s1);
   return [range.min + (range.max - range.min) * mean([a, b]), s2];

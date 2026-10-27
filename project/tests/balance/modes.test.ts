@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { assignModes } from '../../src/content/assignModes';
-import { content, getModel, humans } from '../../src/content/index';
-import type { AssignModeId, TaskDef } from '../../src/content/types';
+import { content, getModel, getProject, humans } from '../../src/content/index';
+import type { AssignModeId, ProjectDef, TaskDef } from '../../src/content/types';
 import { expectWithSetup, harnessSetup } from '../../src/core/expectation';
 import { escapedDefectCost, escapedFixMinutes, laborCost } from '../../src/core/formulas';
 import { NEUTRAL } from '../../src/core/harness';
+import { generatedProjectId } from '../../src/core/projectGen';
+import { seeds } from '../helpers/compare';
+import { representativeProjects } from '../helpers/generated';
 
 /**
  * 担当モードに支配的なものがないこと（企画書5章「AI を適切な仕事へ配置する」）。
@@ -35,15 +38,27 @@ function bestMode(task: TaskDef): AssignModeId {
   return best.mode;
 }
 
-const rows = content.projects.flatMap((p) => p.tasks.map((task) => ({ projectId: p.id, task, best: bestMode(task) })));
+/** 固定 seed で生成した案件群（型ごとの代表的な案件の S・M と、seed を変えた引き合いの規模 S・M） */
+const generated = [
+  ...representativeProjects('S'),
+  ...representativeProjects('M'),
+  ...seeds(24, 'modes').flatMap((seed) => [generatedProjectId(seed, 'S'), generatedProjectId(seed, 'M')]),
+].map(getProject);
 
-describe('担当モードに支配的なものがない', () => {
+const rowsOf = (projects: readonly ProjectDef[]) =>
+  projects.flatMap((p) => p.tasks.map((task) => ({ projectId: p.id, task, best: bestMode(task) })));
+
+describe.each([
+  ['固定の案件', content.projects],
+  ['固定 seed で生成した案件群', generated],
+] as const)('担当モードに支配的なものがない（%s）', (label, projects) => {
+  const rows = rowsOf(projects);
   // 修正前は「AI → 自動テスト → 確認」が 41 Task すべてで最適だった
   it('どのモードも、全 Task の 2/3 以上では最適にならない', () => {
     const counts: Partial<Record<AssignModeId, number>> = {};
     for (const r of rows) counts[r.best] = (counts[r.best] ?? 0) + 1;
     console.log(
-      `[担当モード] Task ごとの最適モード（${rows.length} Task）：` +
+      `[担当モード/${label}] Task ごとの最適モード（${rows.length} Task）：` +
         Object.entries(counts)
           .map(([mode, n]) => `${mode} ${n}`)
           .join(' / '),
@@ -65,7 +80,7 @@ describe('担当モードに支配的なものがない', () => {
 
   // チュートリアルはモードを順に教える台本の案件で、後半はコードの Task が続くので除く
   it('1つのモードを全 Task にコピーすれば最適、になる案件はない（チュートリアルを除く）', () => {
-    for (const p of content.projects.filter((x) => x.id !== 'tutorialLp')) {
+    for (const p of projects.filter((x) => x.id !== 'tutorialLp')) {
       const modes = new Set(rows.filter((r) => r.projectId === p.id).map((r) => r.best));
       expect(modes.size, p.id).toBeGreaterThanOrEqual(2);
     }

@@ -4,7 +4,7 @@ import { getHuman } from '../../src/content/index';
 import { type Command, reduce } from '../../src/core/commands';
 import { dailyCost } from '../../src/core/formulas';
 import { scoreCompany } from '../../src/core/scoring';
-import { deserialize, serialize } from '../../src/core/serialize';
+import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { talentId } from '../../src/core/talent';
@@ -101,7 +101,7 @@ describe('採用と退職（Hire / Release）', () => {
   });
 
   it('採用と退職は、キャンペーンでは最初の案件を納品するまで（チュートリアルの間）できない', () => {
-    const s = createInitialState('c', { campaign: true });
+    const s = createInitialState('c', { board: true });
     expect(reduce(s, hireCmd(s.market.candidates[0] ?? '')).state).toBe(s);
     expect(reduce(s, releaseCmd('sato')).state).toBe(s);
     expect(teamView(s).hiring).toBe(false);
@@ -153,7 +153,7 @@ describe('セーブと再開', () => {
     expect(teamView(loaded).candidates).toEqual(teamView(s).candidates);
   });
 
-  it('v9 のセーブは、外した固定の社員を同じ id を seed にした人材に置き換え、採用市場を足して読み込む', () => {
+  it('v9 以前（キャンペーン）のセーブは読み込めず、採用市場と生成した人材の社員はセーブを通っても同じに戻る', () => {
     const base = reduce(createInitialState('v9', { team: ['sato', 'suzuki'] }), {
       type: 'StartProject',
       projectId: P,
@@ -168,9 +168,14 @@ describe('セーブと再開', () => {
       team: { ...base.team, watanabe: { seat: 'premium', used: 3 } },
       humanQueues: { ...base.humanQueues, watanabe: [{ projectId: P, taskId: 'hearing', queuedAt: 0 }] },
     };
-    const loaded = deserialize(JSON.stringify({ saveVersion: 9, state: rest }));
+    expect(() => deserialize(JSON.stringify({ saveVersion: 9, state: rest }))).toThrow(OutdatedSaveError);
     const id = talentId('watanabe');
-    expect(loaded.team.watanabe).toBeUndefined();
+    const current = {
+      ...base,
+      team: { ...base.team, [id]: { seat: 'premium' as const, used: 3 } },
+      humanQueues: { ...base.humanQueues, [id]: [{ projectId: P, taskId: 'hearing', queuedAt: 0 }] },
+    };
+    const loaded = deserialize(serialize(current));
     expect(loaded.team[id]).toEqual({ seat: 'premium', used: 3 });
     expect(loaded.humanQueues[id]).toHaveLength(1);
     expect(getHuman(id).id).toBe(id);

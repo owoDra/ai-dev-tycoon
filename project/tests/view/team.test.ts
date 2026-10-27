@@ -29,7 +29,7 @@ describe('社員と Seat の表示（view/team.ts）', () => {
   });
 
   it('解放前は Command を付けず、上限超えなら警告する', () => {
-    const c = createInitialState('c', { campaign: true });
+    const c = createInitialState('c', { board: true });
     expect(teamView(c).editable).toBe(false);
     expect(
       teamView(c)

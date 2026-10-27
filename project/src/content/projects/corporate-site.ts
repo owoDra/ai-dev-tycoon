@@ -1,5 +1,5 @@
 import { ja } from '../../i18n/ja';
-import type { ProjectDef } from '../types';
+import type { ProjectTemplateDef } from '../types';
 
 const t = ja.tasks.corporateSite;
 
@@ -8,11 +8,14 @@ const t = ja.tasks.corporateSite;
  * AI 適性の高いデザイン・原稿・実装が多いが、品質要求と失敗リスクも高い。Model を上げるだけでは指示出しと確認の人間時間が減らず、
  * Skill・Hook・Eval をそろえると人間の介入が大きく減る（Harness の効果が大きく出る案件）。
  */
-export const corporateSite: ProjectDef = {
+export const corporateSite: ProjectTemplateDef = {
   id: 'corporateSite',
   name: ja.projects.corporateSite,
   revenue: 2_400_000,
   deadlineDays: 6,
+  industries: ['media', 'internal', 'ec'],
+  scales: ['frontend'],
+  optional: ['cms'],
   tasks: [
     {
       id: 'hearing',

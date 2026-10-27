@@ -62,10 +62,20 @@ export type GameEvent =
   | { readonly type: 'StaffJoined'; readonly staffId: string }
   /** 社員が退職した */
   | { readonly type: 'StaffReleased'; readonly staffId: string }
-  /** キャンペーンで新しい案件を受注できるようになった */
-  | { readonly type: 'ProjectsOffered'; readonly projectIds: readonly string[] }
-  /** キャンペーンのすべての案件を納品した */
-  | { readonly type: 'CampaignCleared' }
+  /** 案件ボードに引き合いが届いた（営業日ごと） */
+  | { readonly type: 'InquiriesPosted'; readonly projectIds: readonly string[] }
+  /** 引き合いに見積を出した（出し直しを含む） */
+  | { readonly type: 'BidSubmitted'; readonly projectId: string; readonly amount: number; readonly winChance: number }
+  /** コンペに勝って受注した。案件が始まる */
+  | { readonly type: 'BidWon'; readonly projectId: string; readonly amount: number }
+  | { readonly type: 'BidLost'; readonly projectId: string }
+  /** 納品で評判が変わった（delta は変化量、reputation は変化後の値） */
+  | {
+      readonly type: 'ReputationChanged';
+      readonly projectId: string;
+      readonly delta: number;
+      readonly reputation: number;
+    }
   /** Workflow Library に Workflow を保存した（オフィスのライブラリ棚にバインダーが1冊増える） */
   | { readonly type: 'WorkflowSaved'; readonly workflowId: string }
   /**

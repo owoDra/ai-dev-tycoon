@@ -13,8 +13,8 @@ import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../cor
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
+import { projectTabs } from '../../view/board';
 import { type BottleneckMove, bottleneckMove, stageRows } from '../../view/bottleneck';
-import { projectTabs } from '../../view/campaign';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
@@ -57,7 +57,7 @@ export function PlayScreen(props: {
   world?: Accessor<World | undefined>;
   layout?: UiLayout;
   onSettings?: () => void;
-  /** 別の案件のタブへ切り替える（キャンペーンの同時進行） */
+  /** 別の案件のタブへ切り替える（複数案件の同時進行） */
   onSwitch?: (projectId: string) => void;
   /** 案件ボードへ戻る（新しい依頼の受注） */
   onBoard?: () => void;
@@ -179,11 +179,25 @@ export function PlayScreen(props: {
         if (e.type === 'StaffReleased') {
           notices.push({ text: ja.team.released(getHuman(e.staffId).name), icon: 'human', tone: 'neutral' });
         }
-        if (e.type === 'ProjectsOffered') {
-          notices.push({ text: ja.campaign.offeredNotice(e.projectIds.length), icon: 'project', tone: 'success' });
+        if (e.type === 'InquiriesPosted' && e.projectIds.length > 0) {
+          notices.push({ text: ja.board.posted(e.projectIds.length), icon: 'project', tone: 'neutral' });
+        }
+        if (e.type === 'BidWon') {
+          notices.push({ text: ja.board.won(getProject(e.projectId).name), icon: 'trophy', tone: 'success' });
+        }
+        if (e.type === 'BidLost') {
+          notices.push({ text: ja.board.lost(getProject(e.projectId).name), icon: 'failure', tone: 'neutral' });
         }
         if (e.type === 'ProjectCompleted' && e.projectId !== props.projectId) {
-          notices.push({ text: ja.campaign.delivered(getProject(e.projectId).name), icon: 'success', tone: 'success' });
+          notices.push({ text: ja.board.delivered(getProject(e.projectId).name), icon: 'success', tone: 'success' });
+        }
+        if (e.type === 'ReputationChanged') {
+          const up = e.delta >= 0;
+          notices.push({
+            text: ja.board.reputationChanged(e.delta),
+            icon: up ? 'success' : 'warning',
+            tone: up ? 'success' : 'warning',
+          });
         }
         if (e.type === 'FeatureUnlocked') {
           const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';

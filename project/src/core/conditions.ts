@@ -1,3 +1,4 @@
+import { getProject } from '../content/index';
 import type { Condition } from '../content/types';
 import type { GameState, TaskRun } from './state';
 
@@ -32,6 +33,12 @@ export function holds(state: GameState, c: Condition): boolean {
       return state.projects[c.projectId]?.tasks[c.taskId]?.status === 'done';
     case 'projectCompleted':
       return (state.projects[c.projectId]?.completedAt ?? null) !== null;
+    case 'templateCompleted':
+      return Object.values(state.projects).some(
+        (p) =>
+          p.completedAt !== null &&
+          (p.projectId === c.templateId || getProject(p.projectId).brief?.templateId === c.templateId),
+      );
     case 'contextStat':
       return state.contextStats[c.stat] >= c.count;
     case 'sessionAge':

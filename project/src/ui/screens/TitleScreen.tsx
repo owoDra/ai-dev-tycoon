@@ -10,7 +10,7 @@ import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
  * チュートリアルを終えた後は「チュートリアルをもう一度」と「チュートリアルなしで始める」を出す（onTutorial・onQuickStart を渡したときだけ）。
  * セーブがあれば（onContinue を渡したとき）「続きから」を先頭に出し、「はじめから」はセーブを消す確認を1回挟む。
- * 実務モード（企画書24章）への入口も置く。
+ * 以前の形式で読み込めないセーブが残っていれば、その旨を知らせる。実務モード（企画書24章）への入口も置く。
  */
 export function TitleScreen(props: {
   onStart: () => void;
@@ -21,6 +21,8 @@ export function TitleScreen(props: {
   /** 実務モード（実際の仕事の改善効果の試算）を開く */
   onPractice?: () => void;
   onSettings: () => void;
+  /** 以前の形式（固定の案件のキャンペーン）で読み込めないセーブが残っている */
+  outdatedSave?: boolean;
 }) {
   const [confirming, setConfirming] = createSignal(false);
   const [confirmingQuick, setConfirmingQuick] = createSignal(false);
@@ -39,6 +41,15 @@ export function TitleScreen(props: {
           alt={ja.screens.title.keyVisual}
           class="aspect-video w-full rounded-md border-[3px] border-line object-cover"
         />
+        <Show when={props.outdatedSave}>
+          <p
+            class="flex items-center gap-2 rounded-md border-[3px] border-line bg-sunken p-2 text-left text-sm"
+            data-outdated-save
+          >
+            <Icon name="warning" class="shrink-0 text-xl" />
+            {ja.board.outdatedSave}
+          </p>
+        </Show>
         <h1 class="font-heading text-3xl leading-tight sm:text-4xl">{ja.title}</h1>
         <p class="text-sm font-bold text-ink-muted">{ja.screens.title.tagline}</p>
         <Show

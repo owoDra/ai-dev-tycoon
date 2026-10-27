@@ -12,6 +12,7 @@ import {
   priceOptions,
 } from '../../view/board';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, Meter, panel, primaryButton } from '../parts';
 
 const t = ja.board;
@@ -27,6 +28,8 @@ export function ProjectBoard(props: {
   /** 進行中の案件を開く */
   onOpen: (projectId: string) => void;
   onBack: () => void;
+  /** パネルの上端に出す操作の列（日付と時刻・一時停止と速度。締切を見ながら考えるときに止められるようにする） */
+  controls?: JSX.Element;
 }) {
   const view = createMemo(() => boardView(props.store.state()));
   let el!: HTMLDivElement;
@@ -35,8 +38,10 @@ export function ProjectBoard(props: {
     el.querySelector<HTMLButtonElement>('[data-submit],[data-resume]')?.focus();
   });
   return (
-    <div class="absolute inset-0 flex items-center justify-center overflow-y-auto bg-bg/40 p-4">
+    // 上端は左上の会社の帯（App.tsx）の下から始める。帯に見出しや操作が隠れないようにする
+    <div class="absolute inset-0 flex justify-center bg-bg/40 px-4 pt-16 pb-4">
       <div ref={el} class={`${panel} flex max-h-full w-full max-w-2xl flex-col gap-4 overflow-y-auto p-4 sm:p-6`}>
+        {props.controls}
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h1 class="font-heading text-2xl">{t.board}</h1>
           <span class="flex items-center gap-1 text-sm font-bold tabular-nums" data-reputation>
@@ -49,7 +54,9 @@ export function ProjectBoard(props: {
           <h2 class="text-sm font-bold text-ink-muted">{t.inquiries}</h2>
           <Show when={view().inquiries.length > 0} fallback={<p class="text-sm text-ink-muted">{t.none}</p>}>
             <ul class="flex flex-col gap-2">
-              <For each={view().inquiries}>{(inq) => <InquiryCard store={props.store} inquiry={inq} />}</For>
+              <Keyed each={view().inquiries} by={(i) => i.projectId}>
+                {(inq) => <InquiryCard store={props.store} inquiry={inq} />}
+              </Keyed>
             </ul>
           </Show>
         </section>
@@ -65,7 +72,7 @@ export function ProjectBoard(props: {
           <section class="flex flex-col gap-1">
             <h2 class="text-sm font-bold text-ink-muted">{t.results}</h2>
             <ul class="flex flex-col gap-1 text-sm">
-              <For each={view().results}>
+              <Keyed each={view().results} by={(r) => r.projectId}>
                 {(r) => (
                   <li class="flex items-center gap-2" data-bid-result={r.won ? 'won' : 'lost'}>
                     <Icon name={r.won ? 'trophy' : 'failure'} class="shrink-0 text-lg" />
@@ -76,7 +83,7 @@ export function ProjectBoard(props: {
                     </span>
                   </li>
                 )}
-              </For>
+              </Keyed>
             </ul>
           </section>
         </Show>
@@ -118,7 +125,7 @@ function InquiryCard(props: { store: GameStore; inquiry: InquiryView }) {
             <span>{ja.screens.select.tasks(i().tasks)}</span>
           </p>
           <p class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted tabular-nums">
-            <span>{t.personDays(i().personDays)}</span>
+            <span data-labor-estimate>{t.laborEstimate(ja.funds.oku(i().laborEstimate))}</span>
             <span>{t.base(i().base)}</span>
             <span>{t.budget(i().budget)}</span>
             <span>{t.standardDeadline(i().deadlineDays)}</span>
@@ -233,7 +240,7 @@ function Section(props: {
       <section class="flex flex-col gap-2">
         <h2 class="text-sm font-bold text-ink-muted">{props.title}</h2>
         <ul class="flex flex-col gap-2">
-          <For each={props.items}>
+          <Keyed each={props.items} by={(p) => p.projectId}>
             {(p) => (
               <li
                 class="flex flex-col gap-3 rounded-lg border-[3px] border-line bg-sunken p-3 sm:flex-row sm:items-center"
@@ -265,7 +272,7 @@ function Section(props: {
                 {props.children?.(p)}
               </li>
             )}
-          </For>
+          </Keyed>
         </ul>
       </section>
     </Show>

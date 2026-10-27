@@ -1,11 +1,11 @@
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import type { AssignModeId } from '../content/types';
+import { businessDay } from './clock';
 import { libraryUseSaving } from './library';
 import { scoreProject } from './scoring';
 import type { GameState, LedgerRun, ProjectRun } from './state';
 import type { System } from './system';
-import { businessDay } from './team';
 
 /*
  * 累計の記録。長く遊ぶと納品した案件が増え続け、state の大きさと1ステップの処理時間（案件を数える処理）が伸びていく。
@@ -54,7 +54,7 @@ export function addToLedger(ledger: LedgerRun, state: GameState, run: ProjectRun
 
 /** 記録に移す案件（納品から keepDays 営業日たった案件） */
 export function archivable(state: GameState): string[] {
-  const before = (businessDay(state.clock) - balance.archive.keepDays) * balance.project.minutesPerBusinessDay;
+  const before = (businessDay(state.clock) - balance.archive.keepDays) * balance.time.minutesPerDay;
   return Object.values(state.projects)
     .filter((p) => p.completedAt !== null && p.completedAt < before)
     .map((p) => p.projectId);
@@ -83,6 +83,6 @@ export function archiveProjects(state: GameState, ids: readonly string[]): GameS
 
 /** 営業日の始まりに、記録に移す案件を移す（案件ボードのある会社だけ。単発のプレイは案件を残す） */
 export const archiveSystem: System = (state) => {
-  if (state.board === null || state.clock % balance.project.minutesPerBusinessDay !== 0) return state;
+  if (state.board === null || state.clock % balance.time.minutesPerDay !== 0) return state;
   return archiveProjects(state, archivable(state));
 };

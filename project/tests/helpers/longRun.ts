@@ -28,7 +28,7 @@ import { tierLabel as viewTierLabel } from '../../src/view/fiscal';
  * 決算ごとの推移と、1ステップの処理時間・state の大きさを記録する。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const CHUNK = 30;
 /** smart が AI に任せる AI 適性の下限（tests/helpers/strategies.ts の smart と同じ） */
 const SMART_APTITUDE = 0.6;

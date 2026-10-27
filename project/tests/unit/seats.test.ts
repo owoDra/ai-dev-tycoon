@@ -10,7 +10,7 @@ import { runHeadless } from '../helpers/headless';
 import { findTalents } from '../helpers/talent';
 
 const P = 'ecRenewal';
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const start: Command = { type: 'StartProject', projectId: P };
 const at0 = (...commands: Command[]) => commands.map((command) => ({ at: 0, command }));
 

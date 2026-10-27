@@ -14,7 +14,7 @@ import { talentId } from '../../src/core/talent';
 
 /** チームの作業をする社員の数 */
 export const WORKERS = 3;
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 /** 納品までの上限（営業日） */
 const LIMIT_DAYS = 60;
 

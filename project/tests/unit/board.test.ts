@@ -15,7 +15,7 @@ import { boardView, projectTabs } from '../../src/view/board';
  * チュートリアル → 案件ボード → 受注した案件の同時進行 → 会社の資産の持ち越し → セーブからの再開。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 
 /** 案件のすべての Task を完了済みにする（納品は次の Command の適用後に判定される） */
 function deliver(state: GameState, projectId: string): GameState {

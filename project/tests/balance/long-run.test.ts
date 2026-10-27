@@ -20,7 +20,7 @@ import { clumsy, type LongRunResult, type LongStrategy, runLong, skilled } from 
 const YEAR = 240;
 const YEARS = 3;
 const SEED = 'long-a';
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 /** 1ステップ（tickMinutes 分）の処理時間の上限（ms）。60fps の1フレームの 1/10 */
 const TICK_BUDGET_MS = 1.6;
 /** state の大きさ（JSON の文字数）の上限 */

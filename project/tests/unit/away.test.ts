@@ -6,7 +6,7 @@ import { createInitialState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { campaignInProgress } from '../helpers/session';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const PER_SECOND = balance.time.minutesPerRealSecond * balance.away.speed;
 
 describe('営業日の終わりと、閉じている間の進行（core/away.ts）', () => {

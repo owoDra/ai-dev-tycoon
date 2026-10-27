@@ -2,7 +2,7 @@ import { getAssignMode, primaryActor } from '../content/assignModes';
 import { content, getHarnessPart, getModel } from '../content/index';
 import type { AssignModeId, LibraryWorkflowDef } from '../content/types';
 import { modeFeature } from '../content/unlocks';
-import type { Command } from '../core/commands';
+import { type Command, reduce } from '../core/commands';
 import {
   decodeWorkflowCode,
   encodeWorkflowCode,
@@ -16,6 +16,7 @@ import type { GameState } from '../core/state';
 import { MINUTES_PER_HOUR } from '../core/units';
 import { isUnlocked } from '../core/unlocks';
 import { ja } from '../i18n/ja';
+import { hudView } from './hud';
 
 /*
  * Workflow Library（企画書25章）の表示用データ（純粋関数）。棚の Workflow の構成・実績・共有コードと、
@@ -125,4 +126,30 @@ export function defaultSaveMode(state: GameState, projectId: string, workerId: s
   const modes = saveModes(state).map((m) => m.id);
   const best = [...counts].filter(([m]) => modes.includes(m)).sort((a, b) => b[1] - a[1])[0]?.[0];
   return best ?? (modes.includes('aiThenHumanReview') ? 'aiThenHumanReview' : (modes[0] ?? 'ai'));
+}
+
+/** Task の詳細に出すおすすめの Workflow */
+export interface WorkflowPick {
+  readonly id: string;
+  readonly name: string;
+  readonly apply: Command;
+  /** 適用したときの、この案件の見込み利益の差（円。マイナスなら減る） */
+  readonly profitDelta: number;
+}
+
+/**
+ * Task に適用できる Workflow を、案件の見込み利益（view/hud.ts の projectedProfit）が増える順に limit 件まで。
+ * 適用は AI Worker の構成ごと変え、部品の導入コストもかかるので、減るものも差のまま見せる（ほかの Task の見込みの変化も含める）
+ */
+export function recommendWorkflows(state: GameState, target: LibraryTarget, limit: number): readonly WorkflowPick[] {
+  const now = hudView(state, target.projectId)?.projectedProfit ?? 0;
+  const entries = libraryView(state, target);
+  return [...entries.presets, ...entries.saved]
+    .flatMap((e): WorkflowPick[] => {
+      if (!e.apply) return [];
+      const after = hudView(reduce(state, e.apply).state, target.projectId)?.projectedProfit ?? now;
+      return [{ id: e.id, name: e.name, apply: e.apply, profitDelta: after - now }];
+    })
+    .sort((a, b) => b.profitDelta - a.profitDelta)
+    .slice(0, limit);
 }

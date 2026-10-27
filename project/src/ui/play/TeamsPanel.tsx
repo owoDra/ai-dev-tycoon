@@ -3,6 +3,7 @@ import type { Command } from '../../core/commands';
 import { ja } from '../../i18n/ja';
 import type { TeamCardView, TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, Meter, primaryButton } from '../parts';
 
 const t = ja.teams;
@@ -169,7 +170,7 @@ function TeamCard(props: { team: TeamCardView; dispatch: (command: Command) => v
                     </span>
                   </Show>
                   <Show when={m().blocked}>{(why) => <span class="text-[11px] text-ink-muted">{why()}</span>}</Show>
-                  <For each={m().moves}>
+                  <Keyed each={m().moves} by={(mv) => mv.teamId}>
                     {(mv) => (
                       <button
                         type="button"
@@ -180,7 +181,7 @@ function TeamCard(props: { team: TeamCardView; dispatch: (command: Command) => v
                         → {mv.label}
                       </button>
                     )}
-                  </For>
+                  </Keyed>
                   <Show when={m().appoint}>
                     {(cmd) => (
                       <button
@@ -212,7 +213,7 @@ function TeamCard(props: { team: TeamCardView; dispatch: (command: Command) => v
                   <Icon name="project" />
                   <span class="font-bold">{p().name}</span>
                   <span class="text-xs tabular-nums text-ink-muted">{ja.score.percent(p().progress)}</span>
-                  <For each={p().moves}>
+                  <Keyed each={p().moves} by={(mv) => mv.teamId}>
                     {(mv) => (
                       <button
                         type="button"
@@ -223,7 +224,7 @@ function TeamCard(props: { team: TeamCardView; dispatch: (command: Command) => v
                         → {mv.label}
                       </button>
                     )}
-                  </For>
+                  </Keyed>
                 </li>
               )}
             </Index>

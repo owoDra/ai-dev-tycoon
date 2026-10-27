@@ -29,7 +29,7 @@ import {
  * 新しく受注した案件は、仕事の少ない方のチームに割り当てる。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const CHUNK = 30;
 /** smart が AI に任せる AI 適性の下限（tests/helpers/strategies.ts の smart と同じ） */
 const SMART_APTITUDE = 0.6;

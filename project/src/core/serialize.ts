@@ -1,7 +1,7 @@
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -17,7 +17,9 @@ export interface Migration {
 
 /**
  * from の昇順に並べる。v10 以前（Phase 19 まで）は固定の案件を順に受注するキャンペーンのセーブで、
- * 案件ボードとコンペ（Phase 20）の会社に変換できないので読み込まない（OutdatedSaveError）
+ * 案件ボードとコンペ（Phase 20）の会社に変換できないので読み込まない（OutdatedSaveError）。
+ * v13 以前は時計が1日 = 480分（勤務時間だけ）の単位で、1日 = 24時間の時計（core/clock.ts）に置き換えると
+ * 案件の開始・納期・締切・事件などの時刻がすべてずれるので、これも読み込まない
  */
 export const MIGRATIONS: readonly Migration[] = [
   // v11 → v12：会社の規模・オフィスの固定費・AI Worker の一覧・チームと、案件の管理者の運営の記録（Phase 21）。最初の段階・直轄だけで始める

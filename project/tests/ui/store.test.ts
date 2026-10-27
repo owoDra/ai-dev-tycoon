@@ -8,11 +8,11 @@ describe('createGameStore', () => {
     const store = createGameStore(createInitialState('store'));
     const received: GameEvent[] = [];
     store.onEvents((events) => received.push(...events));
-    store.dispatch({ type: 'SetSpeed', speed: 2 });
+    store.dispatch({ type: 'SetSpeed', speed: 3 });
     store.dispatch({ type: 'TogglePause' });
-    expect(store.state()).toMatchObject({ speed: 2, paused: true });
+    expect(store.state()).toMatchObject({ speed: 3, paused: true });
     expect(received).toEqual([
-      { type: 'SpeedChanged', speed: 2 },
+      { type: 'SpeedChanged', speed: 3 },
       { type: 'PauseToggled', paused: true },
     ]);
   });

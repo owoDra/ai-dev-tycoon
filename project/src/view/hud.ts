@@ -3,6 +3,7 @@ import { balance } from '../content/balance';
 import { aiWorkers, content, getProject } from '../content/index';
 import type { AssignModeId } from '../content/types';
 import { autonomyOf } from '../core/autonomy';
+import { calendarDay, minuteOfDay } from '../core/clock';
 import { reduce } from '../core/commands';
 import { expectTask } from '../core/expectation';
 import {
@@ -22,17 +23,20 @@ import { MINUTES_PER_HOUR } from '../core/units';
 /** 担当が決まっていない Task は、見込みの計算では人間が担当するものとみなす */
 const FALLBACK_MODE: AssignModeId = 'human';
 
-/** 営業日の始業時刻（ゲーム内の分、0:00 から）。1営業日（balance.project.minutesPerBusinessDay）をこの時刻から数える */
-export const WORKDAY_START_MINUTES = 9 * MINUTES_PER_HOUR;
-
 export interface HudView {
   /** Profit / Person-Day。納品前は見込み（projectedProfitPerPersonDay）、納品後は確定値（core の scoreProject と同じ） */
   readonly profitPerPersonDay: number;
-  /** profitPerPersonDay が見込みか（納品前） */
+  /** profitPerPersonDay・projectedProfit が見込みか（納品前） */
   readonly projected: boolean;
+  /** この案件にここまで使った金額（円）。人件費・AI 費用・運営の費用・導入コスト・事故と見逃しの損害・遅延損失 */
+  readonly spent: number;
+  /** 受注額（円）。納品すると売上になる */
+  readonly revenue: number;
+  /** 利益（円）。納品前は今の担当のまま最後まで進めた見込み、納品後は確定値 */
+  readonly projectedProfit: number;
   /** 納期までの残り。超過していれば overdue で、days と time は超過分 */
   readonly remaining: { readonly days: number; readonly time: string; readonly overdue: boolean };
-  /** 今日が案件の何営業日目か（1から）と時刻 */
+  /** 今日の日付（1日目から）と時刻 */
   readonly today: { readonly day: number; readonly time: string };
   /** 作業中の人間の割合（0〜1） */
   readonly human: number;
@@ -65,7 +69,7 @@ export function streakView(state: GameState, workerId: string = aiWorkers[0]?.id
   return { minutes, next, progress: next === null ? 1 : (minutes - prev) / (next - prev), level };
 }
 
-const hhmm = (minutes: number) => {
+export const hhmm = (minutes: number) => {
   const m = Math.floor(minutes);
   return `${Math.floor(m / MINUTES_PER_HOUR)}:${String(m % MINUTES_PER_HOUR).padStart(2, '0')}`;
 };
@@ -75,11 +79,14 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   const run = state.projects[projectId];
   const score = scoreProject(state, projectId);
   if (!run || !score) return null;
-  const perDay = balance.project.minutesPerBusinessDay;
+  const perDay = balance.time.minutesPerDay;
 
+  const outlook = score.completed
+    ? { profit: score.profit, humanMinutes: score.humanMinutes }
+    : projectedOutlook(state, projectId, score);
   const profitPerPersonDay = score.completed
     ? score.profitPerPersonDay
-    : projectedProfitPerPersonDay(state, projectId, score);
+    : perPersonDay(outlook.profit, outlook.humanMinutes);
 
   const elapsed = score.elapsedMinutes;
   const left = deadlineMinutes(run) - elapsed;
@@ -103,8 +110,11 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   return {
     profitPerPersonDay,
     projected: !score.completed,
+    spent: score.revenue - score.profit,
+    revenue: run.revenue,
+    projectedProfit: outlook.profit,
     remaining: { days: Math.floor(span / perDay), time: hhmm(span % perDay), overdue: left < 0 },
-    today: { day: Math.floor(elapsed / perDay) + 1, time: hhmm(WORKDAY_START_MINUTES + (elapsed % perDay)) },
+    today: { day: calendarDay(state.clock) + 1, time: hhmm(minuteOfDay(state.clock)) },
     human: humans.length > 0 ? humanBusy / humans.length : 0,
     ai: aiTasks > 0 ? aiBusy / aiTasks : 0,
     completed: score.completed,
@@ -121,11 +131,21 @@ export function hudView(state: GameState, projectId: string): HudView | null {
  * （シミュレーションと同じ core/contextWork.ts の式。Session の履歴がこの先さらに溜まる分は入れない）
  */
 export function projectedProfitPerPersonDay(state: GameState, projectId: string, score: ProjectScore): number {
+  const { profit, humanMinutes } = projectedOutlook(state, projectId, score);
+  return perPersonDay(profit, humanMinutes);
+}
+
+/** 納品したときの利益（円）と人間の総稼働（分）の見込み。数え方は projectedProfitPerPersonDay のとおり */
+function projectedOutlook(
+  state: GameState,
+  projectId: string,
+  score: ProjectScore,
+): { readonly profit: number; readonly humanMinutes: number } {
   const def = getProject(projectId);
   const run = state.projects[projectId];
   const ai = content.workers.find((w) => w.kind === 'ai');
   const humans = teamMembers(state);
-  if (!run || !ai || humans.length === 0) return 0;
+  if (!run || !ai || humans.length === 0) return { profit: 0, humanMinutes: 0 };
   const wage = humans.reduce((sum, h) => sum + dailyCost(h), 0) / humans.length;
   const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;
 
@@ -151,7 +171,7 @@ export function projectedProfitPerPersonDay(state: GameState, projectId: string,
       e.pEscape * escapedDefectCost(task) +
       laborCost(fix, balance.score.escapedFixDailyCost);
   }
-  return perPersonDay(run.revenue - cost, human);
+  return { profit: run.revenue - cost, humanMinutes: human };
 }
 
 /**

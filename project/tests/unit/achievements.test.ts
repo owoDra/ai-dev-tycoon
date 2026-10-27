@@ -19,7 +19,7 @@ import { ja } from '../../src/i18n/ja';
 import { achievementsView } from '../../src/view/fiscal';
 import { growCompany } from '../helpers/growth';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const company = (tier: GameState['tier'] = 'solo') =>
   createInitialState('achieve', { board: true, tutorial: false, talent: true, tier });
 

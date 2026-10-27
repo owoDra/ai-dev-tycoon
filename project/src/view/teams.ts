@@ -162,7 +162,7 @@ function cardView(state: GameState, teamId: string): TeamCardView {
     const tasks = Object.values(run.tasks);
     done += tasks.filter((x) => x.status === 'done').length;
     total += tasks.length;
-    if (state.clock - run.startedAt > run.deadlineDays * balance.project.minutesPerBusinessDay) late++;
+    if (state.clock - run.startedAt > run.deadlineDays * balance.time.minutesPerDay) late++;
   }
   const incidents = state.incidents.filter((i) => active.includes(i.projectId)).length;
   const others = teamIds(state).filter((to) => to !== teamId);

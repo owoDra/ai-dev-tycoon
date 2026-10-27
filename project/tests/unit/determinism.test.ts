@@ -6,7 +6,7 @@ import { runHeadless, type TimedCommand } from '../helpers/headless';
 const randomScheduler: System = (state, ctx) => {
   if (!ctx.rng.chance(0.1)) return state;
   const delay = ctx.rng.int(1, 30);
-  const speed = ctx.rng.pick([1, 2, 4] as const);
+  const speed = ctx.rng.pick([1, 3, 10] as const);
   return {
     ...state,
     pendingEvents: [...state.pendingEvents, { at: state.clock + delay, event: { type: 'SpeedChanged', speed } }],
@@ -16,10 +16,10 @@ const randomScheduler: System = (state, ctx) => {
 const systems = [randomScheduler, ...defaultSystems];
 
 const commands: TimedCommand[] = [
-  { at: 10, command: { type: 'SetSpeed', speed: 2 } },
+  { at: 10, command: { type: 'SetSpeed', speed: 3 } },
   { at: 60, command: { type: 'TogglePause' } },
   { at: 60, command: { type: 'TogglePause' } },
-  { at: 300, command: { type: 'SetSpeed', speed: 4 } },
+  { at: 300, command: { type: 'SetSpeed', speed: 10 } },
 ];
 
 describe('determinism', () => {
@@ -42,12 +42,12 @@ describe('determinism', () => {
   it('Command は指定時刻に、同時刻なら配列の順に適用される', () => {
     const { state, events } = runHeadless({ seed: 's', commands, until: 1_000 });
     expect(events).toEqual([
-      { type: 'SpeedChanged', speed: 2 },
+      { type: 'SpeedChanged', speed: 3 },
       { type: 'PauseToggled', paused: true },
       { type: 'PauseToggled', paused: false },
-      { type: 'SpeedChanged', speed: 4 },
+      { type: 'SpeedChanged', speed: 10 },
     ]);
-    expect(state).toMatchObject({ clock: 1_000, speed: 4, paused: false });
+    expect(state).toMatchObject({ clock: 1_000, speed: 10, paused: false });
   });
 
   it('一時停止したままなら、その時点で打ち切る', () => {

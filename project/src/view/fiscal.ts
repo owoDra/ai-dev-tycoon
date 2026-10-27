@@ -5,11 +5,11 @@ import { getCompanyTier } from '../content/companyTiers';
 import { getHuman, getProject } from '../content/index';
 import { isAchieved } from '../core/achievements';
 import { deliveryRating } from '../core/bidding';
-import { goalProgress, type PromotionProgress, tierOf } from '../core/company';
+import { goalProgress, isListed, type PromotionProgress, tierOf } from '../core/company';
 import { priceWarCut, retainBonus } from '../core/companyEvents';
 import { fiscalDaysLeft, lastReport } from '../core/fiscal';
 import { perPersonDay } from '../core/formulas';
-import { cashOf, companyRunning } from '../core/funds';
+import { cashOf, companyRunning, valuationOf } from '../core/funds';
 import type { FiscalRecord } from '../core/resultCode';
 import { scoreProject } from '../core/scoring';
 import type { FiscalReport, GameState, ValuationSample } from '../core/state';
@@ -65,6 +65,8 @@ export interface FiscalView {
   readonly achievements: readonly { readonly id: string; readonly name: string; readonly icon: IconName }[];
   readonly trend: readonly FiscalTrendRow[];
   readonly goal: PromotionProgress;
+  /** 上場しているか（時価総額と呼ぶか、推定の企業価値と呼ぶか） */
+  readonly listed: boolean;
 }
 
 /** 推移に並べる期の数 */
@@ -120,6 +122,7 @@ export function fiscalView(state: GameState, no?: number): FiscalView | null {
       tier: tierLabel(r.tier, r.rank),
     })),
     goal: goalProgress(state),
+    listed: isListed(state),
   };
 }
 
@@ -172,6 +175,8 @@ export interface CompanyStatusView {
   readonly fiscalNo: number;
   readonly fiscalDaysLeft: number | null;
   readonly priceWar: boolean;
+  /** 時価総額（上場していなければ null。会社の帯に出す） */
+  readonly valuation: number | null;
   readonly offers: readonly {
     readonly staffId: string;
     readonly name: string;
@@ -185,7 +190,7 @@ export interface CompanyStatusView {
 export function companyStatusView(state: GameState): CompanyStatusView | null {
   if (!companyRunning(state)) return null;
   const cash = cashOf(state);
-  const DAY = balance.project.minutesPerBusinessDay;
+  const DAY = balance.time.minutesPerDay;
   return {
     tier: tierOf(state).name,
     goal: goalProgress(state),
@@ -194,6 +199,7 @@ export function companyStatusView(state: GameState): CompanyStatusView | null {
     fiscalNo: state.fiscal.no,
     fiscalDaysLeft: fiscalDaysLeft(state),
     priceWar: priceWarCut(state) > 0,
+    valuation: isListed(state) ? valuationOf(state) : null,
     offers: state.companyEvents.offers
       .filter((o) => !o.leaving)
       .map((o) => ({
@@ -230,7 +236,7 @@ export function deliveryView(state: GameState, projectId: string): DeliveryView 
     name: getProject(projectId).name,
     profit: score.profit,
     profitPerPersonDay: score.profitPerPersonDay,
-    onTime: run !== undefined && score.elapsedMinutes <= run.deadlineDays * balance.project.minutesPerBusinessDay,
+    onTime: run !== undefined && score.elapsedMinutes <= run.deadlineDays * balance.time.minutesPerDay,
     quality: score.quality,
     reputation: state.board ? deliveryRating(state, projectId) : 0,
   };
@@ -245,13 +251,14 @@ export interface BankruptView {
   readonly tier: string;
   readonly fiscalCount: number;
   readonly achievements: number;
+  readonly listed: boolean;
 }
 
 export function bankruptView(state: GameState): BankruptView {
   const samples = state.funds.samples;
   const peak = samples.reduce<ValuationSample | null>((p, s) => (!p || s.valuation > p.valuation ? s : p), null);
   const start = state.fiscal.startDay ?? 0;
-  const end = Math.floor((state.funds.bankruptAt ?? state.clock) / balance.project.minutesPerBusinessDay);
+  const end = Math.floor((state.funds.bankruptAt ?? state.clock) / balance.time.minutesPerDay);
   const last = lastReport(state);
   return {
     samples,
@@ -261,5 +268,6 @@ export function bankruptView(state: GameState): BankruptView {
     tier: tierOf(state).name,
     fiscalCount: last?.no ?? 0,
     achievements: state.achievements.length,
+    listed: isListed(state),
   };
 }

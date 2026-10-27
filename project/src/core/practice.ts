@@ -101,7 +101,7 @@ export interface PracticeEstimate {
 }
 
 /** 1人日の時間（h）。時給で持っていた古い入力の換算に使う */
-const personDayHours = balance.project.minutesPerBusinessDay / MINUTES_PER_HOUR;
+const personDayHours = balance.project.minutesPerPersonDay / MINUTES_PER_HOUR;
 
 const perDay = (value: number, minutes: number) => (minutes > 0 ? perPersonDay(value, minutes) : null);
 

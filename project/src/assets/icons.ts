@@ -40,6 +40,9 @@ export const iconTones = {
   release: 'danger',
   defect: 'danger',
   trophy: 'accent',
+  day: 'warning',
+  night: 'primary',
+  board: 'warning',
 } as const satisfies Record<string, Exclude<IconTone, 'mono'>>;
 
 export type IconName = keyof typeof iconTones;

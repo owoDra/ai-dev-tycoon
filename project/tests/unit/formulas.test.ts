@@ -121,7 +121,7 @@ describe('品質と損失', () => {
   it('遅延損失は納期までは 0、超過に比例して増える', () => {
     const project = { id: 'p', name: 'p', revenue: 1_000_000, deadlineDays: 2, tasks: [task] };
     const deadline = deadlineMinutes(project);
-    const day = balance.project.minutesPerBusinessDay;
+    const day = balance.time.minutesPerDay;
     expect(delayLoss(deadline, project)).toBe(0);
     expect(delayLoss(deadline + day, project)).toBeCloseTo(project.revenue * balance.project.delayLossPerDay);
     expect(delayLoss(deadline + 2 * day, project)).toBeCloseTo(2 * delayLoss(deadline + day, project));

@@ -3,6 +3,7 @@ import { balance } from '../content/balance';
 import { content, getProject } from '../content/index';
 import type { AssignModeDef, TaskDef } from '../content/types';
 import { modeFeature } from '../content/unlocks';
+import { humansAtWork } from './clock';
 import { type Command, reduce } from './commands';
 import { expectTask, type TaskExpectation } from './expectation';
 import { escapedDefectCost, escapedFixMinutes, laborCost, personDays } from './formulas';
@@ -155,8 +156,11 @@ export function managerCommands(state: GameState, teamId: string, limit = Number
  */
 export const managerSystem: System = (state, ctx) => {
   let s = state;
+  const atWork = humansAtWork(state.clock);
   for (const team of state.teams) {
     if (!isDelegated(s, team.id)) continue;
+    // 人間 PM は勤務時間だけ判断する。AI PM は夜も担当を決める（Agent Workflow なら夜も Task が進む）
+    if (!atWork && team.manager?.kind === 'human') continue;
     for (;;) {
       const command = managerCommands(s, team.id, 1)[0];
       if (!command) break;

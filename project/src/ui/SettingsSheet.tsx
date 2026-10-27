@@ -13,7 +13,7 @@ const FEEL_INTENSITIES = Object.keys(feelIntensities) as FeelIntensityId[];
 const VOLUME_KEYS = ['master', 'sfx', 'music'] as const satisfies readonly (keyof AudioVolumes)[];
 const PLAY_FLAGS = ['dayBreak', 'awayProgress'] as const;
 /** 1営業日の実時間（分、1倍速） */
-const DAY_REAL_MINUTES = balance.project.minutesPerBusinessDay / balance.time.minutesPerRealSecond / 60;
+const DAY_REAL_MINUTES = balance.time.minutesPerDay / balance.time.minutesPerRealSecond / 60;
 
 function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
   updateSettings({ audio: { ...settings().audio, [key]: value } });

@@ -27,7 +27,7 @@ import { bidPreview } from '../../src/view/board';
  * 表示した勝率のまま締切に勝敗が決まる。受注した案件の売上は見積額で、納品の納期と品質で評判が変わる。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const SEEDS = Array.from({ length: 40 }, (_, i) => `bid-${i}`);
 
 /** チュートリアルなしで始め、最初の引き合いが届いた会社 */

@@ -4,6 +4,7 @@ import type { PromotionProgress } from '../../core/company';
 import { ja } from '../../i18n/ja';
 import { achievementsView, companyStatusView } from '../../view/fiscal';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
 
 const t = ja.fiscal;
@@ -11,7 +12,7 @@ const yen = ja.funds.oku;
 
 /**
  * 会社の帯。案件ボードとプレイ画面の左上にいつも出す（置き場所は呼び出し側の列。下に納品のカードを積む）。
- * 普段は1行のピル（規模・次の目標の達成率・資金・決算までの日数）で、押すと次の目標の内訳と実績が開く。
+ * 普段は1行のピル（規模・次の目標の達成率・資金・上場していれば時価総額・決算までの日数）で、押すと次の目標の内訳と実績が開く。
  * 資金がマイナスのときは警告を出して開いたままにする。引き抜きの打診が来ていれば、引き留めるか見送るかをピルの下で選ぶ
  */
 export function CompanyStrip(props: { store: GameStore }) {
@@ -47,6 +48,11 @@ export function CompanyStrip(props: { store: GameStore }) {
               >
                 <Icon name={v().cash < 0 ? 'warning' : 'money'} /> {ja.funds.cash} {yen(v().cash)}
               </span>
+              <Show when={v().valuation !== null}>
+                <span class="flex items-center gap-1 font-bold tabular-nums" data-valuation>
+                  <Icon name="trophy" /> {t.valuation(true)} {yen(v().valuation ?? 0)}
+                </span>
+              </Show>
               <Show when={v().fiscalDaysLeft !== null}>
                 <span class="flex items-center gap-1 tabular-nums text-ink-muted" data-fiscal-days>
                   <Icon name="clock" /> {t.period2(v().fiscalNo)} · {t.daysLeft(v().fiscalDaysLeft ?? 0)}
@@ -96,7 +102,7 @@ export function CompanyStrip(props: { store: GameStore }) {
               </div>
             </Show>
           </section>
-          <For each={v().offers}>
+          <Keyed each={v().offers} by={(o) => o.staffId}>
             {(o) => (
               <section
                 class={`${panel} pointer-events-auto flex flex-col gap-2 p-3 text-sm`}
@@ -127,7 +133,7 @@ export function CompanyStrip(props: { store: GameStore }) {
                 </div>
               </section>
             )}
-          </For>
+          </Keyed>
           <Show when={achievements() && (open() || v().shortDaysLeft !== null)}>
             <AchievementList store={props.store} />
           </Show>
@@ -151,7 +157,7 @@ function AchievementList(props: { store: GameStore }) {
     <section class={`${panel} pointer-events-auto max-h-72 overflow-y-auto p-3`} data-achievements>
       <h2 class="mb-1 font-heading text-sm">{ja.achievements.title}</h2>
       <ul class="flex flex-col gap-1.5 text-xs">
-        <For each={rows()}>
+        <Keyed each={rows()} by={(r) => r.id}>
           {(r) => (
             <li class="flex items-start gap-2" data-achievement={r.id} data-done={r.at !== null}>
               <Icon name={r.at !== null ? r.icon : 'clock'} tone={r.at !== null ? undefined : 'mono'} class="mt-0.5" />
@@ -166,7 +172,7 @@ function AchievementList(props: { store: GameStore }) {
               </span>
             </li>
           )}
-        </For>
+        </Keyed>
       </ul>
     </section>
   );

@@ -13,14 +13,15 @@ import {
 } from '../helpers/representative';
 
 /**
- * 1回の遊び（企画書21章「1プレイ20〜30分」）の手応え。チュートリアルから、固定 seed で生成した代表的な案件群
+ * 1回の遊び（企画書21章「1プレイ20〜30分」）の手応え。時間を1日 = 24時間・1倍速で約1分に速めた（夜は早送り）ので、
+ * 代表的な案件群の通しは数分で終わり、長く遊ぶ手応えは決算の期と会社の成長（long-run.test.ts）が受け持つ。チュートリアルから、固定 seed で生成した代表的な案件群
  * （以前のキャンペーンの6案件と同じ型・同じ受注の順と条件。tests/helpers/representative.ts）の納品までを、smart 系の戦略 Bot で通して遊ぶ。
  * 1倍速のまま進め（早送りしない）、チュートリアルの吹き出しを読む時間と、新しい依頼を読んで担当を決める時間も時計が進む。
  */
 const TUTORIAL_THINK_SECONDS = 5;
 const THINK_SECONDS = 20;
-const MIN_MINUTES = 20;
-const MAX_MINUTES = 30;
+const MIN_MINUTES = 3;
+const MAX_MINUTES = 8;
 const SECONDS_PER_MINUTE = 60;
 const BASE_SEEDS = [tutorialScript.seed, 'campaign-1', 'campaign-2', 'campaign-3'];
 /** balance:full では、通常の4つに campaign-4 以降を足す */
@@ -41,11 +42,11 @@ function play(policy: CampaignPolicy, seed: string) {
 }
 
 describe('チュートリアルと代表的な案件群（企画書21章）', () => {
-  it('smart 系の Bot が最後までクリアでき、所要時間（実時間・1倍速）が20〜30分に収まる', () => {
+  it('smart 系の Bot が最後までクリアでき、所要時間（実時間・1倍速）が3〜8分に収まる', () => {
     for (const seed of SEEDS) {
-      const { state, clearedAt } = play(smartSeatPolicy, seed);
+      const { state, clearedAt, clearedRealSeconds } = play(smartSeatPolicy, seed);
       expect(clearedAt, seed).not.toBeNull();
-      const minutes = realMinutes(clearedAt ?? 0);
+      const minutes = (clearedRealSeconds ?? 0) / SECONDS_PER_MINUTE;
       const company = scoreCompany(state);
       console.log(
         `[企画書21章] seed ${seed}：通し ${minutes.toFixed(1)} 分（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +

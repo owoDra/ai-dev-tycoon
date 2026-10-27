@@ -1,5 +1,6 @@
 import { balance } from '../content/balance';
 import { getHuman } from '../content/index';
+import { humansAtWork } from './clock';
 import { dailyCost, laborCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
@@ -13,8 +14,10 @@ import { managingNow } from './teams';
  * 社員の給与は在籍しているだけでかかる：作業した人の分は Task の人件費、待ち行列が空で作業しなかった人の分は
  * 会社の待機中の給与（state.idleCost。会社が営業しているときだけ。core/team.ts の companyOpen）に計上する。
  * 案件を運営している人間 PM の給与は、案件の運営の費用（core/teams.ts の managementSystem）に計上する。
+ * 人間は勤務時間（core/clock.ts）の外は帰っていて、作業も給与の計上もしない（工程は翌朝まで待つ）。
  */
 export const humanQueueSystem: System = (state, ctx) => {
+  if (!humansAtWork(state.clock)) return state;
   const tick = balance.time.tickMinutes;
   let next: GameState = state;
   if (companyOpen(state)) {

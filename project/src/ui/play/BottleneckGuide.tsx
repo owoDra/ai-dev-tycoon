@@ -42,7 +42,7 @@ export function BottleneckGuide(props: {
         class={`${panel} pointer-events-auto absolute left-2 flex w-[min(22rem,calc(100%-1rem))] flex-col gap-2 p-2.5 text-xs`}
         classList={{
           'top-2': !props.compact && !props.belowStrip,
-          'top-14': !props.compact && props.belowStrip === true,
+          'top-20': !props.compact && props.belowStrip === true,
         }}
         style={{ bottom: props.compact ? `${props.bottom}px` : undefined }}
       >

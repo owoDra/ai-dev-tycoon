@@ -2,6 +2,7 @@ import { balance } from '../content/balance';
 import { findWorker, getHuman } from '../content/index';
 import { getSeat } from '../content/seats';
 import type { HumanWorkerDef, SeatDef, SeatId, TaskDef } from '../content/types';
+import { businessDay } from './clock';
 import { tierOf } from './company';
 import type { GameState, StaffRun } from './state';
 import type { System } from './system';
@@ -145,9 +146,6 @@ export function humanSpeed(humanId: string, task: TaskDef): number {
   return h.skill * (strong ? balance.staff.strengthSpeed : 1);
 }
 
-/** ゲーム開始からの営業日の番号（0 から） */
-export const businessDay = (clock: number) => Math.floor(clock / balance.project.minutesPerBusinessDay);
-
 /**
  * 会社が営業していて、Seat の固定費と待機中の給与がかかっているか。進行中の案件があるときと、
  * チュートリアルを終えた案件ボードのある会社（案件の合間に引き合いを待つ間も給与はかかる）。
@@ -169,7 +167,7 @@ export const seatSystem: System = (state) => {
     next = { ...next, team, usageDay: day };
   }
   if (!companyOpen(next)) return next;
-  const perTick = balance.time.tickMinutes / balance.project.minutesPerBusinessDay;
+  const perTick = balance.time.tickMinutes / balance.time.minutesPerDay;
   const office = tierOf(next).officeDaily * perTick;
   return { ...next, seatCost: next.seatCost + teamDailyCost(next) * perTick, officeCost: next.officeCost + office };
 };

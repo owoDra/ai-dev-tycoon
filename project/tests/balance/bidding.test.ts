@@ -48,7 +48,7 @@ function play(price: PriceStep, seed: string) {
   s = reduce({ ...s, paused: true }, { type: 'TogglePause' }).state;
   let won = 0;
   let late = 0;
-  while (s.clock < DAYS * balance.project.minutesPerBusinessDay) {
+  while (s.clock < DAYS * balance.time.minutesPerDay) {
     for (const projectId of openInquiries(s)) {
       s = reduce(s, { type: 'SubmitBid', projectId, price, deadline: 'standard' }).state;
     }

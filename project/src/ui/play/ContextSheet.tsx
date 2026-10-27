@@ -9,6 +9,7 @@ import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { ContextView } from '../../view/context';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, Meter, panel, primaryButton } from '../parts';
 
 const t = ja.context;
@@ -122,7 +123,7 @@ export function ContextSheet(props: {
         </div>
         <Show when={v().feeds.includes('pick')}>
           <ul class="flex flex-col gap-1" data-doc-list>
-            <For each={v().docs}>
+            <Keyed each={v().docs} by={(d) => d.id}>
               {(doc) => (
                 <li>
                   <label class="flex min-h-8 items-center gap-2 text-sm">
@@ -142,7 +143,7 @@ export function ContextSheet(props: {
                   </label>
                 </li>
               )}
-            </For>
+            </Keyed>
           </ul>
         </Show>
       </fieldset>

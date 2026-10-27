@@ -21,7 +21,7 @@ describe('プレイログ（?dev=log）', () => {
     const log = createPlayLog('choose');
     log.misclick(1, 'human');
     log.events(2, [
-      { type: 'SpeedChanged', speed: 4 },
+      { type: 'SpeedChanged', speed: 10 },
       { type: 'PauseToggled', paused: true },
     ]);
     expect(log.currentStep()).toBe('choose');
@@ -31,7 +31,7 @@ describe('プレイログ（?dev=log）', () => {
     expect(log.currentStep()).toBeNull();
     expect(json.ended).toBe('skipped');
     expect(json.misclicks).toEqual([{ at: 1, step: 'choose', target: 'human' }]);
-    expect(json.speedChanges).toEqual([{ at: 2, speed: 4 }]);
+    expect(json.speedChanges).toEqual([{ at: 2, speed: 10 }]);
     expect(json.pauses).toBe(1);
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deserialize, type Migration, SAVE_VERSION, serialize } from '../../src/core/serialize';
+import { deserialize, type Migration, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import type { System } from '../../src/core/system';
@@ -9,7 +9,7 @@ describe('serialize', () => {
   it('保存して復元すると等価になる', () => {
     const { state } = runHeadless({
       seed: 'save',
-      commands: [{ at: 3, command: { type: 'SetSpeed', speed: 2 } }],
+      commands: [{ at: 3, command: { type: 'SetSpeed', speed: 3 } }],
       until: 90,
     });
     const withPending: GameState = {
@@ -24,6 +24,11 @@ describe('serialize', () => {
     const { state } = runHeadless({ seed: 'resume', until: 250 });
     const draw: System = (s, ctx) => (ctx.rng.chance(0.3) ? { ...s, entities: {} } : s);
     expect(step(deserialize(serialize(state)), 250.5, [draw])).toEqual(step(state, 250.5, [draw]));
+  });
+
+  it('1日が勤務時間だけ（480分）だった時計のセーブ（v13）は、時刻がずれるので読み込まない', () => {
+    const state = createInitialState('v13');
+    expect(() => deserialize(JSON.stringify({ saveVersion: 13, state }))).toThrow(OutdatedSaveError);
   });
 
   it('保存データに saveVersion が付く', () => {

@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
+import { balance } from '../../src/content/balance';
 import { getHuman } from '../../src/content/index';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
@@ -164,7 +165,10 @@ describe('案件ボードとタイトル', () => {
     const s = store.state();
     const won = bid ? { ...bid, winChance: 1 } : null;
     const inquiries = s.board?.inquiries.map((i) => (i.projectId === id ? { ...i, bid: won } : i)) ?? [];
-    const after = step({ ...s, board: s.board ? { ...s.board, inquiries } : null }, 960).state;
+    const after = step(
+      { ...s, board: s.board ? { ...s.board, inquiries } : null },
+      balance.board.closeDays * balance.time.minutesPerDay,
+    ).state;
     expect(after.projects[id]?.revenue).toBe(bid?.amount);
     dispose = render(
       () => <ProjectBoard store={createGameStore(after)} onOpen={(x) => opened.push(x)} onBack={() => {}} />,

@@ -4,15 +4,16 @@ import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from
 import { tutorialScript } from '../content/tutorial';
 import { catchUp, dayEnd, runsUnattended } from '../core/away';
 import { activeProjects } from '../core/board';
+import { businessDay } from '../core/clock';
 import { isBankrupt } from '../core/funds';
 import { createInitialState, type GameState } from '../core/state';
-import { businessDay } from '../core/team';
 import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards } from '../ui/company/DeliveryCard';
 import { FxHost } from '../ui/fx/FxHost';
+import { PlayControls } from '../ui/play/PlayControls';
 import { PlayScreen } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
@@ -294,6 +295,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
               screens.go({ type: 'Choose', projectId });
             }}
             onBack={toTitle}
+            controls={<PlayControls store={game()} compact />}
           />
         </Match>
         <Match when={screens.screen().id === 'play'}>

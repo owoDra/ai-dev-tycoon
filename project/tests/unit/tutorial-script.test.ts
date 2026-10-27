@@ -78,7 +78,7 @@ describe('チュートリアルの台本：許可されていない操作は拒�
 
   it('時間の操作（速度・一時停止）はどのステップでも受け付ける', () => {
     for (const s of visited.values()) {
-      expect(reduce(s, { type: 'SetSpeed', speed: 2 }).state.speed).toBe(2);
+      expect(reduce(s, { type: 'SetSpeed', speed: 3 }).state.speed).toBe(3);
       expect(reduce(s, { type: 'TogglePause' }).state.paused).toBe(true);
     }
   });

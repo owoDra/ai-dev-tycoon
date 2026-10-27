@@ -2,6 +2,7 @@ import { balance } from '../content/balance';
 import { getHuman } from '../content/index';
 import type { AiWorkerDef, TaskDef } from '../content/types';
 import { ja } from '../i18n/ja';
+import { humansAtWork } from './clock';
 import { tierOf } from './company';
 import { dailyCost, laborCost } from './formulas';
 import { createSession, type GameState, type ManagerRun, type TeamRun } from './state';
@@ -237,10 +238,11 @@ export function managingNow(state: GameState, staffId: string): boolean {
 
 /**
  * 管理者の運営の費用。委任されていて進行中の案件があるチームでは、ステップごとに
- * 人間 PM の稼働（チームの人数に比例する分を人日に数え、給与はすべて人件費）か、AI PM の AI 費用と運用者の Seat の使用量を、進行中の案件に等分して計上する
+ * 人間 PM の稼働（チームの人数に比例する分を人日に数え、給与はすべて人件費）か、AI PM の AI 費用と運用者の Seat の使用量を、進行中の案件に等分して計上する。
+ * どちらも勤務時間（core/clock.ts）の分だけ計上する（AI PM は夜も担当を決めるが、費用は勤務時間あたりの契約とする）
  */
 export const managementSystem: System = (state) => {
-  if (!companyOpen(state)) return state;
+  if (!companyOpen(state) || !humansAtWork(state.clock)) return state;
   const tick = balance.time.tickMinutes;
   let next = state;
   for (const team of state.teams) {

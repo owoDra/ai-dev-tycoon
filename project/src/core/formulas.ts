@@ -43,9 +43,9 @@ export function aiCost(minutes: number, model: ModelDef): number {
   return minutes * model.costPerMinute;
 }
 
-/** 人間の稼働時間（分）を人日に換算する。1人日は1営業日（balance.project.minutesPerBusinessDay） */
+/** 人間の稼働時間（分）を人日に換算する。1人日は1日の勤務時間（balance.project.minutesPerPersonDay） */
 export function personDays(minutes: number): number {
-  return minutes / balance.project.minutesPerBusinessDay;
+  return minutes / balance.project.minutesPerPersonDay;
 }
 
 /** 人日あたりの値。value を人間の稼働時間（分）の人日で割る。稼働がなければ 0 */
@@ -233,11 +233,11 @@ export interface ProjectTerms {
 
 /** 納期（ゲーム内の分、案件開始からの経過） */
 export function deadlineMinutes(project: ProjectTerms): number {
-  return project.deadlineDays * balance.project.minutesPerBusinessDay;
+  return project.deadlineDays * balance.time.minutesPerDay;
 }
 
 /** 遅延損失（円）。納期を超えた営業日数（端数も比例）× 売上 × 1日あたりの損失率 */
 export function delayLoss(elapsedMinutes: number, project: ProjectTerms): number {
-  const lateDays = Math.max(0, elapsedMinutes - deadlineMinutes(project)) / balance.project.minutesPerBusinessDay;
+  const lateDays = Math.max(0, elapsedMinutes - deadlineMinutes(project)) / balance.time.minutesPerDay;
   return lateDays * project.revenue * balance.project.delayLossPerDay;
 }

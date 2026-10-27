@@ -1,14 +1,34 @@
 import { balance } from '../content/balance';
+import { untilWork } from './clock';
 import type { Transition } from './commands';
 import type { GameEvent } from './events';
 import { isBankrupt } from './funds';
 import { createRngCursor } from './rng';
 import type { GameState } from './state';
 import { defaultSystems, type System } from './system';
+import { isAiWorking } from './taskFlow';
 
 /** 実時間（秒）を、その速度でのゲーム内の分に換算する */
 export function toGameMinutes(realSeconds: number, speed: number): number {
   return realSeconds * balance.time.minutesPerRealSecond * speed;
+}
+
+/** 人間が帰っていて（夜・昼休み）、AI もどの工程も処理していない。次の始業まで何も起きないので早送りしてよい */
+export function idleHours(state: GameState): boolean {
+  if (untilWork(state.clock) === 0) return false;
+  for (const project of Object.values(state.projects)) {
+    if (project.completedAt !== null) continue;
+    for (const run of Object.values(project.tasks)) if (isAiWorking(run)) return false;
+  }
+  return true;
+}
+
+/**
+ * 実時間を進めるときの速度の倍率。ふだんは選んだ速度で、idleHours の間は balance.time.idleSkip まで早送りする
+ * （夜を待たせない。どの速度でも同じ速さで翌朝へ進む）
+ */
+export function playSpeed(state: GameState): number {
+  return idleHours(state) ? Math.max(state.speed, balance.time.idleSkip) : state.speed;
 }
 
 /**

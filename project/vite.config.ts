@@ -50,8 +50,9 @@ export default defineConfig(({ mode }) => ({
     // ファイルシステムのモジュールキャッシュは、中身が変わらないファイル（assets/registry.ts）の import.meta.glob の
     // 結果を使い回すため、生成物を足しても古い一覧のままになる。テストは十分速いので使わない
     fsModuleCache: false,
-    // バランステスト（tests/balance）は多くの seed でゲームを最後まで進めるので、既定の 5 秒では足りないことがある
-    testTimeout: 30_000,
+    // バランステスト（tests/balance）は多くの seed でゲームを最後まで進めるので、既定の 5 秒では足りないことがある。
+    // balance:full（--mode balance-full）は seed を増やし、1日 = 24時間の時計で日数ぶんのステップも多いので、さらに長くとる
+    testTimeout: mode === 'balance-full' ? 180_000 : 30_000,
     // 既定は node 環境。UI ロジックのテスト（*.dom.test.tsx）だけ jsdom で動かす
     projects: [
       {

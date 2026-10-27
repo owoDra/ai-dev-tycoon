@@ -15,7 +15,7 @@ describe('hudView', () => {
     const s = reduce(createInitialState('hud'), { type: 'StartProject', projectId: P }).state;
     const hud = hudView(s, P);
     expect(hud?.remaining).toEqual({ days: getProject(P).deadlineDays, time: '0:00', overdue: false });
-    expect(hud?.today).toEqual({ day: 1, time: '9:00' });
+    expect(hud?.today).toEqual({ day: 1, time: '10:00' });
     expect(hud?.projected).toBe(true);
   });
 

@@ -12,7 +12,7 @@ import { operatorOf } from '../../src/core/team';
 import { DIRECT, isDelegated, oversight, teamOfProject, teamOfWorker } from '../../src/core/teams';
 import { playManaged } from '../helpers/managers';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const P = generatedProjectId('mgr', 'M');
 const W = [0, 1, 2].map((i) => talentId(`mgr:${i}`, true));
 const PM = talentId('mgr:pm', true);
@@ -124,7 +124,8 @@ describe('管理者の判断（core/manager.ts）', () => {
   });
 
   it('判断は Command を reduce に通して state を変え、Command を外から与えたときと同じ state になる', () => {
-    const s = managed({ kind: 'human', staffId: PM });
+    // 人間 PM は勤務時間だけ判断する。システムは時計を進めてから適用されるので、始業の1ステップ後の state で確かめる
+    const s: GameState = { ...managed({ kind: 'human', staffId: PM }), clock: balance.time.tickMinutes };
     const { ctx: c } = ctx();
     const bySystem = managerSystem(s, c);
     let byHand = s;

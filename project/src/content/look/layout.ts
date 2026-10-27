@@ -1,22 +1,25 @@
 /**
  * ゲーム画面の構成（D3 で決めた「ゲームのドック」。docs/decisions/D3-ui-layout.md）。
  * 3D ワールドを画面全体に敷き、その上に次の領域を重ねる。
- * - 下部のドック：HUD（案件名と常時表示の項目）をまとめる。PC では中央に浮かせ、スマホでは画面幅いっぱいの2段にする
+ * - 下部のドック：いま見ている案件の HUD（案件名と常時表示の項目）をまとめる。PC では中央に浮かせ、スマホでは画面幅いっぱいの2段にする
+ * - 上部：左に会社の帯（資金・規模・決算）、右に操作の列（日付と時刻・速度・メニュー）。スマホでは操作の列をドックに入れる
  * - 下から出るシート：選んだものの詳細と担当変更（大きなカード）。ドックのすぐ上に出し、ドックは隠さない
- * - 上部のトースト：「次に対応すべき問題」を積み重ねる。PC では右上、スマホでは上端に1件
+ * - 上部のトースト：「次に対応すべき問題」を積み重ねる。PC では右上の操作の列の下、スマホでは上端に1件
  * 幅が breakpoints.compact 未満のときは compact（スマホ）、それ以上は wide（PC・タブレット）の構成を使う。
  * Phase 06 の UI はこの値に従って作る。
  */
 
 /** HUD に常時表示する項目（企画書31章「常に見える」） */
 export type HudItemId =
-  /** Profit / Person-Day */
+  /** この案件に使った金額と受注額（見込み利益） */
+  | 'spend'
+  /** Profit / Person-Day（決算と会社の画面のスコア。ドックには出さない） */
   | 'profitPerPersonDay'
   /** 残り時間（営業日と時刻） */
   | 'remaining'
   /** 人間と AI の稼働バー */
   | 'utilization'
-  /** 一時停止と速度切り替え */
+  /** 一時停止と速度切り替え（ふだんは上部の操作の列に出す。ui/play/PlayControls.tsx） */
   | 'speed'
   /** 未対応の問題の数（押すと閉じたトーストを出し直す） */
   | 'problems';
@@ -92,6 +95,8 @@ export interface LayoutFlow {
   /** 納品のカードを一度に積む数（古いものから消す）と、出しておく時間（ms）。閉じるボタンでも閉じられる */
   deliveryCards: number;
   deliveryCardMs: number;
+  /** Task の詳細に出す、おすすめの Workflow の数（view/library.ts の recommendWorkflows） */
+  workflowPicks: number;
 }
 
 export interface UiLayout {
@@ -104,7 +109,8 @@ export interface UiLayout {
   flow: LayoutFlow;
 }
 
-const dockItems: readonly HudItemId[] = ['profitPerPersonDay', 'remaining', 'utilization', 'speed', 'problems'];
+/** ドックはいま見ている案件の状態だけを出す。会社の状態（資金）は左上の帯、時計・速度・メニューは右上の操作の列に出す */
+const dockItems: readonly HudItemId[] = ['spend', 'remaining', 'utilization', 'problems'];
 
 export const uiLayout: UiLayout = {
   breakpoints: { compact: 768 },
@@ -131,6 +137,7 @@ export const uiLayout: UiLayout = {
     coachPadding: 10,
     deliveryCards: 3,
     deliveryCardMs: 10000,
+    workflowPicks: 3,
   },
 };
 

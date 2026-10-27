@@ -1,11 +1,11 @@
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import { activeProjects, openInquiries } from '../core/board';
+import { businessDay } from '../core/clock';
 import type { GameEvent } from '../core/events';
 import { deadlineMinutes } from '../core/formulas';
 import { scoreCompany } from '../core/scoring';
 import type { GameState } from '../core/state';
-import { businessDay } from '../core/team';
 import { managerOf, teamIds, teamName, teamOfProject, teamProjects } from '../core/teams';
 
 /*
@@ -97,7 +97,7 @@ export function activeProjectViews(state: GameState): ActiveProjectView[] {
         name: def.name,
         done: tasks.filter((t) => t.status === 'done').length,
         total: tasks.length,
-        daysLeft: (deadlineMinutes(run) - (state.clock - run.startedAt)) / balance.project.minutesPerBusinessDay,
+        daysLeft: (deadlineMinutes(run) - (state.clock - run.startedAt)) / balance.time.minutesPerDay,
       },
     ];
   });

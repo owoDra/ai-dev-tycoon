@@ -10,7 +10,7 @@ export function NoticeHost(props: { notices: readonly Notice[]; compact: boolean
     <div
       role="status"
       aria-label={ja.notices.region}
-      class={`pointer-events-none absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 ${props.compact ? 'top-28' : 'top-3'}`}
+      class={`pointer-events-none absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 ${props.compact ? 'top-28' : 'top-20'}`}
     >
       <For each={props.notices}>{(n) => <NoticeChip notice={n} />}</For>
     </div>

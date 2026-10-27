@@ -110,7 +110,6 @@ export const modeFeature = (mode: AssignModeId): ModeFeatureId => `mode:${mode}`
 
 /** ドックの項目のうち、解放されるまで出さないもの（載っていない項目は常に出す） */
 export const dockFeature: Partial<Record<HudItemId, FeatureId>> = {
-  speed: 'dock:speed',
   utilization: 'dock:utilization',
   problems: 'problems',
 };

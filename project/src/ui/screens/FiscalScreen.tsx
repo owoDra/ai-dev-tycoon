@@ -122,7 +122,7 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
                     </dd>
                   </div>
                   <div class="rounded-md border-2 border-line bg-sunken p-2">
-                    <dt class="text-xs font-bold text-ink-muted">{t.valuation}</dt>
+                    <dt class="text-xs font-bold text-ink-muted">{t.valuation(v().listed)}</dt>
                     <dd class="font-heading tabular-nums">{ja.funds.oku(v().report.valuation)}</dd>
                   </div>
                 </dl>
@@ -200,7 +200,7 @@ export function FiscalScreen(props: { store: GameStore; no: number; onNext: () =
                   />
                   <TrendBars
                     rows={v().trend.map((r) => ({ label: ja.fiscal.period2(r.no), value: r.valuation }))}
-                    title={t.trendValuation}
+                    title={t.trendValuation(v().listed)}
                   />
                   <p class="font-bold">{ja.company.next(v().goal.tier.name)}</p>
                 </section>

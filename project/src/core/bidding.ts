@@ -219,7 +219,7 @@ export function deliveryRating(state: GameState, projectId: string): number {
   const score = scoreProject(state, projectId);
   if (!run || !score?.completed) return 0;
   const r = balance.reputation;
-  const day = balance.project.minutesPerBusinessDay;
+  const day = balance.time.minutesPerDay;
   const lateDays = Math.ceil(Math.max(0, score.elapsedMinutes - run.deadlineDays * day) / day);
   const timing = lateDays > 0 ? -lateDays * r.perLateDay : r.onTime;
   return timing + (score.quality - r.qualityPivot) * r.perQuality;

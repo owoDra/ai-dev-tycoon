@@ -12,7 +12,7 @@ import { talentId } from '../../src/core/talent';
 import { operatorOf, signingFee, teamMembers } from '../../src/core/team';
 import { teamView } from '../../src/view/team';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const P = 'ecRenewal';
 const hireCmd = (staffId: string): Command => ({ type: 'Hire', staffId });
 const releaseCmd = (staffId: string): Command => ({ type: 'Release', staffId });
@@ -131,7 +131,7 @@ describe('採用市場と給与', () => {
     s = reduce(s, { type: 'AssignTask', projectId: P, taskId: 'hearing', mode: 'human', workerId: 'sato' }).state;
     const minutes = 60;
     s = step(s, minutes).state;
-    const share = minutes / DAY;
+    const share = minutes / balance.project.minutesPerPersonDay;
     // 佐藤は最初のステップから作業中なので、待機していたのは鈴木だけ
     expect(s.idleCost).toBeCloseTo(dailyCost(getHuman('suzuki')) * share);
     expect(s.projects[P]?.tasks.hearing?.laborCost).toBeCloseTo(dailyCost(getHuman('sato')) * share);

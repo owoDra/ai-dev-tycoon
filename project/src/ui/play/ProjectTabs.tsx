@@ -1,7 +1,8 @@
-import { For, Show } from 'solid-js';
+import { Show } from 'solid-js';
 import { ja } from '../../i18n/ja';
 import type { ProjectTabsView } from '../../view/board';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 
 const t = ja.board;
 
@@ -18,7 +19,7 @@ export function ProjectTabs(props: {
   return (
     <div class={`flex min-w-0 items-center gap-1.5 ${props.compact ? 'basis-full overflow-x-auto' : ''}`}>
       <div role="tablist" aria-label={t.tabs} class="flex min-w-0 items-center gap-1.5">
-        <For each={props.view.tabs}>
+        <Keyed each={props.view.tabs} by={(tab) => tab.projectId}>
           {(tab) => (
             <button
               type="button"
@@ -49,7 +50,7 @@ export function ProjectTabs(props: {
               </Show>
             </button>
           )}
-        </For>
+        </Keyed>
       </div>
       <Show when={props.view.offers > 0}>
         <button

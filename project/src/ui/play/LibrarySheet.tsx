@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
 import type { SheetLayout } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
@@ -8,6 +8,7 @@ import type { HarnessForecast } from '../../view/harness';
 import type { ImportView, LibraryEntryView, LibraryView, WorkflowSummary } from '../../view/library';
 import { CopyButton, selectText } from '../CopyButton';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, panel, primaryButton } from '../parts';
 import { ForecastMetrics } from './HarnessSheet';
 
@@ -29,6 +30,8 @@ export function LibrarySheet(props: {
   readCode: (code: string) => ImportView;
   dispatch: (command: Command) => void;
   onClose: () => void;
+  /** シートの上端に出すタブ（Harness Builder と Workflow Library の切り替え） */
+  tabs?: JSX.Element;
 }) {
   let el!: HTMLElement;
   onMount(() => {
@@ -49,13 +52,14 @@ export function LibrarySheet(props: {
       aria-modal="false"
       aria-label={t.title}
       data-library-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4 *:shrink-0`}
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
         height: `${props.viewHeight * props.layout.heightRatio}px`,
       }}
     >
+      {props.tabs}
       <div class="flex items-start justify-between gap-2">
         <div class="flex min-w-0 items-center gap-2">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-md border-[3px] border-line bg-accent-200 text-2xl">
@@ -79,6 +83,24 @@ export function LibrarySheet(props: {
       </Show>
       <Show when={props.target}>
         <ForecastMetrics preview={preview()} title={t.preview} />
+      </Show>
+      <Show when={!props.target}>
+        <ol
+          class="flex flex-col gap-1 rounded-lg border-[3px] border-line bg-sunken p-2 text-xs"
+          aria-label={t.howTo}
+          data-library-howto
+        >
+          <For each={t.howToSteps}>
+            {(step, i) => (
+              <li class="flex items-start gap-2">
+                <span class="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-line bg-accent-200 font-heading text-[11px]">
+                  {i() + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            )}
+          </For>
+        </ol>
       </Show>
 
       <Shelf
@@ -112,13 +134,13 @@ function Shelf(props: {
       <h3 class="text-sm font-bold">{props.title}</h3>
       <Show when={props.entries.length > 0} fallback={<p class="text-xs text-ink-muted">{props.empty}</p>}>
         <ul class="grid gap-2" style={{ 'grid-template-columns': 'repeat(auto-fill, minmax(15rem, 1fr))' }}>
-          <For each={props.entries}>
+          <Keyed each={props.entries} by={(e) => e.id}>
             {(e) => (
               <li>
                 <WorkflowCard entry={e} onFocus={() => props.onFocus(e)} dispatch={props.dispatch} />
               </li>
             )}
-          </For>
+          </Keyed>
         </ul>
       </Show>
     </section>

@@ -1,9 +1,9 @@
 import { balance } from '../content/balance';
 import { activeProjects, pendingBids } from './board';
+import { businessDay } from './clock';
 import type { Transition } from './commands';
 import type { GameState } from './state';
 import { step, toGameMinutes } from './step';
-import { businessDay } from './team';
 
 /*
  * 隙間時間に少しずつ遊ぶための区切り（営業日の終わり）と、閉じている間の進行。
@@ -12,7 +12,7 @@ import { businessDay } from './team';
 
 /** 今の営業日が終わるゲーム内時刻（分）。ちょうど営業日の境目にいれば、次の営業日の終わり */
 export function dayEnd(clock: number): number {
-  return (businessDay(clock) + 1) * balance.project.minutesPerBusinessDay;
+  return (businessDay(clock) + 1) * balance.time.minutesPerDay;
 }
 
 /** 区切りと閉じている間の進行の対象か。案件ボードのある会社で、チュートリアルを終えていて、進行中の案件か結果待ちの見積がある */

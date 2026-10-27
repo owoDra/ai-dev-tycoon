@@ -1,5 +1,6 @@
 import { balance } from '../content/balance';
 import { checkAchievements } from './achievements';
+import { businessDay } from './clock';
 import { dailyCompanyEvents, rollOutage } from './companyEvents';
 import type { GameEvent } from './events';
 import { perPersonDay } from './formulas';
@@ -7,7 +8,6 @@ import { cashFromProfit, checkFunds, companyRunning, isBankrupt, valuationOf } f
 import { scoreCompany, scoreProject } from './scoring';
 import type { CompanyTotals, FiscalReport, FiscalRun, GameState } from './state';
 import type { System } from './system';
-import { businessDay } from './team';
 import { teamOfProject } from './teams';
 
 /*
@@ -16,7 +16,7 @@ import { teamOfProject } from './teams';
  * 営業日の始まりには、資金の確認（core/funds.ts）・後半の事件（core/companyEvents.ts）・実績の判定もここからまとめて行う。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 
 /** 会社の累計（決算の起点） */
 export function companyTotals(state: GameState): CompanyTotals {

@@ -25,14 +25,18 @@ export function ProblemToasts(props: {
   onView: (sheet: 'context' | 'harness') => void;
   /** 左上に会社の帯（ui/company/CompanyStrip.tsx）が出ている。スマホ幅では、その下に出す */
   belowStrip?: boolean;
+  /** 右上に操作の列（ui/play/PlayControls.tsx）が出ている。PC では、その下に出す */
+  belowControls?: boolean;
 }) {
   return (
     <section
       aria-label={t.title}
       class={`pointer-events-none absolute flex flex-col gap-2 ${props.layout.width === null ? 'inset-x-2' : 'right-3 max-w-[calc(100%-1.5rem)]'}`}
       classList={{
-        'top-2': props.layout.width !== null || !props.belowStrip,
-        'top-14': props.layout.width === null && props.belowStrip === true,
+        'top-2': props.layout.width !== null ? !props.belowControls : !props.belowStrip,
+        'top-20':
+          (props.layout.width !== null && props.belowControls === true) ||
+          (props.layout.width === null && props.belowStrip === true),
       }}
       style={{ width: props.layout.width === null ? undefined : `${props.layout.width}px` }}
     >

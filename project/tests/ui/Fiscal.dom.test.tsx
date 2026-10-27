@@ -2,6 +2,8 @@ import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGameStore } from '../../src/app/store';
 import { balance } from '../../src/content/balance';
+import { listedTier } from '../../src/content/companyTiers';
+import { valuationOf } from '../../src/core/funds';
 import { decodeFiscalCode } from '../../src/core/resultCode';
 import type { GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
@@ -10,10 +12,10 @@ import { CompanyStrip } from '../../src/ui/company/CompanyStrip';
 import { DeliveryCards } from '../../src/ui/company/DeliveryCard';
 import { BankruptScreen } from '../../src/ui/screens/BankruptScreen';
 import { FiscalScreen } from '../../src/ui/screens/FiscalScreen';
-import { deliveryView } from '../../src/view/fiscal';
+import { deliveryView, fiscalView } from '../../src/view/fiscal';
 import { growCompany } from '../helpers/growth';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 let dispose = () => {};
 afterEach(() => {
   dispose();
@@ -80,6 +82,19 @@ describe('会社の帯', () => {
     q<HTMLButtonElement>('[data-open-achievements]')?.click();
     expect(q('[data-achievement="firstDelivery"]')?.dataset.done).toBe('true');
     expect(q('[data-achievement="large"]')?.textContent).toContain(ja.achievements.locked);
+  });
+
+  it('時価総額は上場（上場企業の規模）してから帯に出し、それまでの決算では推定の企業価値と呼ぶ', () => {
+    const state = closed();
+    expect(state.tier).not.toBe(listedTier);
+    const unlisted = mount(() => <CompanyStrip store={createGameStore(state)} />);
+    expect(unlisted('[data-valuation]')).toBeNull();
+    expect(fiscalView(state)?.listed).toBe(false);
+    dispose();
+    const listed = { ...state, tier: listedTier };
+    const listedQ = mount(() => <CompanyStrip store={createGameStore(listed)} />);
+    expect(listedQ('[data-valuation]')?.textContent).toContain(ja.fiscal.valuation(true));
+    expect(listedQ('[data-valuation]')?.textContent).toContain(ja.funds.oku(valuationOf(listed)));
   });
 
   it('資金がマイナスなら倒産までの日数を警告し、引き抜きの打診には引き留めと見送りのボタンを出す', () => {

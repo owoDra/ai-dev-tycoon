@@ -86,6 +86,8 @@ export interface InquiryView {
   readonly tasks: number;
   /** 見積人日と、見積の基準額（見積人日 × 平均売値） */
   readonly personDays: number;
+  /** 人間だけで進めたときの人件費の目安（円）。見積人日 × 平均の原価 */
+  readonly laborEstimate: number;
   readonly base: number;
   /** 標準の納期（営業日） */
   readonly deadlineDays: number;
@@ -145,6 +147,7 @@ export function boardView(state: GameState): BoardView {
         rivals: brief.rivals,
         tasks: def.tasks.length,
         personDays: estimatePersonDays(def),
+        laborEstimate: estimatePersonDays(def) * balance.talent.rate.mean * balance.staff.costRatio,
         base: baseAmount(def),
         deadlineDays: def.deadlineDays,
         closesIn: Math.max(0, i.closesAt - state.clock),

@@ -1,7 +1,6 @@
 import { animate } from 'motion';
 import { createEffect, createMemo, For, type JSX, Match, onCleanup, Show, Switch } from 'solid-js';
 import type { GameStore } from '../../app/store';
-import { balance } from '../../content/balance';
 import { getProject } from '../../content/index';
 import type { DockLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
@@ -13,7 +12,7 @@ import { contextView } from '../../view/context';
 import { type HudView, hudView, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
-import { iconButton, Meter, PlayPauseIcon, panel, SettingsIcon } from '../parts';
+import { Meter, panel } from '../parts';
 import { contextStatusIcon } from './ContextSheet';
 import { ProjectTabs } from './ProjectTabs';
 
@@ -22,10 +21,9 @@ const t = ja.hud;
 const PROFIT_CHIP_MIN = 100;
 
 /**
- * 下部のドック（D3「ゲームのドック」）。先頭に案件名（見出しで、常時表示の項目には数えない）、
- * 続けて dock.items の項目を並べる。スマホ（compact）では画面幅いっぱいの2段にする。
- * 値は view/hud.ts から読み、操作は Command（TogglePause / SetSpeed）で行う。
- * 解放の対象になっている項目（content/unlocks.ts の dockFeature）は、解放されるまで出さない。
+ * 下部のドック（D3「ゲームのドック」）。いま見ている案件の状態だけを出す：先頭に案件名（見出しで、常時表示の項目には数えない）か案件のタブ、
+ * 続けて dock.items の項目を並べる。スマホ（compact）では画面幅いっぱいの2段にし、上部に出せない操作の列（controls）を最後に入れる。
+ * 値は view/hud.ts から読む。解放の対象になっている項目（content/unlocks.ts の dockFeature）は、解放されるまで出さない。
  */
 export function Dock(props: {
   store: GameStore;
@@ -36,20 +34,12 @@ export function Dock(props: {
   onProblems: () => void;
   /** Context のシートを開く */
   onContext?: () => void;
-  /** Harness Builder を開く（渡さなければボタンを出さない。解放前） */
-  onHarness?: () => void;
-  /** Workflow Library を開く（Harness の解放前は渡さない） */
-  onLibrary?: () => void;
-  /** 社員と Seat の画面を開く（渡さなければボタンを出さない。解放前） */
-  onTeam?: () => void;
-  /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
-  teamWarning?: boolean;
   /** 案件のタブ（複数の案件を進めているか、新しい依頼があるときに案件名の代わりに出す） */
   tabs?: ProjectTabsView;
   onSwitch?: (projectId: string) => void;
   onBoard?: () => void;
-  /** 設定を開く（渡さなければボタンを出さない） */
-  onSettings?: () => void;
+  /** ドックの最後に入れる操作の列（スマホで、時計・速度・メニューを入れる） */
+  controls?: JSX.Element;
   ref?: (el: HTMLElement) => void;
 }) {
   const showTabs = () => {
@@ -67,10 +57,10 @@ export function Dock(props: {
     <nav
       ref={props.ref}
       aria-label={t.dock}
-      class={`${panel} absolute left-1/2 flex max-w-full -translate-x-1/2 items-center ${
+      class={`${panel} absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center ${
         props.compact
-          ? 'w-full flex-wrap justify-between gap-x-3 gap-y-2 rounded-b-none px-3 pt-2 pb-3'
-          : 'gap-6 px-5 py-2.5'
+          ? 'w-full max-w-full flex-wrap justify-between gap-x-3 gap-y-2 rounded-b-none px-3 pt-2 pb-3'
+          : 'gap-5 px-5 py-2.5'
       }`}
       style={{ bottom: `${props.layout.bottom}px` }}
     >
@@ -112,62 +102,7 @@ export function Dock(props: {
           </For>
         )}
       </Show>
-      <Show when={props.onHarness}>
-        {(open) => (
-          <button
-            type="button"
-            data-harness-open
-            class="flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line bg-accent-200 px-2 text-sm font-bold whitespace-nowrap"
-            aria-label={ja.harness.open}
-            onClick={() => open()()}
-          >
-            <Icon name="ai" class="text-xl" />
-            <Show when={!props.compact}>{ja.harness.openShort}</Show>
-          </button>
-        )}
-      </Show>
-      <Show when={props.onLibrary}>
-        {(open) => (
-          <button
-            type="button"
-            data-library-open
-            class="flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line bg-surface px-2 text-sm font-bold whitespace-nowrap"
-            aria-label={ja.library.open}
-            onClick={() => open()()}
-          >
-            <Icon name="workflow" class="text-xl" />
-            <Show when={!props.compact}>{ja.library.openShort}</Show>
-          </button>
-        )}
-      </Show>
-      <Show when={props.onTeam}>
-        {(open) => (
-          <button
-            type="button"
-            data-team-open
-            class={`flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
-              props.teamWarning ? 'bg-danger-200' : 'bg-surface'
-            }`}
-            aria-label={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
-            onClick={() => open()()}
-          >
-            <Icon name="seat" class="text-xl" />
-            <Show when={props.teamWarning}>
-              <span data-team-warning class="flex">
-                <Icon name="warning" class="text-lg" />
-              </span>
-            </Show>
-            <Show when={!props.compact}>{ja.team.open}</Show>
-          </button>
-        )}
-      </Show>
-      <Show when={props.onSettings}>
-        {(open) => (
-          <button type="button" class={iconButton} aria-label={ja.settings.open} onClick={() => open()()}>
-            <SettingsIcon />
-          </button>
-        )}
-      </Show>
+      {props.controls}
     </nav>
   );
 }
@@ -184,6 +119,9 @@ function HudItem(props: {
 }) {
   return (
     <Switch>
+      <Match when={props.id === 'spend'}>
+        <SpendItem hud={props.hud} dense={props.dense} />
+      </Match>
       <Match when={props.id === 'profitPerPersonDay'}>
         <Figure
           icon="money"
@@ -197,7 +135,6 @@ function HudItem(props: {
           icon={props.hud.remaining.overdue ? 'warning' : 'clock'}
           label={props.hud.remaining.overdue ? t.overdue : t.remaining}
           value={t.remainingValue(props.hud.remaining.days, props.hud.remaining.time)}
-          sub={t.today(props.hud.today.day, props.hud.today.time)}
           dense={props.dense}
           danger={props.hud.remaining.overdue}
         />
@@ -213,9 +150,6 @@ function HudItem(props: {
             </Show>
           </div>
         </fieldset>
-      </Match>
-      <Match when={props.id === 'speed'}>
-        <SpeedControl store={props.store} dense={props.dense} />
       </Match>
       <Match when={props.id === 'problems'}>
         <button
@@ -346,52 +280,36 @@ function Bar(props: { label: string; icon: 'human' | 'ai'; ratio: number; color:
   );
 }
 
-function SpeedControl(props: { store: GameStore; dense: boolean }) {
-  const paused = () => props.store.state().paused;
-  const speed = () => props.store.state().speed;
+/**
+ * この案件に使った金額と受注額。棒は受注額のうち使った割合で、見込みの利益がマイナスなら危険の色と警告のアイコンにする。
+ * 下に見込みの利益（納品後は確定の利益）を添える
+ */
+function SpendItem(props: { hud: HudView; dense: boolean }) {
+  const yen = ja.funds.money;
+  const ratio = () => (props.hud.revenue > 0 ? Math.min(1, props.hud.spent / props.hud.revenue) : 0);
+  const loss = () => props.hud.projectedProfit < 0;
   return (
-    <div class="flex items-center gap-1">
-      <button
-        type="button"
-        class="flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-accent-400 text-on-accent"
-        aria-label={paused() ? ja.controls.resume : ja.controls.pause}
-        onClick={() => props.store.dispatch({ type: 'TogglePause' })}
-      >
-        <PlayPauseIcon paused={paused()} />
-      </button>
-      <Show
-        when={!props.dense}
-        fallback={
-          <button
-            type="button"
-            class="h-11 min-w-11 rounded-md border-[3px] border-line bg-surface px-1.5 text-sm font-bold"
-            aria-label={t.nextSpeed(speed())}
-            onClick={() => {
-              const speeds = balance.time.speeds;
-              const i = speeds.indexOf(speed());
-              props.store.dispatch({ type: 'SetSpeed', speed: speeds[(i + 1) % speeds.length] ?? speeds[0] });
-            }}
-          >
-            {t.speed(speed())}
-          </button>
-        }
-      >
-        <fieldset class="flex gap-1" aria-label={ja.controls.speedGroup}>
-          <For each={balance.time.speeds}>
-            {(s) => (
-              <button
-                type="button"
-                aria-pressed={speed() === s}
-                aria-label={ja.controls.speed(s)}
-                class="h-11 min-w-11 rounded-md border-[3px] border-line/30 bg-surface px-1.5 text-sm font-bold aria-pressed:border-line aria-pressed:bg-accent-200"
-                onClick={() => props.store.dispatch({ type: 'SetSpeed', speed: s })}
-              >
-                {t.speed(s)}
-              </button>
-            )}
-          </For>
-        </fieldset>
-      </Show>
+    <div class="flex items-center gap-2" data-spend>
+      <Icon name={loss() ? 'warning' : 'money'} class={props.dense ? 'text-xl' : 'text-2xl'} />
+      <div class="flex flex-col gap-0.5 leading-tight">
+        <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">{t.spend}</span>
+        <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-lg'}`}>
+          {t.spendValue(yen(props.hud.spent), yen(props.hud.revenue))}
+        </span>
+        <Meter
+          ratio={ratio()}
+          label={t.spendMeter(yen(props.hud.spent), yen(props.hud.revenue))}
+          color={loss() ? 'bg-danger-400' : 'bg-success-400'}
+          class={props.dense ? 'w-24' : 'w-36'}
+        />
+        <span
+          class="text-[11px] font-bold whitespace-nowrap tabular-nums"
+          classList={{ 'text-danger-ink': loss(), 'text-ink-muted': !loss() }}
+          data-profit-outlook
+        >
+          {t.profitOutlook(props.hud.projected, yen(props.hud.projectedProfit))}
+        </span>
+      </div>
     </div>
   );
 }

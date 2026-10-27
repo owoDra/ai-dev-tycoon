@@ -8,6 +8,8 @@ import { createInitialState, type GameState } from '../../src/core/state';
 import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createSelection } from '../../src/ui/selection';
+import { hudView } from '../../src/view/hud';
+import { recommendWorkflows } from '../../src/view/library';
 import { islandId, worldView } from '../../src/view/world';
 
 const AGENT = 'agent';
@@ -57,8 +59,9 @@ describe('Workflow Library の UI（企画書25章）', () => {
       expect.objectContaining({ id: 'custom1', name: 'うちのサイト実装', parts: ['skillFrontend'] }),
     ]);
     expect(worldView(store.state(), 'corporateSite', worldLooks[defaultWorldLookId]).binders).toBe(before + 1);
-    // ドックから棚を開くと、保存した Workflow が並ぶ
-    q<HTMLButtonElement>('[data-library-open]')?.click();
+    // Harness のシートのタブから棚を開くと、保存した Workflow が並ぶ（使い方の3ステップも出る）
+    q<HTMLButtonElement>('[data-ai-tab="library"]')?.click();
+    expect(q('[data-library-howto]')?.querySelectorAll('li')).toHaveLength(ja.library.howToSteps.length);
     expect(q('[data-workflow-card="custom1"]')?.textContent).toContain('うちのサイト実装');
     expect(q('[data-workflow-card="presetPrReview"]')?.textContent).toContain(ja.library.presets.presetPrReview);
   });
@@ -80,11 +83,31 @@ describe('Workflow Library の UI（企画書25章）', () => {
     expect(q('[data-library-sheet]')).toBeNull();
   });
 
+  it('Task の詳細に、Workflow を見込み利益の差の大きい順に出し、押すとそのまま適用する', () => {
+    const { store, q, selection } = mount('paymentFix');
+    selection.dispatch({ type: 'SelectEntity', entityId: islandId('fix') });
+    const picks = [...(q('[data-workflow-picks]')?.querySelectorAll<HTMLButtonElement>('[data-workflow-pick]') ?? [])];
+    const expected = recommendWorkflows(
+      store.state(),
+      { projectId: 'paymentFix', taskId: 'fix', workerId: AGENT },
+      picks.length,
+    );
+    expect(picks.length).toBeGreaterThan(0);
+    expect(picks.map((p) => p.dataset.workflowPick)).toEqual(expected.map((p) => p.id));
+    const before = hudView(store.state(), 'paymentFix')?.projectedProfit ?? 0;
+    picks[0]?.click();
+    expect(store.state().libraryUses.map((u) => u.workflowId)).toEqual([expected[0]?.id]);
+    expect(hudView(store.state(), 'paymentFix')?.projectedProfit).toBeCloseTo(
+      before + (expected[0]?.profitDelta ?? NaN),
+    );
+  });
+
   it('共有コードを読み込むと、未解放の部品を警告してからライブラリに追加できる。壊れたコードは拒む', () => {
     const base = createInitialState('library-import');
     const state = { ...base, unlocked: base.unlocked.filter((f) => f !== 'harness:subagent') };
     const { store, q } = mount('paymentFix', state);
-    q<HTMLButtonElement>('[data-library-open]')?.click();
+    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    q<HTMLButtonElement>('[data-ai-tab="library"]')?.click();
     const code = encodeWorkflowCode({
       name: '他チームの構成',
       mode: 'aiThenEval',

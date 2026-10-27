@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { type Accessor, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import { getCompanyTier } from '../../content/companyTiers';
@@ -22,12 +22,13 @@ import { type BottleneckMove, bottleneckMove, stageRows } from '../../view/bottl
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
-import { defaultSaveMode, importPreview, libraryView, saveModes } from '../../view/library';
+import { defaultSaveMode, importPreview, libraryView, recommendWorkflows, saveModes } from '../../view/library';
 import { defaultWorkerFor, projectAgent, workflowTasks } from '../../view/project';
 import { teamView, usageWarning } from '../../view/team';
 import { promotionNotes, teamsView } from '../../view/teams';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
+import { Icon } from '../Icon';
 import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
@@ -40,6 +41,7 @@ import { HarnessSheet } from './HarnessSheet';
 import { IslandLabels } from './IslandLabels';
 import { LibrarySheet } from './LibrarySheet';
 import { NoticeHost } from './NoticeHost';
+import { PlayControls } from './PlayControls';
 import { ProblemToasts } from './ProblemToasts';
 import { SaveWorkflowForm } from './SaveWorkflowForm';
 import { TeamSheet } from './TeamSheet';
@@ -456,6 +458,42 @@ export function PlayScreen(props: {
     onCleanup(() => window.removeEventListener('keydown', onKey));
   });
 
+  /** Harness Builder と Workflow Library を行き来するタブ（どちらのシートにも上端に出す） */
+  const aiTabs = (current: 'harness' | 'library') => (
+    <div role="tablist" aria-label={ja.library.tabs} class="flex gap-1.5" data-ai-tabs>
+      <For each={['harness', 'library'] as const}>
+        {(id) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={current === id}
+            data-ai-tab={id}
+            class={`flex h-9 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold ${
+              current === id ? 'bg-accent-200' : 'bg-sunken'
+            }`}
+            onClick={() => (id === 'harness' ? openHarness() : openLibrary(null))}
+          >
+            <Icon name={id === 'harness' ? 'ai' : 'workflow'} />
+            {id === 'harness' ? ja.harness.title : ja.library.title}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+
+  /** 日付と時刻・速度・メニュー（PC は右上、スマホはドックの中） */
+  const controls = () => (
+    <PlayControls
+      store={props.store}
+      compact={form().compact}
+      onBoard={props.store.state().tutorial ? undefined : props.onBoard}
+      onTeam={teamOn() ? openTeam : undefined}
+      teamWarning={usageWarning(props.store.state())}
+      onHarness={harnessOn() ? openHarness : undefined}
+      onSettings={props.onSettings}
+    />
+  );
+
   return (
     <div ref={root} tabindex={-1} class="pointer-events-none absolute inset-0 outline-none" data-play-screen>
       <p class="sr-only">{ja.keys.help}</p>
@@ -481,6 +519,7 @@ export function PlayScreen(props: {
         }}
         onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
         belowStrip={companyRunning(props.store.state())}
+        belowControls={!form().compact}
       />
       <Show when={move()}>
         {(m) => (
@@ -523,6 +562,17 @@ export function PlayScreen(props: {
             onAssign={assign}
             onHarness={harnessOn() ? openHarness : undefined}
             onLibrary={harnessOn() ? (taskId) => openLibrary(taskId) : undefined}
+            picks={(taskId) =>
+              recommendWorkflows(
+                props.store.state(),
+                { projectId: props.projectId, taskId, workerId: harnessWorker() },
+                layout().flow.workflowPicks,
+              )
+            }
+            onApplyWorkflow={(command) => {
+              props.store.dispatch(command);
+              if (!layout().flow.keepDetailAfterAssign) close();
+            }}
             workflow={(taskId) => workflowTasks(props.store.state(), props.projectId, taskId)}
             onWorkflow={(taskIds) => {
               props.store.dispatch({
@@ -559,6 +609,7 @@ export function PlayScreen(props: {
             forecast={(command) => harnessForecast(props.store.state(), props.projectId, v().workerId, command)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setHarnessOpen(false)}
+            tabs={aiTabs('harness')}
             footer={
               <SaveWorkflowForm
                 modes={saveModes(props.store.state())}
@@ -587,6 +638,7 @@ export function PlayScreen(props: {
             readCode={(code) => importPreview(props.store.state(), code)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setLibraryOpen(false)}
+            tabs={aiTabs('library')}
           />
         )}
       </Presence>
@@ -603,6 +655,9 @@ export function PlayScreen(props: {
           />
         )}
       </Presence>
+      <Show when={!form().compact}>
+        <div class="pointer-events-auto absolute top-2 right-2 z-20">{controls()}</div>
+      </Show>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -613,14 +668,10 @@ export function PlayScreen(props: {
           problemCount={problemsOn() ? problems().length : 0}
           onProblems={() => setDismissed(new Set<string>())}
           onContext={openContext}
-          onHarness={harnessOn() ? openHarness : undefined}
-          onLibrary={harnessOn() ? () => openLibrary(null) : undefined}
-          onTeam={teamOn() ? openTeam : undefined}
-          teamWarning={usageWarning(props.store.state())}
           tabs={props.onSwitch ? tabs() : undefined}
           onSwitch={props.onSwitch}
           onBoard={props.onBoard}
-          onSettings={props.onSettings}
+          controls={form().compact ? controls() : undefined}
         />
       </div>
       <TutorialCoach store={props.store} padding={layout().flow.coachPadding} />

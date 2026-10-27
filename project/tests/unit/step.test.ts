@@ -91,13 +91,13 @@ describe('step', () => {
       ...createInitialState('scheduled'),
       pendingEvents: [
         { at: 5, event: { type: 'PauseToggled', paused: true } },
-        { at: 20, event: { type: 'SpeedChanged', speed: 2 } },
+        { at: 20, event: { type: 'SpeedChanged', speed: 3 } },
       ],
     };
     const first = step(initial, 10);
     expect(first.events).toEqual([{ type: 'PauseToggled', paused: true }]);
-    expect(first.state.pendingEvents).toEqual([{ at: 20, event: { type: 'SpeedChanged', speed: 2 } }]);
-    expect(step(first.state, 10).events).toEqual([{ type: 'SpeedChanged', speed: 2 }]);
+    expect(first.state.pendingEvents).toEqual([{ at: 20, event: { type: 'SpeedChanged', speed: 3 } }]);
+    expect(step(first.state, 10).events).toEqual([{ type: 'SpeedChanged', speed: 3 }]);
   });
 
   it('入力の state を書き換えない', () => {
@@ -115,16 +115,16 @@ describe('step', () => {
 
 describe('reduce', () => {
   it('SetSpeed で速度が変わり SpeedChanged を出す', () => {
-    const r = reduce(createInitialState('c'), { type: 'SetSpeed', speed: 4 });
-    expect(r.state.speed).toBe(4);
-    expect(r.events).toEqual([{ type: 'SpeedChanged', speed: 4 }]);
+    const r = reduce(createInitialState('c'), { type: 'SetSpeed', speed: 10 });
+    expect(r.state.speed).toBe(10);
+    expect(r.events).toEqual([{ type: 'SpeedChanged', speed: 10 }]);
   });
 
   it('同じ速度や選択肢にない速度は無視する', () => {
     const initial = createInitialState('c');
     expect(reduce(initial, { type: 'SetSpeed', speed: initial.speed })).toEqual({ state: initial, events: [] });
     // @ts-expect-error 型の上でも選択肢にない速度は渡せない
-    expect(reduce(initial, { type: 'SetSpeed', speed: 3 })).toEqual({ state: initial, events: [] });
+    expect(reduce(initial, { type: 'SetSpeed', speed: 4 })).toEqual({ state: initial, events: [] });
   });
 
   it('TogglePause で一時停止と再開が切り替わる', () => {

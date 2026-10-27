@@ -9,7 +9,7 @@ import { step } from '../../src/core/step';
 import { activeProjectViews, daySummary, nextSteps, recapView } from '../../src/view/session';
 import { campaignInProgress, SESSION_PROJECT } from '../helpers/session';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 
 describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
   it('次にやること：担当が決まっていない仕事があれば知らせ、なければ見守る', () => {

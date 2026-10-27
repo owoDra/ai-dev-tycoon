@@ -15,7 +15,7 @@ import { teamFull } from '../../src/core/team';
 import { agentBlock, teamBlock } from '../../src/core/teams';
 import { growCompany } from '../helpers/growth';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 /** 会社を育てる営業日（中堅まで昇格する長さ） */
 const GROW_DAYS = 150;
 

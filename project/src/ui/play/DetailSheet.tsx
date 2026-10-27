@@ -5,16 +5,22 @@ import { balance } from '../../content/balance';
 import type { SheetLayout } from '../../content/look/layout';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature } from '../../content/unlocks';
+import type { Command } from '../../core/commands';
 import { projectDelegated } from '../../core/teams';
 import { isUnlocked } from '../../core/unlocks';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { DetailView } from '../../view/detail';
+import type { WorkflowPick } from '../../view/library';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, kindIcon, Meter, modeIcon, panel, StatusIcon } from '../parts';
 import { AssignCards } from './AssignCards';
 
 const t = ja.detail;
+/** おすすめの Workflow と Library を開くボタン（名前と補足の2行） */
+const pickButton =
+  'inline-flex min-h-11 flex-col items-start justify-center gap-0.5 rounded-md border-[3px] border-line px-3 py-1 text-ink';
 
 /**
  * 選んだものの詳細（D3：ドックの上に下から出るシート。企画書33章）。
@@ -38,6 +44,9 @@ export function DetailSheet(props: {
   onHarness?: () => void;
   /** Workflow Library を開いて、この Task に Workflow を適用する（Harness の解放前は渡さない） */
   onLibrary?: (taskId: string) => void;
+  /** この Task に適用できる Workflow と、適用したときの見込み利益の差（増える順） */
+  picks?: (taskId: string) => readonly WorkflowPick[];
+  onApplyWorkflow?: (command: Command) => void;
   /** Task から一続きの Workflow にまとめられる Task（企画書5章） */
   workflow?: (taskId: string) => readonly string[];
   onWorkflow?: (taskIds: readonly string[]) => void;
@@ -69,7 +78,7 @@ export function DetailSheet(props: {
       aria-label={d().label}
       data-detail-sheet
       data-task={d().row?.id}
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-1 pb-4`}
+      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-1 pb-4 *:shrink-0`}
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
@@ -143,18 +152,45 @@ export function DetailSheet(props: {
       </Show>
       <Show when={d().row?.editable && props.onLibrary}>
         {(open) => (
-          <button
-            type="button"
-            data-library-open
-            class={`${ghostButton} flex-col items-start self-start`}
-            onClick={() => open()(d().row?.id ?? '')}
-          >
-            <span class="flex items-center gap-1.5 font-bold">
-              <Icon name="workflow" />
-              {ja.library.apply}
-            </span>
-            <span class="text-[11px] font-normal text-ink-muted">{ja.library.applyHint}</span>
-          </button>
+          <section class="flex flex-col gap-1.5" aria-label={ja.library.recommend} data-workflow-picks>
+            <div class="flex flex-wrap items-baseline gap-x-2">
+              <h3 class="flex items-center gap-1.5 text-sm font-bold">
+                <Icon name="workflow" />
+                {ja.library.recommend}
+              </h3>
+              <span class="text-[11px] text-ink-muted">{ja.library.recommendHint}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <Keyed each={props.picks?.(d().row?.id ?? '') ?? []} by={(p) => p.id}>
+                {(pick) => (
+                  <button
+                    type="button"
+                    class={`${pickButton} ${pick.profitDelta > 0 ? 'bg-success-200' : 'bg-surface'}`}
+                    data-workflow-pick={pick.id}
+                    onClick={() => props.onApplyWorkflow?.(pick.apply)}
+                  >
+                    <span class="text-sm font-bold">{pick.name}</span>
+                    <span
+                      class="flex items-center gap-1 text-[11px] font-bold tabular-nums"
+                      classList={{ 'text-danger-ink': pick.profitDelta < 0 }}
+                    >
+                      <Icon name={pick.profitDelta > 0 ? 'success' : 'warning'} />
+                      {ja.library.profitDelta(pick.profitDelta, ja.funds.money(Math.abs(pick.profitDelta)))}
+                    </span>
+                  </button>
+                )}
+              </Keyed>
+              <button
+                type="button"
+                data-library-open
+                class={`${pickButton} bg-surface hover:bg-sunken`}
+                onClick={() => open()(d().row?.id ?? '')}
+              >
+                <span class="text-sm font-bold">{ja.library.browse}</span>
+                <span class="text-[11px] font-normal text-ink-muted">{ja.library.applyHint}</span>
+              </button>
+            </div>
+          </section>
         )}
       </Show>
       <Show when={d().row && projectDelegated(props.store.state(), props.projectId)}>

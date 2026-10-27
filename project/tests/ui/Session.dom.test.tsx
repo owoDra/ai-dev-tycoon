@@ -26,7 +26,7 @@ function mount(view: () => unknown) {
 describe('隙間時間のカード', () => {
   it('営業日の終わりの区切り：その日の成果と次にやることを出し、「次の日へ」と「ここで中断する」を選べる', () => {
     const start = campaignInProgress('dom', 1);
-    const end = step(start, balance.project.minutesPerBusinessDay).state;
+    const end = step(start, balance.time.minutesPerDay).state;
     const onNext = vi.fn();
     const onQuit = vi.fn();
     const q = mount(() => <DayBreakCard summary={daySummary(start, end)} onNext={onNext} onQuit={onQuit} />);
@@ -48,7 +48,7 @@ describe('隙間時間のカード', () => {
     const q = mount(() => <RecapCard recap={recapView(before, after, events)} onResume={onResume} />);
     expect(q('[data-session-card="recap"] h2')?.textContent).toBe(ja.session.recapTitle);
     expect(q('[data-session-card="recap"] p')?.textContent).toBe(
-      ja.session.away(ja.screens.result.hours(balance.project.minutesPerBusinessDay)),
+      ja.session.away(ja.screens.result.hours(balance.time.minutesPerDay)),
     );
     expect(q('[data-away]')).not.toBeNull();
     expect(q('[data-active="tutorialLp"]')).not.toBeNull();
@@ -66,20 +66,20 @@ describe('隙間時間のカード', () => {
 });
 
 describe('遊び方の設定', () => {
-  afterEach(() => updateSettings({ dayBreak: true, awayProgress: true }));
+  afterEach(() => updateSettings({ dayBreak: false, awayProgress: true }));
 
-  it('既定では区切りと閉じている間の進行が有効で、設定シートで切り替えて保存できる', () => {
-    expect(loadSettings({ getItem: () => null })).toMatchObject({ dayBreak: true, awayProgress: true });
-    expect(loadSettings({ getItem: () => '{"dayBreak":false,"awayProgress":"no"}' })).toMatchObject({
-      dayBreak: false,
+  it('既定では閉じている間の進行が有効で、1日が約1分と短いので毎日の区切りは無効。設定シートで切り替えて保存できる', () => {
+    expect(loadSettings({ getItem: () => null })).toMatchObject({ dayBreak: false, awayProgress: true });
+    expect(loadSettings({ getItem: () => '{"dayBreak":true,"awayProgress":"no"}' })).toMatchObject({
+      dayBreak: true,
       awayProgress: true,
     });
     const q = mount(() => <SettingsSheet onClose={() => {}} />);
     const box = q<HTMLInputElement>('[data-setting="dayBreak"]');
-    expect(box?.checked).toBe(true);
+    expect(box?.checked).toBe(false);
     box?.click();
-    expect(settings().dayBreak).toBe(false);
-    expect(loadSettings(localStorage).dayBreak).toBe(false);
+    expect(settings().dayBreak).toBe(true);
+    expect(loadSettings(localStorage).dayBreak).toBe(true);
     q<HTMLInputElement>('[data-setting="awayProgress"]')?.click();
     expect(settings().awayProgress).toBe(false);
   });

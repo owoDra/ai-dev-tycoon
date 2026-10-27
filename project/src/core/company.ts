@@ -1,5 +1,5 @@
 import { balance } from '../content/balance';
-import { companyTiers, getCompanyTier } from '../content/companyTiers';
+import { companyTiers, getCompanyTier, listedTier } from '../content/companyTiers';
 import type { CompanyTierDef } from '../content/types';
 import { ja } from '../i18n/ja';
 import type { GameEvent } from './events';
@@ -10,6 +10,12 @@ import type { GameState } from './state';
  * 会社の規模（content/companyTiers.ts）。最上位の段階の後は、格付け（★2, ★3, …）が条件を上げながら続く。案件ボードのある会社は、納品のたびに次の段階の条件（累計の会社の利益・評判・納品数）を判定し、
  * すべて満たしたら昇格する。段階ごとに人員・AI Worker・チーム数の上限、管理者、引き合いの数と規模、採用候補の数、オフィスの固定費が変わる。
  */
+
+/** 上場しているか（会社の規模が上場の段階か、その後の格付け）。上場するまでは時価総額ではなく推定の企業価値と呼ぶ */
+export function isListed(state: GameState): boolean {
+  const order = companyTiers.map((t) => t.id);
+  return order.indexOf(state.tier) >= order.indexOf(listedTier);
+}
 
 /**
  * 今の段階。大手の格付け（state.rank）があれば、オフィスの固定費と規模 XL の引き合いの重みを格付けの分だけ上げ、名前に ★ を付ける

@@ -2,18 +2,19 @@ import { balance } from '../content/balance';
 import { companyTiers } from '../content/companyTiers';
 import { getHuman, getProject } from '../content/index';
 import type { CompanyTierId, ProjectSize } from '../content/types';
+import { businessDay } from './clock';
 import type { GameEvent } from './events';
 import { companyRunning } from './funds';
 import { chance, hashSeed } from './rng';
 import type { GameState, PoachRun } from './state';
-import { businessDay, release, releaseBlock } from './team';
+import { release, releaseBlock } from './team';
 
 /*
  * 後半の事件（企画書の「後半の要素」）。会社が育つと、大規模障害・人材の引き抜き・競合の値下げが起きる（balance.companyEvents）。
  * 起きるかどうかは seed と営業日・案件から決める（state の乱数を引かないので、ほかの結果の並びを変えない）。
  */
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const BIG_SIZES: readonly ProjectSize[] = ['L', 'XL'];
 
 /** 会社の規模がその段階以上か */

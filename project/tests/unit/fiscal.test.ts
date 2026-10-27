@@ -14,14 +14,14 @@ import { addSample, cashOf, isBankrupt, valuationOf } from '../../src/core/funds
 import { generatedProjectId } from '../../src/core/projectGen';
 import { decodeFiscalCode, decodeResultCode, encodeFiscalCode, type FiscalRecord } from '../../src/core/resultCode';
 import { scoreCompany } from '../../src/core/scoring';
-import { deserialize, SAVE_VERSION, serialize } from '../../src/core/serialize';
+import { deserialize, MIGRATIONS, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createFunds, createInitialState, createTaskRun, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { recapView } from '../../src/view/session';
 import { growCompany } from '../helpers/growth';
 import { campaignInProgress } from '../helpers/session';
 
-const DAY = balance.project.minutesPerBusinessDay;
+const DAY = balance.time.minutesPerDay;
 const FISCAL = balance.fiscal.days;
 
 /** チュートリアルなしで始めた会社 */
@@ -316,12 +316,13 @@ describe('格付け（大手の後も続く昇格）', () => {
 });
 
 describe('セーブと閉じている間の進行', () => {
-  it('v12 のセーブを v13 に変換できる（記録は空・期は次の営業日から・資金は開業資金から）', () => {
+  it('v12 のセーブを v13 に変換できる（記録は空・期は次の営業日から・資金は開業資金から）。時計の単位が違うので今の形式（v14）には読み込まない', () => {
     const s = company('migrate');
     const { rank, eventCost, ledger, fiscal, funds, achievements, companyEvents, ...v12 } = s;
     const json = JSON.stringify({ saveVersion: 12, state: v12 });
-    const loaded = deserialize(json);
-    expect(SAVE_VERSION).toBe(13);
+    expect(SAVE_VERSION).toBe(14);
+    expect(() => deserialize(json)).toThrow(OutdatedSaveError);
+    const loaded = deserialize(json, MIGRATIONS, 13);
     expect(loaded).toMatchObject({ rank: 0, eventCost: 0, achievements: [] });
     expect(loaded.fiscal.startDay).toBeNull();
     expect(loaded.ledger.delivered).toBe(0);

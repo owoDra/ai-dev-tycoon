@@ -1,8 +1,8 @@
 import { balance } from '../content/balance';
+import { businessDay } from './clock';
 import type { GameEvent } from './events';
 import { scoreCompany } from './scoring';
 import type { FundsRun, GameState, ValuationSample } from './state';
-import { businessDay } from './team';
 
 /*
  * 資金と倒産・時価総額。資金は開業資金に会社の累計の利益を足したもの（案件の人件費は作業のたびに、売上は納品で入るので、

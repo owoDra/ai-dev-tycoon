@@ -14,8 +14,13 @@ const W = 320;
 const H = 140;
 const PAD = 8;
 
-/** 時価総額の推移の折れ線（SVG）。最高値に印を付け、ゼロの線を引く */
-export function ValuationChart(props: { samples: readonly ValuationSample[]; peak: ValuationSample | null }) {
+/** 時価総額（上場前は推定の企業価値）の推移の折れ線（SVG）。最高値に印を付け、ゼロの線を引く */
+export function ValuationChart(props: {
+  samples: readonly ValuationSample[];
+  peak: ValuationSample | null;
+  /** 上場しているか（時価総額と呼ぶか、企業価値と呼ぶか） */
+  listed: boolean;
+}) {
   const points = () => {
     const s = props.samples;
     if (s.length === 0) return [];
@@ -39,7 +44,7 @@ export function ValuationChart(props: { samples: readonly ValuationSample[]; pea
       viewBox={`0 0 ${W} ${H}`}
       class="w-full rounded-md border-2 border-line bg-sunken"
       role="img"
-      aria-label={t.chartLabel(t.oku(props.peak?.valuation ?? 0), t.oku(last()?.valuation ?? 0))}
+      aria-label={t.chartLabel(props.listed, t.oku(props.peak?.valuation ?? 0), t.oku(last()?.valuation ?? 0))}
       data-valuation-chart
     >
       <line x1={PAD} x2={W - PAD} y1={H - PAD} y2={H - PAD} class="stroke-ink-muted" stroke-width="1" />
@@ -84,8 +89,8 @@ export function BankruptScreen(props: { store: GameStore; onRestart: () => void;
           <Icon name="failure" /> {t.bankruptTitle}
         </h2>
         <p class="text-sm text-ink-muted">{t.bankruptLead}</p>
-        <h3 class="text-xs font-bold text-ink-muted">{t.chart}</h3>
-        <ValuationChart samples={view.samples} peak={view.peak} />
+        <h3 class="text-xs font-bold text-ink-muted">{t.chart(view.listed)}</h3>
+        <ValuationChart samples={view.samples} peak={view.peak} listed={view.listed} />
         <Show when={view.peak}>
           {(p) => (
             <p class="text-sm font-bold" data-peak-text>

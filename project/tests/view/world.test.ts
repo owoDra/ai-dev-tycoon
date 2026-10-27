@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { balance } from '../../src/content/balance';
 import { worldLooks } from '../../src/content/look/world';
 import type { AssignModeId } from '../../src/content/types';
 import type { Command } from '../../src/core/commands';
@@ -86,7 +87,9 @@ describe('worldView', () => {
   });
 
   it('同じ人に仕事が重なると、待っている Task は「人間待ち」になって島の前に積まれ、その人は困った顔になる', () => {
-    const vm = viewAt(90 + 120 + 5, [
+    // 昼休み（始業から3時間後に1時間）は手を止めるので、その分だけ後で見る
+    const lunch = balance.time.workday.lunchEnd - balance.time.workday.lunchStart;
+    const vm = viewAt(90 + 120 + lunch + 5, [
       start,
       ...['hearing', 'requirements', 'uiDesign', 'research'].map((t) => assign(t, 'human', A)),
     ]);

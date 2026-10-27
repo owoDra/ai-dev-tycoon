@@ -23,7 +23,8 @@ const DEFAULTS: Settings = {
   motion: 'system',
   feelIntensity: defaultFeelChoice.intensity,
   audio: { master: 0.6, sfx: 0.8, music: 0.45, muted: false },
-  dayBreak: true,
+  // 1日が1倍速で約1分と短いので、毎日の区切りは既定では出さない（設定でオンにできる）
+  dayBreak: false,
   awayProgress: true,
 };
 

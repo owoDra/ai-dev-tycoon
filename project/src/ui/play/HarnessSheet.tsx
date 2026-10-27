@@ -7,6 +7,7 @@ import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import type { HarnessForecast, HarnessOptionView, HarnessRowId, HarnessView } from '../../view/harness';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, panel } from '../parts';
 import { type Direction, MorphValue, Trend } from './ForecastPreview';
 
@@ -55,6 +56,8 @@ export function HarnessSheet(props: {
   footer?: JSX.Element;
   /** 見出しの小さな文字（既定は Harness Builder） */
   kicker?: string;
+  /** シートの上端に出すタブ（Harness Builder と Workflow Library の切り替え） */
+  tabs?: JSX.Element;
 }) {
   let el!: HTMLElement;
   onMount(() => {
@@ -81,13 +84,14 @@ export function HarnessSheet(props: {
       aria-modal="false"
       aria-label={t.title}
       data-harness-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4 *:shrink-0`}
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
         height: `${props.viewHeight * props.layout.heightRatio}px`,
       }}
     >
+      {props.tabs}
       <div class="flex items-start justify-between gap-2">
         <div class="flex min-w-0 items-center gap-2">
           <span class="flex size-10 shrink-0 items-center justify-center rounded-md border-[3px] border-line bg-accent-200 text-2xl">
@@ -115,7 +119,7 @@ export function HarnessSheet(props: {
         fallback={
           <>
             <ul class="flex flex-col gap-1.5" aria-label={props.view.workerName} data-harness-card>
-              <For each={props.view.rows}>
+              <Keyed each={props.view.rows} by={(r) => r.id}>
                 {(r) => (
                   <li>
                     <button
@@ -135,7 +139,7 @@ export function HarnessSheet(props: {
                     </button>
                   </li>
                 )}
-              </For>
+              </Keyed>
             </ul>
             {props.footer}
           </>
@@ -144,14 +148,14 @@ export function HarnessSheet(props: {
         {(r) => (
           <>
             <p class="text-xs text-ink-muted">{t.rowHints[r().id]}</p>
-            <For each={r().groups}>
+            <Keyed each={r().groups} by={(g) => g.title ?? g.options[0]?.id ?? ''}>
               {(group) => (
                 <fieldset class="flex flex-col gap-1.5">
                   <Show when={group.title}>
                     <legend class="mb-1 text-sm font-bold">{group.title}</legend>
                   </Show>
                   <div class="grid gap-2" style={{ 'grid-template-columns': 'repeat(auto-fill, minmax(9.5rem, 1fr))' }}>
-                    <For each={group.options}>
+                    <Keyed each={group.options} by={(o) => o.id}>
                       {(option) => (
                         <OptionCard
                           option={option}
@@ -162,11 +166,11 @@ export function HarnessSheet(props: {
                           }}
                         />
                       )}
-                    </For>
+                    </Keyed>
                   </div>
                 </fieldset>
               )}
-            </For>
+            </Keyed>
             <ForecastMetrics preview={preview()} title={t.preview} />
           </>
         )}

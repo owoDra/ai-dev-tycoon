@@ -71,11 +71,13 @@ describe('チュートリアル（コーチマークと機能の解放）', () =
   it('最初は早送り・稼働・問題の表示を出さず、Task が始まると早送りが解放される', () => {
     const { store, root, select } = mount();
     const items = () => [...root.querySelectorAll<HTMLElement>('[data-hud-item]')].map((e) => e.dataset.hudItem);
-    expect(items()).toEqual(['profitPerPersonDay', 'remaining']);
+    const speeds = () => root.querySelector(`[data-play-controls] fieldset[aria-label="${ja.controls.speedGroup}"]`);
+    expect(items()).toEqual(['spend', 'remaining']);
+    expect(speeds()).toBeNull();
     select('wireframe');
     card(root, 'ai')?.click();
     store.advance(1);
-    expect(items()).toContain('speed');
+    expect(speeds()).not.toBeNull();
     expect(items()).not.toContain('problems');
     expect(root.textContent).toContain(`${ja.unlocks.badge} ${ja.unlocks.speed}`);
   });

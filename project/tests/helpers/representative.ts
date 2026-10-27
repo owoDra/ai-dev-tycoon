@@ -7,7 +7,7 @@ import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { createInitialState, createProjectRun, type GameState } from '../../src/core/state';
-import { step } from '../../src/core/step';
+import { playSpeed, step } from '../../src/core/step';
 import { defaultSystems } from '../../src/core/system';
 import { humanSpeed, teamMembers } from '../../src/core/team';
 import { currentTutorialStep } from '../../src/core/tutorial';
@@ -149,6 +149,8 @@ export interface CampaignResult {
   readonly events: readonly GameEvent[];
   /** チュートリアルと代表的な案件群をすべて納品したゲーム内時刻（分）。打ち切ったら null */
   readonly clearedAt: number | null;
+  /** すべて納品するまでの1倍速での実時間（秒。夜の早送り（core/step.ts の playSpeed）を含む）。打ち切ったら null */
+  readonly clearedRealSeconds: number | null;
 }
 
 /**
@@ -161,6 +163,8 @@ const SYSTEMS = defaultSystems.filter((s) => s !== archiveSystem);
 export function playCampaign(options: CampaignOptions): CampaignResult {
   const perSecond = balance.time.minutesPerRealSecond;
   let state = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
+  /** 1倍速で遊んだときの経過実時間（秒）。考える時間もこの時計で数える */
+  let real = 0;
   const events: GameEvent[] = [];
   const apply = (commands: readonly Command[]) => {
     for (const c of commands) {
@@ -178,11 +182,11 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
 
   while (!all.every((id) => done(state, id)) && state.clock < options.limitMinutes) {
     while (reached < STAGES.length && STAGES[reached]?.when(state)) {
-      for (const id of STAGES[reached]?.projects ?? []) acceptAt.set(id, state.clock);
+      for (const id of STAGES[reached]?.projects ?? []) acceptAt.set(id, real);
       reached++;
     }
     for (const [id, offeredAt] of acceptAt) {
-      if (state.projects[id] || state.clock < offeredAt + options.thinkSeconds * perSecond) continue;
+      if (state.projects[id] || real < offeredAt + options.thinkSeconds) continue;
       state = { ...state, projects: { ...state.projects, [id]: createProjectRun(id, state.clock) } };
       apply([...(options.policy.setup?.(state) ?? []), ...assignProject(state, id, options.policy)]);
     }
@@ -191,16 +195,18 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
       const planned =
         tutorialAt !== null && tutorialAt.step === current
           ? tutorialAt
-          : { step: current, at: state.clock + options.tutorialThinkSeconds * perSecond };
+          : { step: current, at: real + options.tutorialThinkSeconds };
       tutorialAt = planned;
-      if (state.clock >= planned.at) apply(tutorialCommands(state));
+      if (real >= planned.at) apply(tutorialCommands(state));
     } else {
       // チュートリアルの後に始めた案件や、途中で解放された担当で、まだ決めていない Task を決める
       for (const id of activeProjects(state)) apply(assignProject(state, id, options.policy));
     }
+    real += balance.time.tickMinutes / (perSecond * playSpeed(state));
     const r = step(state, balance.time.tickMinutes, SYSTEMS);
     state = r.state;
     events.push(...r.events);
   }
-  return { state, events, clearedAt: all.every((id) => done(state, id)) ? state.clock : null };
+  const cleared = all.every((id) => done(state, id));
+  return { state, events, clearedAt: cleared ? state.clock : null, clearedRealSeconds: cleared ? real : null };
 }

@@ -2,13 +2,13 @@ import { balance } from '../content/balance';
 import { tutorialScript } from '../content/tutorial';
 import type { CompanyTierDef, ProjectSize } from '../content/types';
 import { closeInquiries } from './bidding';
+import { businessDay } from './clock';
 import { tierOf } from './company';
 import type { GameEvent } from './events';
 import { generatedProjectId } from './projectGen';
 import { hashSeed, weighted } from './rng';
 import type { GameState } from './state';
 import type { System } from './system';
-import { businessDay } from './team';
 
 /*
  * 案件ボード。チュートリアルを終えた会社には、営業日ごとに引き合い（生成した案件）が届く。
@@ -57,7 +57,7 @@ export function postInquiries(state: GameState, emit: (e: GameEvent) => void): G
   const board = state.board;
   const day = businessDay(state.clock);
   if (!board || state.tutorial !== null || board.day === day) return state;
-  const closesAt = (day + balance.board.closeDays) * balance.project.minutesPerBusinessDay;
+  const closesAt = (day + balance.board.closeDays) * balance.time.minutesPerDay;
   const projectIds = inquiriesOn(state.seed, day, tierOf(state)).filter(
     (id) => !state.projects[id] && !board.inquiries.some((i) => i.projectId === id),
   );

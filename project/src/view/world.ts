@@ -17,6 +17,7 @@ import type { IncidentId, Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
 import { type ActorProfile, reworkMinutes, stepMinutes } from '../core/formulas';
 import { equippedParts, harnessModifiers } from '../core/harness';
+import { libraryWorkflows } from '../core/library';
 import type { GameState, TaskRun } from '../core/state';
 import { aiActor, currentStep } from '../core/taskFlow';
 import { humanSpeed, teamMembers } from '../core/team';
@@ -134,6 +135,8 @@ export interface WorldViewModel {
   readonly incidents: readonly IncidentBugView[];
   /** 整理度（0〜1、企画書61章）。良い業務設計ほどオフィスが明るく整う */
   readonly tidiness: number;
+  /** ライブラリ棚のバインダーの数（Workflow Library の Workflow の数。企画書25章） */
+  readonly binders: number;
 }
 
 /** 発生中の事件のうち、この案件のもの */
@@ -371,6 +374,7 @@ export function worldView(state: GameState, projectId: string, look: WorldViewLo
     lanes: automatedLanes(state, projectId),
     incidents: incidentBugs(state, projectId),
     tidiness: tidinessOf(state, projectId, look.reward ?? worldLooks[defaultWorldLookId].reward),
+    binders: libraryWorkflows(state).length,
   };
 }
 

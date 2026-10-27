@@ -9,6 +9,7 @@ import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
 import { getIncidentDef } from '../../core/incidents';
+import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
@@ -17,6 +18,7 @@ import { projectTabs } from '../../view/campaign';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
 import { harnessForecast, harnessView } from '../../view/harness';
+import { defaultSaveMode, importPreview, libraryView, saveModes } from '../../view/library';
 import { defaultWorkerFor, workflowTasks } from '../../view/project';
 import { teamView, usageWarning } from '../../view/team';
 import type { WorldViewModel } from '../../view/world';
@@ -31,8 +33,10 @@ import { DetailSheet } from './DetailSheet';
 import { Dock } from './Dock';
 import { HarnessSheet } from './HarnessSheet';
 import { IslandLabels } from './IslandLabels';
+import { LibrarySheet } from './LibrarySheet';
 import { NoticeHost } from './NoticeHost';
 import { ProblemToasts } from './ProblemToasts';
+import { SaveWorkflowForm } from './SaveWorkflowForm';
 import { TeamSheet } from './TeamSheet';
 import { TutorialCoach } from './TutorialCoach';
 
@@ -151,6 +155,18 @@ export function PlayScreen(props: {
             tone: 'danger',
           });
         }
+        if (e.type === 'WorkflowSaved') {
+          const name = findWorkflow(props.store.state(), e.workflowId)?.name ?? '';
+          notices.push({ text: ja.library.savedNotice(name), icon: 'workflow', tone: 'success' });
+        }
+        if (e.type === 'LibraryWorkflowApplied') {
+          const name = findWorkflow(props.store.state(), e.workflowId)?.name ?? '';
+          notices.push({ text: ja.library.appliedNotice(name), icon: 'workflow', tone: 'success' });
+          if (e.skipped.length > 0) {
+            notices.push({ text: ja.library.skippedNotice(e.skipped.length), icon: 'warning', tone: 'danger' });
+          }
+          setLibraryOpen(false);
+        }
         if (e.type === 'WorkflowAssigned' && e.projectId === props.projectId) {
           notices.push({ text: ja.notices.workflow(e.taskIds.length), icon: 'workflow', tone: 'success' });
         }
@@ -203,7 +219,26 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setHarnessOpen(false);
     setTeamOpen(false);
+    setLibraryOpen(false);
     setContextOpen(true);
+  };
+  // Workflow Library（企画書25章）。Task の詳細から開くと、その Task に適用できる
+  const [libraryOpen, setLibraryOpen] = createSignal(false);
+  const [libraryTask, setLibraryTask] = createSignal<string | null>(null);
+  const libraryTarget = () => {
+    const taskId = libraryTask();
+    return taskId ? { projectId: props.projectId, taskId, workerId: harnessWorker() } : null;
+  };
+  const library = createMemo(() =>
+    libraryOpen() && harnessOn() ? libraryView(props.store.state(), libraryTarget()) : null,
+  );
+  const openLibrary = (taskId: string | null) => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    setContextOpen(false);
+    setHarnessOpen(false);
+    setTeamOpen(false);
+    setLibraryTask(taskId);
+    setLibraryOpen(true);
   };
   const [harnessOpen, setHarnessOpen] = createSignal(false);
   // 社員と Seat の画面（企画書6章）
@@ -214,6 +249,7 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setContextOpen(false);
     setHarnessOpen(false);
+    setLibraryOpen(false);
     setTeamOpen(true);
   };
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
@@ -228,6 +264,7 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     setContextOpen(false);
     setTeamOpen(false);
+    setLibraryOpen(false);
     setHarnessOpen(true);
   };
   createEffect(() => {
@@ -235,6 +272,7 @@ export function PlayScreen(props: {
       setContextOpen(false);
       setHarnessOpen(false);
       setTeamOpen(false);
+      setLibraryOpen(false);
     }
   });
 
@@ -307,11 +345,12 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
-        if (contextOpen() || harnessOpen() || teamOpen()) {
+        if (contextOpen() || harnessOpen() || teamOpen() || libraryOpen()) {
           e.preventDefault();
           setContextOpen(false);
           setHarnessOpen(false);
           setTeamOpen(false);
+          setLibraryOpen(false);
           return;
         }
         if (selected() === null) return;
@@ -393,6 +432,7 @@ export function PlayScreen(props: {
             onClose={close}
             onAssign={assign}
             onHarness={harnessOn() ? openHarness : undefined}
+            onLibrary={harnessOn() ? (taskId) => openLibrary(taskId) : undefined}
             workflow={(taskId) => workflowTasks(props.store.state(), props.projectId, taskId)}
             onWorkflow={(taskIds) => {
               props.store.dispatch({
@@ -429,6 +469,34 @@ export function PlayScreen(props: {
             forecast={(command) => harnessForecast(props.store.state(), props.projectId, v().workerId, command)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setHarnessOpen(false)}
+            footer={
+              <SaveWorkflowForm
+                modes={saveModes(props.store.state())}
+                defaultMode={defaultSaveMode(props.store.state(), props.projectId, v().workerId)}
+                defaultName={defaultWorkflowName(props.store.state())}
+                onSave={(name, mode) =>
+                  props.store.dispatch({
+                    type: 'SaveLibraryWorkflow',
+                    workflow: workflowFromWorker(props.store.state(), v().workerId, mode, name),
+                  })
+                }
+              />
+            }
+          />
+        )}
+      </Presence>
+      <Presence when={library()} enter={false} class="pointer-events-auto">
+        {(v) => (
+          <LibrarySheet
+            view={v()}
+            target={libraryTask() ? getTask(props.projectId, libraryTask() ?? '').name : null}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            forecast={(command) => harnessForecast(props.store.state(), props.projectId, harnessWorker(), command)}
+            readCode={(code) => importPreview(props.store.state(), code)}
+            dispatch={(c) => props.store.dispatch(c)}
+            onClose={() => setLibraryOpen(false)}
           />
         )}
       </Presence>
@@ -455,6 +523,7 @@ export function PlayScreen(props: {
           onProblems={() => setDismissed(new Set<string>())}
           onContext={openContext}
           onHarness={harnessOn() ? openHarness : undefined}
+          onLibrary={harnessOn() ? () => openLibrary(null) : undefined}
           onTeam={teamOn() ? openTeam : undefined}
           teamWarning={usageWarning(props.store.state())}
           tabs={props.onSwitch ? tabs() : undefined}

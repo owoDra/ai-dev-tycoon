@@ -1,10 +1,10 @@
 import type { IconName } from '../assets/icons';
 import { content, getAiWorker, getModel } from '../content/index';
-import type { FeatureId, HarnessCategory, HarnessModifiers, HarnessPartDef } from '../content/types';
+import type { ContextFeed, FeatureId, HarnessCategory, HarnessModifiers, HarnessPartDef } from '../content/types';
 import { type Command, reduce } from '../core/commands';
 import { contextApplies, getSession } from '../core/context';
 import { expectWorker, type WorkerExpectation } from '../core/expectation';
-import { harnessOf, isEquipped } from '../core/harness';
+import { equippedParts, harnessOf } from '../core/harness';
 import type { GameState } from '../core/state';
 import { isUnlocked } from '../core/unlocks';
 import { ja } from '../i18n/ja';
@@ -94,10 +94,39 @@ function modifierLines(mods: Partial<HarnessModifiers>): ModifierLine[] {
   }));
 }
 
-function partView(state: GameState, part: HarnessPartDef): HarnessPartView {
+/**
+ * Harness Builder に表示する構成。ゲームでは AI Worker の state から（harnessSource）、
+ * 実務モードでは工程の入力から作る（view/practice.ts）。選択肢の Command は workerId 宛てに作る
+ */
+export interface HarnessSource {
+  readonly workerId: string;
+  readonly modelId: string;
+  /** 装着している部品の id（Context Router を含む） */
+  readonly equipped: readonly string[];
+  readonly isUnlocked: (feature: FeatureId) => boolean;
+  /** 導入コストを払い済みの部品か */
+  readonly owned: (partId: string) => boolean;
+  /** 資料の渡し方。資料のない案件・Context が未解放・実務モードでは null（渡し方と Context Router の選択肢を出さない） */
+  readonly feed: ContextFeed['mode'] | null;
+}
+
+/** AI Worker の Harness Builder の構成 */
+export function harnessSource(state: GameState, projectId: string, workerId: string): HarnessSource {
+  const showFeed = contextApplies(projectId) && isUnlocked(state, 'context');
+  return {
+    workerId,
+    modelId: harnessOf(state, workerId).modelId,
+    equipped: equippedParts(state, workerId).map((p) => p.id),
+    isUnlocked: (f) => isUnlocked(state, f),
+    owned: (id) => state.ownedParts.includes(id),
+    feed: showFeed ? getSession(state, workerId).feed.mode : null,
+  };
+}
+
+function partView(src: HarnessSource, part: HarnessPartDef): HarnessPartView {
   return {
     installCost: part.installCost,
-    owned: state.ownedParts.includes(part.id),
+    owned: src.owned(part.id),
     runningCost: part.runningCost,
     modifiers: modifierLines(part.modifiers),
     burden: modifierLines(part.burden),
@@ -105,28 +134,32 @@ function partView(state: GameState, part: HarnessPartDef): HarnessPartView {
   };
 }
 
+const isOn = (src: HarnessSource, partId: string) => src.equipped.includes(partId);
+
 /** 部品を付け外しする選択肢 */
-function toggleOption(state: GameState, workerId: string, part: HarnessPartDef, hint: string | null = null) {
-  const on = isEquipped(state, workerId, part.id);
+function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | null = null) {
+  const on = isOn(src, part.id);
+  const workerId = src.workerId;
   return {
     id: part.id,
     label: part.name,
     hint,
     selected: on,
     command: { type: on ? 'RemovePart' : 'EquipPart', workerId, partId: part.id } as Command,
-    part: partView(state, part),
+    part: partView(src, part),
   };
 }
 
-const partsOf = (state: GameState, category: HarnessCategory) =>
-  content.harnessParts.filter((p) => p.category === category && isUnlocked(state, p.unlock));
+const partsOf = (src: HarnessSource, category: HarnessCategory) =>
+  content.harnessParts.filter((p) => p.category === category && src.isUnlocked(p.unlock));
 
 /** 自動化の行：ルールごとに「なし / お願い / Hook」 */
-function ruleGroups(state: GameState, workerId: string): HarnessGroupView[] {
-  const groups = [...new Set(partsOf(state, 'hook').map((p) => p.group ?? p.id))];
+function ruleGroups(src: HarnessSource): HarnessGroupView[] {
+  const workerId = src.workerId;
+  const groups = [...new Set(partsOf(src, 'hook').map((p) => p.group ?? p.id))];
   return groups.map((group) => {
-    const parts = partsOf(state, 'hook').filter((p) => (p.group ?? p.id) === group);
-    const on = parts.find((p) => isEquipped(state, workerId, p.id));
+    const parts = partsOf(src, 'hook').filter((p) => (p.group ?? p.id) === group);
+    const on = parts.find((p) => isOn(src, p.id));
     const none: HarnessOptionView = {
       id: `${group}:none`,
       label: t.ruleOff,
@@ -136,20 +169,21 @@ function ruleGroups(state: GameState, workerId: string): HarnessGroupView[] {
       part: null,
     };
     const options = parts.map((p) => ({
-      ...toggleOption(state, workerId, p, p.enforcement === 'request' ? t.requestHint : t.hookHint),
+      ...toggleOption(src, p, p.enforcement === 'request' ? t.requestHint : t.hookHint),
       label: p.enforcement === 'request' ? t.ruleRequest : t.ruleHook,
       // 選択中のものを押しても外さない（外すのは「なし」）
-      command: isEquipped(state, workerId, p.id) ? null : ({ type: 'EquipPart', workerId, partId: p.id } as Command),
+      command: isOn(src, p.id) ? null : ({ type: 'EquipPart', workerId, partId: p.id } as Command),
     }));
     return { title: t.rules[group as keyof typeof t.rules] ?? group, options: [none, ...options] };
   });
 }
 
 /** 渡す情報の行：資料の渡し方（資料のある案件で Context が解放済みのとき）と Skill */
-function contextGroups(state: GameState, projectId: string, workerId: string): HarnessGroupView[] {
+function contextGroups(src: HarnessSource): HarnessGroupView[] {
   const groups: HarnessGroupView[] = [];
-  if (contextApplies(projectId) && isUnlocked(state, 'context')) {
-    const feed = getSession(state, workerId).feed.mode;
+  const feed = src.feed;
+  const workerId = src.workerId;
+  if (feed !== null) {
     const options: HarnessOptionView[] = (['needed', 'all'] as const).map((mode) => ({
       id: `feed:${mode}`,
       label: ja.context.feed[mode],
@@ -161,24 +195,22 @@ function contextGroups(state: GameState, projectId: string, workerId: string): H
     if (feed === 'pick') {
       options.push({ id: 'feed:pick', label: t.feedPick, hint: null, selected: true, command: null, part: null });
     }
-    for (const p of partsOf(state, 'contextRouter'))
-      options.push(toggleOption(state, workerId, p, ja.context.feedHint.router));
+    for (const p of partsOf(src, 'contextRouter')) options.push(toggleOption(src, p, ja.context.feedHint.router));
     groups.push({ title: t.feedGroup, options });
   }
-  groups.push({ title: t.skillGroup, options: partsOf(state, 'skill').map((p) => toggleOption(state, workerId, p)) });
+  groups.push({ title: t.skillGroup, options: partsOf(src, 'skill').map((p) => toggleOption(src, p)) });
   return groups;
 }
 
-function summaryOf(row: HarnessRowId, state: GameState, projectId: string, workerId: string): string {
-  if (row === 'model') return getModel(harnessOf(state, workerId).modelId).name;
+function summaryOf(row: HarnessRowId, src: HarnessSource): string {
+  if (row === 'model') return getModel(src.modelId).name;
   const category = ROWS.find((r) => r.id === row)?.category;
-  const names = harnessOf(state, workerId)
-    .parts.map((id) => content.harnessParts.find((p) => p.id === id))
+  const names = src.equipped
+    .map((id) => content.harnessParts.find((p) => p.id === id))
     .filter((p): p is HarnessPartDef => p?.category === category)
     .map((p) => p.name);
   if (row === 'context') {
-    const feed = getSession(state, workerId).feed.mode;
-    const feedName = contextApplies(projectId) && isUnlocked(state, 'context') ? [ja.context.feed[feed]] : [];
+    const feedName = src.feed !== null ? [ja.context.feed[src.feed]] : [];
     return [...feedName, ...names].join(' / ') || t.none;
   }
   return names.join(' / ') || t.none;
@@ -186,12 +218,18 @@ function summaryOf(row: HarnessRowId, state: GameState, projectId: string, worke
 
 /** Harness Builder のカード。解放されていない行は出さない（必要になってから見せる） */
 export function harnessView(state: GameState, projectId: string, workerId: string): HarnessView {
+  return harnessCard(harnessSource(state, projectId, workerId), getAiWorker(workerId).name);
+}
+
+/** 構成から Harness Builder のカードを作る（ゲームと実務モードで共通） */
+export function harnessCard(src: HarnessSource, title: string): HarnessView {
   const rows: HarnessRowView[] = [];
+  const workerId = src.workerId;
   for (const row of ROWS) {
-    if (!isUnlocked(state, row.feature)) continue;
+    if (!src.isUnlocked(row.feature)) continue;
     let groups: HarnessGroupView[];
     if (row.id === 'model') {
-      const current = harnessOf(state, workerId).modelId;
+      const current = src.modelId;
       groups = [
         {
           title: null,
@@ -206,21 +244,15 @@ export function harnessView(state: GameState, projectId: string, workerId: strin
           })),
         },
       ];
-    } else if (row.id === 'context') groups = contextGroups(state, projectId, workerId);
-    else if (row.id === 'automation') groups = ruleGroups(state, workerId);
+    } else if (row.id === 'context') groups = contextGroups(src);
+    else if (row.id === 'automation') groups = ruleGroups(src);
     else {
       const category = row.category as HarnessCategory;
-      groups = [{ title: null, options: partsOf(state, category).map((p) => toggleOption(state, workerId, p)) }];
+      groups = [{ title: null, options: partsOf(src, category).map((p) => toggleOption(src, p)) }];
     }
-    rows.push({
-      id: row.id,
-      icon: row.icon,
-      label: t.rows[row.id],
-      summary: summaryOf(row.id, state, projectId, workerId),
-      groups,
-    });
+    rows.push({ id: row.id, icon: row.icon, label: t.rows[row.id], summary: summaryOf(row.id, src), groups });
   }
-  return { workerId, workerName: getAiWorker(workerId).name, rows };
+  return { workerId, workerName: title, rows };
 }
 
 /** Before → After の予測（企画書48章）。今の設定と、選択肢を確定した後の、案件の AI の仕事の見込み */

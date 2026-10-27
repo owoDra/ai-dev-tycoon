@@ -14,6 +14,7 @@ import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
+import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { CampaignBoard } from '../ui/screens/CampaignBoard';
 import { ResultScreen } from '../ui/screens/ResultScreen';
@@ -49,7 +50,7 @@ const IDLE_SEED = 'title';
 const AUTOSAVE_MS = 5000;
 
 /**
- * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → 案件ボード → プレイ → 結果）を重ねる。
+ * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → 案件ボード → プレイ → 結果、タイトル → 実務モード）を重ねる。
  * キャンペーン1回ごとに新しい GameStore を作り、ゲームループを回す。キャンペーンはチュートリアル案件から始まり、
  * 進み具合（解放・社員・Harness・案件）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
  * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したら結果画面へ進む。
@@ -205,8 +206,12 @@ export function App(props: { tweak: boolean; log?: boolean }) {
           <TitleScreen
             onStart={newCampaign}
             onContinue={saved() ? continueCampaign : undefined}
+            onPractice={() => screens.go({ type: 'Practice' })}
             onSettings={openSettings}
           />
+        </Match>
+        <Match when={screens.screen().id === 'practice'}>
+          <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
         </Match>
         <Match when={screens.screen().id === 'select'}>
           <CampaignBoard

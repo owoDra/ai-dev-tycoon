@@ -10,11 +10,14 @@ import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
  * チュートリアルを終えた後は「チュートリアルをもう一度」を出す（onTutorial を渡したときだけ）。
  * セーブがあれば（onContinue を渡したとき）「続きから」を先頭に出し、「はじめから」はセーブを消す確認を1回挟む。
+ * 実務モード（企画書24章）への入口も置く。
  */
 export function TitleScreen(props: {
   onStart: () => void;
   onContinue?: () => void;
   onTutorial?: () => void;
+  /** 実務モード（実際の仕事の改善効果の試算）を開く */
+  onPractice?: () => void;
   onSettings: () => void;
 }) {
   const [confirming, setConfirming] = createSignal(false);
@@ -79,6 +82,16 @@ export function TitleScreen(props: {
           {(retry) => (
             <button type="button" data-retry-tutorial class={ghostButton} onClick={() => retry()()}>
               {ja.screens.title.retryTutorial}
+            </button>
+          )}
+        </Show>
+        <Show when={props.onPractice}>
+          {(open) => (
+            <button type="button" data-open-practice class={ghostButton} onClick={() => open()()}>
+              <span class="flex flex-col items-center leading-tight">
+                <span>{ja.practice.open}</span>
+                <span class="text-[11px] font-normal text-ink-muted">{ja.practice.openHint}</span>
+              </span>
             </button>
           )}
         </Show>

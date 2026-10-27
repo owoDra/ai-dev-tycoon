@@ -38,6 +38,8 @@ export function Dock(props: {
   onContext?: () => void;
   /** Harness Builder を開く（渡さなければボタンを出さない。解放前） */
   onHarness?: () => void;
+  /** Workflow Library を開く（Harness の解放前は渡さない） */
+  onLibrary?: () => void;
   /** 社員と Seat の画面を開く（渡さなければボタンを出さない。解放前） */
   onTeam?: () => void;
   /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
@@ -121,6 +123,20 @@ export function Dock(props: {
           >
             <Icon name="ai" class="text-xl" />
             <Show when={!props.compact}>{ja.harness.openShort}</Show>
+          </button>
+        )}
+      </Show>
+      <Show when={props.onLibrary}>
+        {(open) => (
+          <button
+            type="button"
+            data-library-open
+            class="flex h-11 items-center gap-1.5 rounded-md border-[3px] border-line bg-surface px-2 text-sm font-bold whitespace-nowrap"
+            aria-label={ja.library.open}
+            onClick={() => open()()}
+          >
+            <Icon name="workflow" class="text-xl" />
+            <Show when={!props.compact}>{ja.library.openShort}</Show>
           </button>
         )}
       </Show>

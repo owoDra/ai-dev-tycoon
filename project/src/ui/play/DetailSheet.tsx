@@ -35,6 +35,8 @@ export function DetailSheet(props: {
   onAssign: (taskId: string, mode: AssignModeId) => void;
   /** Harness Builder を開く（AI のキャラクターを選んだとき。解放前は渡さない） */
   onHarness?: () => void;
+  /** Workflow Library を開いて、この Task に Workflow を適用する（Harness の解放前は渡さない） */
+  onLibrary?: (taskId: string) => void;
   /** Task から一続きの Workflow にまとめられる Task（企画書5章） */
   workflow?: (taskId: string) => readonly string[];
   onWorkflow?: (taskIds: readonly string[]) => void;
@@ -135,6 +137,22 @@ export function DetailSheet(props: {
             <span class="text-[11px] font-normal text-ink-muted">
               {ja.harness.workflowHint(workflowIds().length - 1)}
             </span>
+          </button>
+        )}
+      </Show>
+      <Show when={d().row?.editable && props.onLibrary}>
+        {(open) => (
+          <button
+            type="button"
+            data-library-open
+            class={`${ghostButton} flex-col items-start self-start`}
+            onClick={() => open()(d().row?.id ?? '')}
+          >
+            <span class="flex items-center gap-1.5 font-bold">
+              <Icon name="workflow" />
+              {ja.library.apply}
+            </span>
+            <span class="text-[11px] font-normal text-ink-muted">{ja.library.applyHint}</span>
           </button>
         )}
       </Show>

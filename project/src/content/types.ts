@@ -451,3 +451,70 @@ export interface CampaignDef {
   /** 並び順は受注できるようになる順 */
   readonly stages: readonly CampaignStageDef[];
 }
+
+/**
+ * Workflow に保存する資料の渡し方。needed: 必要な資料だけ / all: すべての資料 / router: Context Router。
+ * 資料を個別に選ぶ（pick）は案件ごとの選び方なので、needed として保存する
+ */
+export type WorkflowContext = 'needed' | 'all' | 'router';
+
+/**
+ * Workflow Library の Workflow（企画書25章）。AI Worker の構成（Model・資料の渡し方・Harness 部品）と担当モードの組。
+ * 同梱のプリセット（content/library.ts）と、プレイヤーが保存したもの（GameState.library）がある
+ */
+export interface LibraryWorkflowDef {
+  readonly id: string;
+  readonly name: string;
+  /** 適用した Task の担当モード（AI が関わるモード） */
+  readonly mode: AssignModeId;
+  readonly modelId: string;
+  readonly context: WorkflowContext;
+  /** 装着する部品の id（Context Router は context で表すので含めない） */
+  readonly parts: readonly string[];
+}
+
+/** 実務モードの業務の頻度 */
+export type PracticeFrequency = 'daily' | 'weekly' | 'monthly';
+
+/** 実務モードの工程の AI 適性（選択式）。content/practice の practiceAptitudes で Task の性質に置き換える */
+export type PracticeAptitude = 'high' | 'mid' | 'low';
+
+/** AI 適性の選択肢が表す Task の性質（TaskDef の同名の値） */
+export interface PracticeAptitudeDef {
+  readonly aiAptitude: number;
+  readonly difficulty: number;
+  readonly qualityReq: number;
+  readonly failRisk: number;
+}
+
+/** 実務モードの工程。今の人間時間と、改善後の担当モード・Model・Harness 部品 */
+export interface PracticeStepInput {
+  readonly name: string;
+  /** 今、人間がこの工程にかけている時間（分） */
+  readonly minutes: number;
+  /** 仕事の種類。Harness 部品が効くかどうかを決める */
+  readonly kind: TaskKind;
+  readonly aptitude: PracticeAptitude;
+  readonly mode: AssignModeId;
+  readonly modelId: string;
+  /** 割り当てる部品（Context Router を除く。実務モードには案件の資料がない） */
+  readonly parts: readonly string[];
+}
+
+/** 実務モードで入力する実際の業務（1回分） */
+export interface PracticeJobInput {
+  readonly name: string;
+  readonly frequency: PracticeFrequency;
+  /** 時給（円）。人件費の換算に使う */
+  readonly hourlyWage: number;
+  /** 業務1回が生む価値（円）。人時あたりの利益に使う */
+  readonly valuePerRun: number;
+  /** 上から順に行う工程（最大 balance.practice.maxSteps） */
+  readonly steps: readonly PracticeStepInput[];
+}
+
+/** 実務モードのテンプレート（企画書24章の例） */
+export interface PracticeTemplateDef {
+  readonly id: string;
+  readonly job: PracticeJobInput;
+}

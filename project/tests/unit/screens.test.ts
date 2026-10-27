@@ -43,4 +43,12 @@ describe('画面遷移（キャンペーン）', () => {
     expect(nextScreen(titleScreen, { type: 'Switch', projectId: 'saasFeature' })).toBe(titleScreen);
     expect(nextScreen(titleScreen, { type: 'Board' })).toBe(titleScreen);
   });
+
+  it('実務モードはタイトルから開き、タイトルへ戻る。ほかの画面からは開かない', () => {
+    const practice = nextScreen(titleScreen, { type: 'Practice' });
+    expect(practice).toEqual({ id: 'practice' });
+    expect(nextScreen(practice, { type: 'Back' })).toEqual(titleScreen);
+    const select = nextScreen(titleScreen, { type: 'Open' });
+    expect(nextScreen(select, { type: 'Practice' })).toBe(select);
+  });
 });

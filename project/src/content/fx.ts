@@ -23,7 +23,8 @@ export type FxSignalKind =
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
-  | 'unlock';
+  | 'unlock'
+  | 'workflowSaved';
 
 /**
  * 演出の部品。world（3D）と ui/fx（DOM）がそれぞれ担当する部品を再生する。
@@ -96,7 +97,8 @@ export type FxId =
   | 'autoRepair'
   | 'autonomyStreak'
   | 'projectComplete'
-  | 'featureUnlocked';
+  | 'featureUnlocked'
+  | 'workflowSaved';
 
 export interface FxDef {
   readonly id: FxId;
@@ -237,6 +239,16 @@ export const fxTable: readonly FxDef[] = [
     reducedAlternative: ['fadeLabel'],
     label: { key: 'featureUnlocked', tone: 'accent' },
     sfx: ['autoRepair'],
+  },
+  {
+    // Workflow Library への保存（企画書25章）。オフィスのライブラリ棚にバインダーが1冊増える（world が ViewModel の binders で出す）
+    id: 'workflowSaved',
+    tier: 3,
+    signal: 'workflowSaved',
+    parts: ['sparkle', 'confetti', 'ring', 'bigType'],
+    reducedAlternative: ['glow', 'fadeBigType'],
+    label: { key: 'workflowSaved', tone: 'accent' },
+    sfx: ['automation'],
   },
 ];
 

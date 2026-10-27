@@ -333,6 +333,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     const sliding = packets.frame(dt, time, live, reduced);
     const bugging = bugs?.frame(time, motion) ?? false;
     const brightening = applyTidiness(realDt, reduced);
+    const shelving = stage.setBinders(vm.binders, realDt, reduced);
     const effects = vfx.frame(dt, rig.camera);
     const elapsed = now - shaking.start;
     const shakingNow = elapsed < shaking.durationMs;
@@ -346,7 +347,16 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     }
     // 進行中は毎フレーム描く。一時停止中（や動きを減らす設定）では、歩行・パケット・カメラが落ち着いたら止まる
     return (
-      motion || walking || sliding || bugging || brightening || effects || shakingNow || squash.active() || rig.moving()
+      motion ||
+      walking ||
+      sliding ||
+      bugging ||
+      brightening ||
+      shelving ||
+      effects ||
+      shakingNow ||
+      squash.active() ||
+      rig.moving()
     );
   }
 

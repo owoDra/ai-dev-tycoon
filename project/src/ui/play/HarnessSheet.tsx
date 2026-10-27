@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
 import type { SheetLayout } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
@@ -51,6 +51,10 @@ export function HarnessSheet(props: {
   forecast: (command: Command | null) => HarnessForecast;
   dispatch: (command: Command) => void;
   onClose: () => void;
+  /** カード（行の一覧）の下に出すもの（Workflow として保存するフォームなど） */
+  footer?: JSX.Element;
+  /** 見出しの小さな文字（既定は Harness Builder） */
+  kicker?: string;
 }) {
   let el!: HTMLElement;
   onMount(() => {
@@ -90,7 +94,7 @@ export function HarnessSheet(props: {
             <Icon name={row()?.icon ?? 'ai'} />
           </span>
           <div class="flex min-w-0 flex-col leading-tight">
-            <span class="text-[11px] font-bold text-ink-muted">{t.title}</span>
+            <span class="text-[11px] font-bold text-ink-muted">{props.kicker ?? t.title}</span>
             <h2 class="truncate font-heading text-lg">{row()?.label ?? props.view.workerName}</h2>
           </div>
         </div>
@@ -109,29 +113,32 @@ export function HarnessSheet(props: {
       <Show
         when={row()}
         fallback={
-          <ul class="flex flex-col gap-1.5" aria-label={props.view.workerName} data-harness-card>
-            <For each={props.view.rows}>
-              {(r) => (
-                <li>
-                  <button
-                    type="button"
-                    data-harness-row={r.id}
-                    class="flex min-h-12 w-full items-center gap-3 rounded-lg border-[3px] border-line bg-surface px-3 py-1.5 text-left shadow-pop"
-                    onClick={() => open(r.id)}
-                  >
-                    <Icon name={r.icon} class="text-xl" />
-                    <span class="flex min-w-0 flex-1 flex-col leading-tight">
-                      <span class="text-[11px] font-bold text-ink-muted">{r.label}</span>
-                      <span class="truncate font-heading text-sm">{r.summary}</span>
-                    </span>
-                    <span aria-hidden="true" class="font-heading text-ink-muted">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
+          <>
+            <ul class="flex flex-col gap-1.5" aria-label={props.view.workerName} data-harness-card>
+              <For each={props.view.rows}>
+                {(r) => (
+                  <li>
+                    <button
+                      type="button"
+                      data-harness-row={r.id}
+                      class="flex min-h-12 w-full items-center gap-3 rounded-lg border-[3px] border-line bg-surface px-3 py-1.5 text-left shadow-pop"
+                      onClick={() => open(r.id)}
+                    >
+                      <Icon name={r.icon} class="text-xl" />
+                      <span class="flex min-w-0 flex-1 flex-col leading-tight">
+                        <span class="text-[11px] font-bold text-ink-muted">{r.label}</span>
+                        <span class="truncate font-heading text-sm">{r.summary}</span>
+                      </span>
+                      <span aria-hidden="true" class="font-heading text-ink-muted">
+                        ›
+                      </span>
+                    </button>
+                  </li>
+                )}
+              </For>
+            </ul>
+            {props.footer}
+          </>
         }
       >
         {(r) => (
@@ -160,7 +167,7 @@ export function HarnessSheet(props: {
                 </fieldset>
               )}
             </For>
-            <Preview preview={preview()} />
+            <ForecastMetrics preview={preview()} title={t.preview} />
           </>
         )}
       </Show>
@@ -237,14 +244,17 @@ function OptionCard(props: { option: HarnessOptionView; onFocus: () => void; onP
   );
 }
 
-/** Before → After の予測。よくなるか悪くなるかを形と文字でも示す */
-function Preview(props: { preview: { option: HarnessOptionView; forecast: HarnessForecast } | null }) {
+/** Before → After の予測。よくなるか悪くなるかを形と文字でも示す（Workflow Library の適用でも使う） */
+export function ForecastMetrics(props: {
+  preview: { option: { label: string }; forecast: HarnessForecast } | null;
+  title: string;
+}) {
   return (
     <Show when={props.preview} fallback={<p class="text-xs text-ink-muted">{t.previewHint}</p>}>
       {(p) => (
-        <section aria-live="polite" aria-label={t.preview} class="min-w-0" data-harness-preview>
+        <section aria-live="polite" aria-label={props.title} class="min-w-0" data-harness-preview>
           <h3 class="text-xs font-bold text-ink-muted">
-            {t.preview}：{p().option.label}
+            {props.title}：{p().option.label}
           </h3>
           <dl class="flex flex-wrap gap-x-4 gap-y-1">
             <For each={metrics}>

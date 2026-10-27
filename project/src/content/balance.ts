@@ -188,6 +188,27 @@ export const balance = {
     /** 閉じていた実時間をゲーム内の分に換算するときの速度の倍率 */
     speed: 1,
   },
+  /** Workflow Library（core/library.ts） */
+  library: {
+    /** Workflow の名前の長さの上限（文字）。共有コードの文字列の上限（lib/codec.ts）にも収まる */
+    maxNameLength: 20,
+  },
+  /**
+   * 実務モード（core/practice.ts）。実際の業務の1回分を、ゲームと同じ式（工程 = Task、作業量 = 今の人間の分）で見積もる。
+   * 人間は入力した本人（熟練度 1）とし、Model の費用・部品の導入コストはゲームと同じ円で数える
+   */
+  practice: {
+    /** 頻度ごとの1年の実施回数（毎日は営業日） */
+    runsPerYear: { daily: 240, weekly: 52, monthly: 12 },
+    /** 時給の既定値（円）。人件費の換算と ROI に使う */
+    hourlyWage: 4000,
+    /** 工程の数の上限 */
+    maxSteps: 8,
+    /** 業務名・工程名の長さの上限（文字） */
+    maxNameLength: 30,
+    /** 1工程の人間時間の上限（分） */
+    maxStepMinutes: 600,
+  },
 } as const;
 
 export type GameSpeed = (typeof balance.time.speeds)[number];

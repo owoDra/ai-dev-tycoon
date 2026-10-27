@@ -21,6 +21,7 @@ const LABEL_ICON: Record<FxId, IconName> = {
   autonomyStreak: 'automation',
   projectComplete: 'release',
   featureUnlocked: 'success',
+  workflowSaved: 'workflow',
 };
 
 /**

@@ -90,17 +90,33 @@ export const appliesTo = (part: HarnessPartDef, task: TaskDef) =>
   task.kind !== undefined && part.appliesTo.includes(task.kind);
 
 /**
- * AI Worker が task を作業するときの補正。装着している部品の burden（どの Task にも）と、
- * task に効く modifiers を、同じカテゴリの組ごとの調整コスト（balance.harness.pairs）と合わせて合算する。
+ * AI Worker が task を作業するときの補正。装着している部品から partsModifiers で合算する。
  * skipped は今回の作業で守られなかったお願いの部品。expected なら、お願いを守られる確率で薄めた見込みにする。
  */
 export function harnessModifiers(
   state: GameState,
   workerId: string,
   task: TaskDef,
-  options: { readonly skipped?: readonly string[]; readonly expected?: boolean } = {},
+  options: PartsModifierOptions = {},
 ): HarnessModifiers {
-  const parts = equippedParts(state, workerId);
+  return partsModifiers(equippedParts(state, workerId), task, options);
+}
+
+export interface PartsModifierOptions {
+  readonly skipped?: readonly string[];
+  readonly expected?: boolean;
+}
+
+/**
+ * 部品の組が task の作業に与える補正。部品の burden（どの Task にも）と、task に効く modifiers を、
+ * 同じカテゴリの組ごとの調整コスト（balance.harness.pairs）と合わせて合算する。
+ * ゲームの AI Worker（harnessModifiers）と実務モードの工程（core/practice.ts）が同じ式を使う
+ */
+export function partsModifiers(
+  parts: readonly HarnessPartDef[],
+  task: TaskDef,
+  options: PartsModifierOptions = {},
+): HarnessModifiers {
   if (parts.length === 0) return NEUTRAL;
   const entries: ModifierEntry[] = [];
   for (const p of parts) {
@@ -125,13 +141,19 @@ export function requestParts(state: GameState, workerId: string, task: TaskDef):
 
 /** 装着している部品のランニングコストの合計（AI が1分作業するごとの円） */
 export function runningCost(state: GameState, workerId: string): number {
-  return equippedParts(state, workerId).reduce((sum, p) => sum + p.runningCost, 0);
+  return partsRunningCost(equippedParts(state, workerId));
 }
+
+const partsRunningCost = (parts: readonly HarnessPartDef[]) => parts.reduce((sum, p) => sum + p.runningCost, 0);
 
 /** Harness の Model に、速度と費用の補正とランニングコストを入れた実効の Model。使用量も AI の利用量の補正（aiCost）に比例する */
 export function harnessModel(state: GameState, workerId: string, mods: HarnessModifiers): ModelDef {
-  const model = getModel(harnessOf(state, workerId).modelId);
-  const running = runningCost(state, workerId);
+  return partsModel(getModel(harnessOf(state, workerId).modelId), equippedParts(state, workerId), mods);
+}
+
+/** Model に部品の組の補正（partsModifiers の結果）とランニングコストを入れた実効の Model */
+export function partsModel(model: ModelDef, parts: readonly HarnessPartDef[], mods: HarnessModifiers): ModelDef {
+  const running = partsRunningCost(parts);
   if (mods === NEUTRAL && running === 0) return model;
   return {
     ...model,
@@ -181,10 +203,16 @@ export function equipPart(
   if (part.category === 'contextRouter') {
     next = updateSession(next, workerId, (s) => ({ ...s, feed: { mode: 'router' } }));
   } else {
-    const mates = (id: string) => part.group !== undefined && getHarnessPart(id).group === part.group;
-    next = updateHarness(next, workerId, (h) => ({ ...h, parts: [...h.parts.filter((id) => !mates(id)), partId] }));
+    next = updateHarness(next, workerId, (h) => ({ ...h, parts: withPart(h.parts, partId) }));
   }
   return next;
+}
+
+/** 部品の id の並びに部品を足す。同じ group の部品（同じ内容のお願いと Hook）は外して付け替える */
+export function withPart(parts: readonly string[], partId: string): string[] {
+  const group = getHarnessPart(partId).group;
+  const mates = (id: string) => group !== undefined && getHarnessPart(id).group === group;
+  return [...parts.filter((id) => id !== partId && !mates(id)), partId];
 }
 
 /** 部品を外す。Context Router を外すと、資料の渡し方は「必要な資料だけ」に戻る */

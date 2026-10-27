@@ -56,6 +56,8 @@ export function savedHumanHours(projectId: string, taskId: string, modeId: Assig
  * - Harness の事故・事件の発生 → incident（事件の起きた島）
  * - 事件の解決 → incidentResolved（島のバグ生物が弾けて消える）
  * - Autonomy Streak がしきい値を越えた → autonomyStreak（Tier 4。越えた分数を大きな数字で出す）
+ * - Workflow Library への保存 → workflowSaved（Tier 3。ライブラリ棚のバインダーは world が ViewModel から増やす）
+ * - Workflow の適用で人間時間の見込みが大きく減る → automation（適用した島）
  * - 案件の納品 → projectComplete（同じ回のほかの大きな演出より優先されるのは director が決める）
  */
 export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSignal[] {
@@ -109,6 +111,14 @@ export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSigna
         break;
       case 'ProjectCompleted':
         if (e.projectId === ctx.projectId) out.push({ kind: 'projectComplete', entityId: null });
+        break;
+      case 'WorkflowSaved':
+        out.push({ kind: 'workflowSaved', entityId: null });
+        break;
+      case 'LibraryWorkflowApplied':
+        if (e.projectId === ctx.projectId && e.savedHumanHours >= fxRules.harnessMinSavedHours) {
+          out.push({ kind: 'automation', entityId: islandId(e.taskId), amount: e.savedHumanHours });
+        }
         break;
     }
   }

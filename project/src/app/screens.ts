@@ -3,13 +3,15 @@ import { type Accessor, createSignal } from 'solid-js';
 /**
  * 画面。タイトル → 案件ボード（select：キャンペーンの受注と進行中の案件）→ プレイ → 結果（仮）の順に進む。
  * キャンペーンはチュートリアルから始まり、タイトルから直接プレイへ進む。プレイ中はタブで案件を切り替え、
- * 新しい依頼があれば案件ボードへ戻って受注する。結果の後は案件ボードへ戻る
+ * 新しい依頼があれば案件ボードへ戻って受注する。結果の後は案件ボードへ戻る。
+ * 実務モード（実際の仕事の試算）はタイトルから開き、タイトルへ戻る
  */
 export type Screen =
   | { readonly id: 'title' }
   | { readonly id: 'select' }
   | { readonly id: 'play'; readonly projectId: string }
-  | { readonly id: 'result'; readonly projectId: string };
+  | { readonly id: 'result'; readonly projectId: string }
+  | { readonly id: 'practice' };
 
 /** 画面遷移のきっかけ */
 export type ScreenAction =
@@ -23,7 +25,9 @@ export type ScreenAction =
   /** プレイ中に別の案件のタブへ切り替える */
   | { readonly type: 'Switch'; readonly projectId: string }
   /** プレイ中・結果の後に案件ボードへ戻る */
-  | { readonly type: 'Board' };
+  | { readonly type: 'Board' }
+  /** タイトルから実務モードを開く */
+  | { readonly type: 'Practice' };
 
 export const titleScreen: Screen = { id: 'title' };
 
@@ -33,7 +37,7 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
     case 'Open':
       return screen.id === 'title' ? { id: 'select' } : screen;
     case 'Back':
-      return screen.id === 'select' ? titleScreen : screen;
+      return screen.id === 'select' || screen.id === 'practice' ? titleScreen : screen;
     case 'Choose':
       return screen.id === 'select' ? { id: 'play', projectId: action.projectId } : screen;
     case 'StartTutorial':
@@ -48,6 +52,8 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
       return screen.id === 'play' ? { id: 'play', projectId: action.projectId } : screen;
     case 'Board':
       return screen.id === 'play' || screen.id === 'result' ? { id: 'select' } : screen;
+    case 'Practice':
+      return screen.id === 'title' ? { id: 'practice' } : screen;
   }
 }
 

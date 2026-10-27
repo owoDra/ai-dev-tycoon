@@ -9,6 +9,7 @@ import type {
   FeatureId,
   HandoffItemId,
   IncidentId,
+  LibraryWorkflowDef,
   ModePhase,
   SeatId,
   Stage,
@@ -172,6 +173,15 @@ export interface AutonomyRun {
   readonly longest: number;
 }
 
+/** Workflow Library の Workflow を Task に適用した記録（実績の表示に使う。core/library.ts） */
+export interface LibraryUse {
+  readonly workflowId: string;
+  readonly projectId: string;
+  readonly taskId: string;
+  readonly workerId: string;
+  readonly at: number;
+}
+
 /** Context に関わる出来事の回数。解放と用語の条件（contextStat）に使う */
 export type ContextStats = Readonly<Record<ContextStatId, number>>;
 
@@ -234,6 +244,10 @@ export interface GameState {
   readonly seatCost: number;
   /** キャンペーン。キャンペーンでなければ null（どの案件でも始められる） */
   readonly campaign: CampaignRun | null;
+  /** Workflow Library にプレイヤーが保存した Workflow（保存した順。同梱のプリセットは content/library.ts） */
+  readonly library: readonly LibraryWorkflowDef[];
+  /** Workflow を Task に適用した記録（適用した順。同じ Task に適用し直したら古い記録は消す） */
+  readonly libraryUses: readonly LibraryUse[];
 }
 
 export interface InitialStateOptions {
@@ -284,6 +298,8 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     campaign: isCampaign
       ? { reached: campaign.stages.filter((s) => s.when.type === 'start').map((s) => s.id), cleared: false }
       : null,
+    library: [],
+    libraryUses: [],
   };
 }
 

@@ -4,7 +4,7 @@ import { allFeatures } from '../content/unlocks';
 import { createHumanQueues, createSessions, createTeam, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -42,6 +42,8 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // v8: Task に AI の作業の構成（寄与の分析用）を追加（Phase 14）。以前の Task は記録なし
   { from: 7, migrate: (s) => mapTasks(s as V4State, (t) => ({ ...t, setup: null })) },
+  // v9: Workflow Library（保存した Workflow と適用の記録）を追加（Phase 16）。以前のセーブは空の棚から
+  { from: 8, migrate: (s) => ({ ...(s as object), library: [], libraryUses: [] }) },
 ];
 
 interface V4State {
@@ -126,7 +128,9 @@ function isGameState(v: unknown): v is GameState {
     isRecord(v.team) &&
     typeof v.usageDay === 'number' &&
     typeof v.seatCost === 'number' &&
-    (v.campaign === null || isRecord(v.campaign))
+    (v.campaign === null || isRecord(v.campaign)) &&
+    Array.isArray(v.library) &&
+    Array.isArray(v.libraryUses)
   );
 }
 

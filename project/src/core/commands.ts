@@ -10,6 +10,7 @@ import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
 import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
+import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
 import { createTaskRun, type GameState, updateTask } from './state';
 import { inTeam, setSeat } from './team';
@@ -60,6 +61,19 @@ export type Command =
       readonly type: 'AssignWorkflow';
       readonly projectId: string;
       readonly taskIds: readonly string[];
+      readonly workerId: string;
+    }
+  /** AI Worker の構成と担当モードの組を、Workflow Library に名前を付けて保存する（企画書25章） */
+  | { readonly type: 'SaveLibraryWorkflow'; readonly workflow: WorkflowDraft }
+  /**
+   * Workflow Library の Workflow を Task に適用する。AI Worker の構成を Workflow に揃え、Task の担当を Workflow のモードにする。
+   * まだ解放されていない部品は付けない
+   */
+  | {
+      readonly type: 'ApplyLibraryWorkflow';
+      readonly projectId: string;
+      readonly taskId: string;
+      readonly workflowId: string;
       readonly workerId: string;
     };
 
@@ -188,6 +202,30 @@ function apply(state: GameState, command: Command): Transition {
         next = updateTask(next, projectId, taskId, (r) => ({ ...r, assignment: { mode: 'agentWorkflow', workerId } }));
       }
       return { state: next, events: [{ type: 'WorkflowAssigned', projectId, taskIds }] };
+    }
+    case 'SaveLibraryWorkflow': {
+      if (!isUnlocked(state, 'harness')) return unchanged(state);
+      const saved = saveWorkflow(state, command.workflow);
+      return saved
+        ? { state: saved.state, events: [{ type: 'WorkflowSaved', workflowId: saved.id }] }
+        : unchanged(state);
+    }
+    case 'ApplyLibraryWorkflow': {
+      const { projectId, taskId, workflowId, workerId } = command;
+      const workflow = findWorkflow(state, workflowId);
+      const applied = workflow && applyWorkflow(state, workflow, { projectId, taskId, workerId });
+      if (!applied) return unchanged(state);
+      const savedHumanHours = workerHumanHours(state, workerId) - workerHumanHours(applied.state, workerId);
+      const { skipped } = applied;
+      const event: GameEvent = {
+        type: 'LibraryWorkflowApplied',
+        workflowId,
+        projectId,
+        taskId,
+        skipped,
+        savedHumanHours,
+      };
+      return { state: applied.state, events: [event] };
     }
   }
 }

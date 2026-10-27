@@ -2,7 +2,13 @@ import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { aiWorkers, findWorker, getProject, humans } from '../content/index';
 import type { AssignModeDef, HarnessModifiers, ModelDef, TaskDef } from '../content/types';
-import { aiCostFactor, aiSuccessWithContext, aiWorkTime, expectedAiWorkMinutes } from './contextWork';
+import {
+  aiCostFactor,
+  aiSuccessWithContext,
+  aiWorkTime,
+  type ContextWorkTime,
+  expectedAiWorkMinutes,
+} from './contextWork';
 import {
   aiCost,
   escapedQuality,
@@ -41,6 +47,35 @@ export function averageSkill(): number {
 }
 
 /**
+ * AI の作業の条件（Harness と Context を入れたもの）。ゲームでは AI Worker の state から（expectTask）、
+ * 実務モードでは工程の入力から（core/practice.ts）作り、同じ expectWithSetup で見込みを出す
+ */
+export interface AiSetup {
+  /** Harness の補正（お願いは守られる確率で薄めたもの） */
+  readonly mods: HarnessModifiers;
+  /** 補正とランニングコストを入れた実効の Model */
+  readonly model: ModelDef;
+  /** AI の作業の成功確率の補正（Context・Harness・事故） */
+  readonly aiSuccess: (p: number) => number;
+  /** AI の作業の所要時間への影響（Context と Tool の誤選択） */
+  readonly time: ContextWorkTime;
+  /** AI の費用の倍率（Context の使用率） */
+  readonly costFactor: number;
+}
+
+/** Context のない AI の作業の条件。Harness の補正だけを入れる */
+export function harnessSetup(mods: HarnessModifiers, model: ModelDef): AiSetup {
+  const safe = 1 - mods.risk;
+  return {
+    mods,
+    model,
+    aiSuccess: (p) => harnessSuccess(p, mods) * safe,
+    time: { factor: 1, toolMissChance: harnessToolMiss(mods), extraMinutes: 0 },
+    costFactor: 1,
+  };
+}
+
+/**
  * Task をモードで処理したときの見込み。workerId はモードの主な担い手。
  * AI Worker なら、その Harness（Model と部品。お願いは守られる確率で薄める）と Session の Context を入れる。
  */
@@ -57,15 +92,27 @@ export function expectTask(
   const mods: HarnessModifiers = isAi ? harnessModifiers(state, workerId, task, { expected: true }) : NEUTRAL;
   const model: ModelDef = harnessModel(state, aiId, mods);
   const safe = 1 - mods.risk;
-  const withContext = (p: number) => {
-    const q = harnessSuccess(aiSuccessWithContext(state, workerId, projectId, task.id, p), mods);
-    return safe === 1 ? q : q * safe;
-  };
   const context = aiWorkTime(state, workerId, projectId, task, model);
   const harnessMiss = harnessToolMiss(mods);
-  const time =
-    harnessMiss === 0 ? context : { ...context, toolMissChance: 1 - (1 - context.toolMissChance) * (1 - harnessMiss) };
-  const humanMinutes = expectedHumanMinutes(task, mode, skill, model, withContext, mods);
+  return expectWithSetup(task, mode, skill, {
+    mods,
+    model,
+    aiSuccess: (p) => {
+      const q = harnessSuccess(aiSuccessWithContext(state, workerId, projectId, task.id, p), mods);
+      return safe === 1 ? q : q * safe;
+    },
+    time:
+      harnessMiss === 0
+        ? context
+        : { ...context, toolMissChance: 1 - (1 - context.toolMissChance) * (1 - harnessMiss) },
+    costFactor: aiCostFactor(state, workerId, projectId, task.id),
+  });
+}
+
+/** Task をモードで処理したときの見込み（AI の作業の条件を渡す） */
+export function expectWithSetup(task: TaskDef, mode: AssignModeDef, skill: number, setup: AiSetup): TaskExpectation {
+  const { mods, model, aiSuccess, time } = setup;
+  const humanMinutes = expectedHumanMinutes(task, mode, skill, model, aiSuccess, mods);
   let aiMinutes = 0;
   let pOk = 1;
   let aiWorks = 0;
@@ -80,7 +127,7 @@ export function expectTask(
       continue;
     }
     aiWorks++;
-    const p = withContext(successProbability(task, { kind: 'ai', model }));
+    const p = aiSuccess(successProbability(task, { kind: 'ai', model }));
     if (mods.evalCatch <= 0) {
       pOk *= p;
       continue;
@@ -93,7 +140,7 @@ export function expectTask(
   return {
     humanMinutes,
     aiMinutes,
-    aiCost: aiCost(aiMinutes, model) * aiCostFactor(state, workerId, projectId, task.id),
+    aiCost: aiCost(aiMinutes, model) * setup.costFactor,
     pEscape,
     accidentCost: aiWorks * mods.risk * balance.harness.accidentCost,
   };

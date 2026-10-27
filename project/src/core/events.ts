@@ -63,7 +63,21 @@ export type GameEvent =
   /** キャンペーンで新しい案件を受注できるようになった */
   | { readonly type: 'ProjectsOffered'; readonly projectIds: readonly string[] }
   /** キャンペーンのすべての案件を納品した */
-  | { readonly type: 'CampaignCleared' };
+  | { readonly type: 'CampaignCleared' }
+  /** Workflow Library に Workflow を保存した（オフィスのライブラリ棚にバインダーが1冊増える） */
+  | { readonly type: 'WorkflowSaved'; readonly workflowId: string }
+  /**
+   * Workflow Library の Workflow を Task に適用した。skipped はまだ解放されていないので付けなかった部品。
+   * savedHumanHours は適用で減る人間時間の見込み（h）
+   */
+  | {
+      readonly type: 'LibraryWorkflowApplied';
+      readonly workflowId: string;
+      readonly projectId: string;
+      readonly taskId: string;
+      readonly skipped: readonly string[];
+      readonly savedHumanHours: number;
+    };
 
 /** 指定したゲーム内時刻（分）に発火させる予約済みの出来事 */
 export interface ScheduledEvent {

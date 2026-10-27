@@ -69,8 +69,18 @@ export interface Stage {
   ): void;
   /** 整理度（0〜1）に合わせて、島の下の模様の濃さと観葉植物の数を変える（Visual Reward、企画書61章） */
   setTidiness(tidiness: number): void;
+  /**
+   * ライブラリ棚のバインダーを count 冊にする（Workflow Library。企画書25章）。増えた1冊は棚に差し込まれるように伸びて現れる。
+   * 動いていれば true
+   */
+  setBinders(count: number, dt: number, reduced: boolean): boolean;
   dispose(): void;
 }
+
+/** ライブラリ棚の大きさ（m）と、バインダーの数・大きさ・現れる速さ（1秒あたりの伸び） */
+const SHELF = { width: 1.6, depth: 0.4, height: 1.3, board: 0.05, rows: 2 } as const;
+const BINDER = { width: 0.11, height: 0.42, depth: 0.32, gap: 0.03, growPerSecond: 2.5 } as const;
+const BINDER_COLORS = ['accent.300', 'success.300', 'warning.200', 'danger.200'] as const;
 
 /** 自動化レーンの帯の幅・厚み（m）。コンベアの上面に重ねる */
 const LANE_WIDTH = 0.5;
@@ -275,6 +285,44 @@ export function createStage(parts: StageParts): Stage {
     return g;
   });
 
+  // ライブラリ棚：休憩所の外側（島と反対側。小物の置き場所と重ならない）に置き、Workflow Library の Workflow の数だけバインダーを並べる
+  const shelf = new Group();
+  shelf.position.set(layout.lounge.x - size * 0.85, 0, layout.lounge.z - size * 0.35);
+  shelf.rotation.y = Math.PI / 4;
+  const boardGeometry = own(new BoxGeometry(SHELF.width, SHELF.board, SHELF.depth));
+  const sideGeometry = own(new BoxGeometry(SHELF.board, SHELF.height, SHELF.depth));
+  const shelfMaterial = materials.solid(scaleColor('neutral.300', visual));
+  const rowHeight = SHELF.height / SHELF.rows;
+  for (let r = 0; r <= SHELF.rows; r++) {
+    const board = new Mesh(boardGeometry, shelfMaterial);
+    board.position.y = r * rowHeight;
+    shelf.add(board);
+  }
+  for (const side of [-1, 1]) {
+    const wall = new Mesh(sideGeometry, shelfMaterial);
+    wall.position.set((side * SHELF.width) / 2, SHELF.height / 2, 0);
+    shelf.add(wall);
+  }
+  const binderGeometry = own(
+    new BoxGeometry(BINDER.width, BINDER.height, BINDER.depth).translate(0, BINDER.height / 2, 0),
+  );
+  const perRow = Math.floor((SHELF.width - SHELF.board) / (BINDER.width + BINDER.gap));
+  const binders = Array.from({ length: perRow * SHELF.rows }, (_, i) => {
+    const color = BINDER_COLORS[i % BINDER_COLORS.length] ?? 'accent.300';
+    const binder = new Mesh(binderGeometry, materials.solid(scaleColor(color, visual)));
+    const row = Math.floor(i / perRow);
+    binder.position.set(
+      -SHELF.width / 2 + SHELF.board + (BINDER.width + BINDER.gap) * ((i % perRow) + 0.5),
+      row * rowHeight + SHELF.board / 2,
+      0,
+    );
+    binder.scale.y = 0;
+    binder.visible = false;
+    shelf.add(binder);
+    return binder;
+  });
+  root.add(shelf);
+
   return {
     root,
     islands,
@@ -303,6 +351,21 @@ export function createStage(parts: StageParts): Stage {
       rewardPlants.forEach((g, i) => {
         g.visible = i < shown;
       });
+    },
+    setBinders(count, dt, reduced) {
+      let moving = false;
+      binders.forEach((b, i) => {
+        const target = i < count ? 1 : 0;
+        const next = reduced
+          ? target
+          : target > b.scale.y
+            ? Math.min(target, b.scale.y + BINDER.growPerSecond * dt)
+            : Math.max(target, b.scale.y - BINDER.growPerSecond * dt);
+        moving ||= next !== b.scale.y;
+        b.scale.y = next;
+        b.visible = next > 0;
+      });
+      return moving;
     },
     dispose() {
       for (const g of geometries) g.dispose();

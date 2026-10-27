@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
@@ -12,6 +13,9 @@ export default defineConfig(({ mode }) => ({
     solid(),
     tailwindcss(),
     viteSingleFile(),
+    // `--mode analyze` はバンドル分析用のビルド（npm run build:analyze）。モジュールごとの大きさを dist-analyze/stats.html に出す
+    mode === 'analyze' &&
+      visualizer({ filename: 'dist-analyze/stats.html', template: 'treemap', gzipSize: true, emitFile: false }),
     {
       // 比較ページは本番と見分けられるタイトルにする（Artifact の名前にもなる）。いま比べているデザイン決定の名前を付ける
       name: 'explore-title',
@@ -29,7 +33,14 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     // `--mode explore` はデザイン比較用のビルド（src/dev/explore）。本番の dist とは別の場所に出す
-    outDir: mode === 'explore' ? 'dist-explore' : mode === 'playtest' ? 'dist-playtest' : 'dist',
+    outDir:
+      mode === 'explore'
+        ? 'dist-explore'
+        : mode === 'playtest'
+          ? 'dist-playtest'
+          : mode === 'analyze'
+            ? 'dist-analyze'
+            : 'dist',
     target: 'es2022',
     modulePreload: false,
     // 画像・glb・フォントも含めて全アセットを data URI でインライン化し、dist を index.html 1ファイルにする

@@ -159,7 +159,7 @@ function GuideArrow(props: { world: World; entityId: string; to: string }) {
       role="img"
       aria-label={t.arrow(props.to)}
       data-bottleneck-arrow
-      class="pointer-events-none absolute top-0 left-0 flex size-9 items-center justify-center rounded-full border-[3px] border-line bg-danger-400 text-white shadow-pop"
+      class="pointer-events-none absolute top-0 left-0 flex size-9 items-center justify-center rounded-full border-[3px] border-line bg-danger-400 text-ink shadow-pop"
       style={{ visibility: 'hidden' }}
     >
       <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">

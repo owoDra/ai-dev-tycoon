@@ -57,7 +57,7 @@ const AUTOSAVE_MS = 5000;
  * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
  * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
  */
-export function App(props: { tweak: boolean; log?: boolean }) {
+export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const screens = createScreens();
   const selection = createSelection();
   const [game, setGame] = createSignal<GameStore>(createGameStore(createInitialState(IDLE_SEED)));
@@ -273,7 +273,9 @@ export function App(props: { tweak: boolean; log?: boolean }) {
       <Show when={settingsOpen()}>
         <SettingsSheet onClose={() => setSettingsOpen(false)} />
       </Show>
-      <Show when={import.meta.env.DEV && world()}>{(w) => <DevStats world={w().world} />}</Show>
+      <Show when={(import.meta.env.DEV || props.perf) && world()}>
+        {(w) => <DevStats world={w().world} perf={props.perf === true} />}
+      </Show>
       <Show when={PlayLogHost && props.log && PlayLogHost}>
         {(Host) => {
           const Log = Host();
@@ -300,9 +302,21 @@ export function App(props: { tweak: boolean; log?: boolean }) {
   );
 }
 
-/** 開発時だけ表示する描画の計測（draw call・描画したフレーム数・ループが止まっているか） */
-function DevStats(props: { world: World }) {
-  const read = () => ({ ...props.world.stats, particles: props.world.particleCount() });
+/** Chrome 系だけが持つ JS ヒープの使用量（performance.memory）。無い環境では null */
+/** 60fps の1フレームの時間（ミリ秒）。これより間隔が開いていれば赤で示す */
+const FRAME_BUDGET_MS = 1000 / 60 + 1;
+
+function heapMegabytes(): number | null {
+  const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+  return memory ? memory.usedJSHeapSize / (1024 * 1024) : null;
+}
+
+/**
+ * 描画の計測（draw call・描画したフレーム数・パーティクル数・ループが止まっているか）。開発時は常に表示する。
+ * `?dev=perf` では FPS・1フレームの CPU 時間・JS ヒープも出す（最も重い場面で 60fps を保てているかを確かめる）
+ */
+function DevStats(props: { world: World; perf: boolean }) {
+  const read = () => ({ ...props.world.stats, particles: props.world.particleCount(), heap: heapMegabytes() });
   const [stats, setStats] = createSignal(read());
   const timer = setInterval(() => setStats(read()), 500);
   onCleanup(() => clearInterval(timer));
@@ -316,6 +330,15 @@ function DevStats(props: { world: World }) {
       {' · '}
       {ja.fx.preview.particles(stats().particles, PARTICLE_TOTAL)}
       <Show when={!stats().running}> · {ja.world.idle}</Show>
+      <Show when={props.perf}>
+        <br data-perf />
+        <span classList={{ 'text-rose-300': stats().running && stats().intervalMs > FRAME_BUDGET_MS }}>
+          {ja.world.fps(stats().intervalMs > 0 ? Math.round(1000 / stats().intervalMs) : 0)}
+        </span>
+        {' · '}
+        {ja.world.cpu(stats().cpuMs)}
+        <Show when={stats().heap}>{(mb) => <> · {ja.world.heap(mb())}</>}</Show>
+      </Show>
     </p>
   );
 }

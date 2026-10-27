@@ -26,5 +26,7 @@ if (import.meta.env.MODE === 'explore' || (import.meta.env.DEV && devFlags.has('
 } else {
   // プレイログ（src/dev/log）。`?dev=log` か、D5 の通しプレイ用ビルド（`--mode playtest`）で有効
   const log = import.meta.env.MODE === 'playtest' || (import.meta.env.DEV && devFlags.has('log'));
-  render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} log={log} />, root);
+  // 性能の計測（FPS・draw call・パーティクル・JS ヒープ）。実際の重さを本番のビルドで測れるよう、`?dev=perf` は本番でも有効
+  const perf = devFlags.has('perf');
+  render(() => <App tweak={import.meta.env.DEV && devFlags.has('tweak')} log={log} perf={perf} />, root);
 }

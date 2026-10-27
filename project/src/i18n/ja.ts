@@ -1060,6 +1060,9 @@ export const ja = {
     drawCalls: (calls: number, budget: number) => `draw call ${calls} / ${budget}`,
     frames: (n: number) => `描画 ${n}フレーム`,
     idle: '描画停止中',
+    fps: (fps: number) => `${fps} fps`,
+    cpu: (ms: number) => `CPU ${ms.toFixed(1)}ms`,
+    heap: (mb: number) => `JS ヒープ ${mb.toFixed(0)}MB`,
     looks: { standard: '標準' },
     lookSwitcher: 'ワールドの見た目',
     tweakGroups: {

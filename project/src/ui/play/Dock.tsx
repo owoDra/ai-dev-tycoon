@@ -227,7 +227,7 @@ function HudItem(props: {
           <Icon name="warning" />
           <Show when={props.problemCount > 0}>
             <span
-              class="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border-2 border-line bg-danger-500 font-heading text-[11px] text-white"
+              class="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border-2 border-line bg-danger-500 font-heading text-[11px] text-ink"
               aria-hidden="true"
             >
               {props.problemCount}

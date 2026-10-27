@@ -148,7 +148,7 @@ export function AssignCards(props: {
               <Show when={props.fresh?.has(modeFeature(m.id)) && props.row.mode !== m.id}>
                 <span
                   data-new-badge
-                  class="absolute -top-2.5 -right-1.5 rounded-full border-2 border-line bg-danger-500 px-1.5 font-heading text-[10px] text-white"
+                  class="absolute -top-2.5 -right-1.5 rounded-full border-2 border-line bg-danger-500 px-1.5 font-heading text-[10px] text-ink"
                 >
                   {ja.unlocks.badge}
                 </span>

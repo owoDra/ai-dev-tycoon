@@ -1,6 +1,15 @@
-/** 比較に使う seed の列。乱数の偶然に左右されないよう、複数の seed の平均で比べる */
+/** `npm run balance:full`（vitest の --mode balance-full）で実行しているか。tsx から読んだときは import.meta.env がない */
+export const isFullBalance = import.meta.env?.MODE === 'balance-full';
+/** balance:full で、各テストの seed の数をこの数まで増やす */
+export const FULL_SEEDS = 50;
+
+/**
+ * 比較に使う seed の列。乱数の偶然に左右されないよう、複数の seed の平均で比べる。
+ * balance:full では FULL_SEEDS 個以上に増やす（先頭の count 個は通常の実行と同じ seed）
+ */
 export function seeds(count = 20, prefix = 'seed'): string[] {
-  return Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
+  const n = isFullBalance ? Math.max(count, FULL_SEEDS) : count;
+  return Array.from({ length: n }, (_, i) => `${prefix}-${i}`);
 }
 
 type NumericKeys<T> = { [K in keyof T]: T[K] extends number ? K : never }[keyof T];

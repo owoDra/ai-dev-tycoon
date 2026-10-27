@@ -5,6 +5,7 @@ import { getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import { scoreCompany, scoreProject } from '../../src/core/scoring';
 import { type CampaignPolicy, playCampaign, smartPolicy, smartSeatPolicy } from '../helpers/campaign';
+import { FULL_SEEDS, isFullBalance, seeds } from '../helpers/compare';
 
 /**
  * キャンペーン（企画書21章「1プレイ20〜30分」）を smart 系の戦略 Bot で最初から最後まで通して遊ぶ。
@@ -15,7 +16,9 @@ const THINK_SECONDS = 20;
 const MIN_MINUTES = 20;
 const MAX_MINUTES = 30;
 const SECONDS_PER_MINUTE = 60;
-const SEEDS = [tutorialScript.seed, 'campaign-1', 'campaign-2', 'campaign-3'];
+const BASE_SEEDS = [tutorialScript.seed, 'campaign-1', 'campaign-2', 'campaign-3'];
+/** balance:full では、通常の4つに campaign-4 以降を足す */
+const SEEDS = isFullBalance ? [...BASE_SEEDS, ...seeds(FULL_SEEDS, 'campaign').slice(BASE_SEEDS.length)] : BASE_SEEDS;
 
 /** ゲーム内の分を、1倍速での実時間（分）に換算する */
 const realMinutes = (gameMinutes: number) => gameMinutes / balance.time.minutesPerRealSecond / SECONDS_PER_MINUTE;

@@ -1,7 +1,7 @@
 import { For, type JSX, onMount, Show } from 'solid-js';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import type { ActiveProjectView, DaySummary, NextStep, Recap } from '../../view/session';
+import type { ActiveProjectView, DaySummary, NextStep, Recap, TeamProgressView } from '../../view/session';
 import { Icon } from '../Icon';
 import { ghostButton, panel, primaryButton } from '../parts';
 
@@ -94,6 +94,26 @@ function ActiveList(props: { active: readonly ActiveProjectView[] }) {
   );
 }
 
+function TeamList(props: { teams: readonly TeamProgressView[] }) {
+  return (
+    <Show when={props.teams.length > 0}>
+      <div>
+        <p class="text-xs font-bold text-ink-muted">{t.teams}</p>
+        <ul class="flex flex-col gap-1 text-sm">
+          <For each={props.teams}>
+            {(team) => (
+              <li class="flex items-center gap-2" data-team-progress={team.teamId}>
+                <Icon name={team.manager === 'ai' ? 'ai' : 'human'} />
+                <span>{t.teamLine(team.name, team.active, team.delivered)}</span>
+              </li>
+            )}
+          </For>
+        </ul>
+      </div>
+    </Show>
+  );
+}
+
 function NextList(props: { next: readonly NextStep[] }) {
   return (
     <div>
@@ -147,6 +167,7 @@ export function DayBreakCard(props: { summary: DaySummary; onNext: () => void; o
         )}
       </For>
       <ActiveList active={props.summary.active} />
+      <TeamList teams={props.summary.teams} />
       <NextList next={props.summary.next} />
     </SessionCard>
   );
@@ -182,7 +203,15 @@ export function RecapCard(props: { recap: Recap; onResume: () => void }) {
           </For>
         </ul>
       </Show>
+      <Show when={r().fiscalClosed}>
+        {(no) => (
+          <p class="flex items-center gap-1 text-sm font-bold" data-recap-fiscal>
+            <Icon name="money" /> {t.fiscalClosed(no())}
+          </p>
+        )}
+      </Show>
       <ActiveList active={r().active} />
+      <TeamList teams={r().teams} />
       <NextList next={r().next} />
     </SessionCard>
   );

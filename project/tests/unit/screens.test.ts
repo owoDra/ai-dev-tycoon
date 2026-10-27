@@ -52,3 +52,13 @@ describe('画面遷移（キャンペーン）', () => {
     expect(nextScreen(select, { type: 'Practice' })).toBe(select);
   });
 });
+
+describe('画面遷移（長く遊ぶ会社）', () => {
+  it('納品のカードから、案件ボードとプレイの画面でその案件の結果画面（振り返り）を開き、案件ボードへ戻る', () => {
+    const review = { type: 'Review', projectId: 'p~1~M' } as const;
+    expect(nextScreen({ id: 'select' }, review)).toEqual({ id: 'result', projectId: 'p~1~M' });
+    expect(nextScreen({ id: 'play', projectId: 'p~2~S' }, review)).toEqual({ id: 'result', projectId: 'p~1~M' });
+    expect(nextScreen(titleScreen, review)).toBe(titleScreen);
+    expect(nextScreen({ id: 'result', projectId: 'p~1~M' }, { type: 'Board' })).toEqual({ id: 'select' });
+  });
+});

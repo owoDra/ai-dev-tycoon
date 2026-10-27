@@ -11,6 +11,7 @@ import type {
   FeatureId,
   HandoffItemId,
   IncidentId,
+  IndustryId,
   LibraryWorkflowDef,
   ModePhase,
   SeatId,
@@ -106,6 +107,145 @@ export interface ManagementRun {
   readonly minutes: number;
   readonly laborCost: number;
   readonly aiCost: number;
+  /** プレイヤーが担当を決めた Task の数（委任せずに進めた・介入した。実績の「管理者だけで納品」の判定に使う） */
+  readonly playerAssigned: number;
+}
+
+/**
+ * 累計の記録（core/archive.ts）。納品から balance.archive.keepDays 営業日たった案件は state.projects から外し、ここに数だけを足す。
+ * 会社のスコア・解放の条件・コンペの実績・Workflow の実績は、ここと state.projects の両方を数える
+ */
+export interface LedgerRun {
+  /** 記録に移した案件の数（どれも納品済み） */
+  readonly delivered: number;
+  readonly revenue: number;
+  /** 案件の利益の合計（Harness 部品の導入コストを除く。core/scoring.ts の projectProfit と同じ数え方） */
+  readonly projectProfit: number;
+  readonly humanMinutes: number;
+  readonly tasksCompleted: number;
+  readonly defectsEscaped: number;
+  /** 担当モードごとの完了した Task の数 */
+  readonly modeCompleted: Readonly<Partial<Record<AssignModeId, number>>>;
+  /** 納品した案件の型（content/projectTemplates.ts の id。標準の案件はその id） */
+  readonly templates: readonly string[];
+  /** 業種ごとの納品数（コンペの同業種の実績） */
+  readonly industries: Readonly<Partial<Record<IndustryId, number>>>;
+  /** Workflow Library の Workflow ごとの使用回数と削減した人間時間（分） */
+  readonly library: Readonly<Record<string, { readonly uses: number; readonly savedHumanMinutes: number }>>;
+}
+
+/** 会社の累計の値（決算の前期比の起点。core/fiscal.ts の companyTotals） */
+export interface CompanyTotals {
+  readonly revenue: number;
+  readonly profit: number;
+  readonly humanMinutes: number;
+  readonly delivered: number;
+  readonly outages: number;
+  readonly poached: number;
+}
+
+/** 期の中のチームごとの納品の集計 */
+export interface FiscalTeamRun {
+  readonly delivered: number;
+  readonly profit: number;
+  readonly humanMinutes: number;
+}
+
+/** 期の中で納品した案件の1件（いちばん良かった・悪かった案件） */
+export interface FiscalHighlight {
+  readonly projectId: string;
+  readonly profitPerPersonDay: number;
+}
+
+/** 締めた期の決算（core/fiscal.ts）。金額は円、時間はゲーム内の分 */
+export interface FiscalReport {
+  /** 期の番号（1 から） */
+  readonly no: number;
+  /** 期の最初と最後の営業日（ゲーム開始からの番号、終わりは含まない） */
+  readonly startDay: number;
+  readonly endDay: number;
+  readonly revenue: number;
+  readonly profit: number;
+  readonly humanMinutes: number;
+  readonly profitPerPersonDay: number;
+  readonly delivered: number;
+  readonly reputation: number;
+  readonly tier: CompanyTierId;
+  readonly rank: number;
+  readonly cash: number;
+  readonly valuation: number;
+  readonly staff: number;
+  readonly agents: number;
+  readonly teams: Readonly<Record<string, FiscalTeamRun>>;
+  readonly best: FiscalHighlight | null;
+  readonly worst: FiscalHighlight | null;
+  readonly outages: number;
+  readonly poached: number;
+  /** この期に達成した実績の id */
+  readonly achievements: readonly string[];
+}
+
+/** 会社の期（core/fiscal.ts） */
+export interface FiscalRun {
+  /** 今の期の番号（1 から） */
+  readonly no: number;
+  /** 今の期が始まった営業日。まだ会社が営業していなければ（チュートリアル中・単発のプレイ）null */
+  readonly startDay: number | null;
+  /** 期首の会社の累計 */
+  readonly opening: CompanyTotals;
+  /** 今の期のチームごとの納品の集計（チームの id がキー） */
+  readonly teams: Readonly<Record<string, FiscalTeamRun>>;
+  readonly best: FiscalHighlight | null;
+  readonly worst: FiscalHighlight | null;
+  readonly achievements: readonly string[];
+  /** 締めた期（古い順、balance.fiscal.keep 期まで） */
+  readonly reports: readonly FiscalReport[];
+}
+
+/** 時価総額の推移の1点 */
+export interface ValuationSample {
+  readonly day: number;
+  readonly valuation: number;
+  readonly cash: number;
+  /** 会社の累計の利益（直近の利益のペースの計算に使う） */
+  readonly profit: number;
+}
+
+/** 資金と倒産（core/funds.ts） */
+export interface FundsRun {
+  /** 資金がマイナスのまま続いている営業日の数 */
+  readonly shortDays: number;
+  /** 倒産した時刻。倒産していなければ null（倒産した会社は時間が進まず、Command も受け付けない） */
+  readonly bankruptAt: number | null;
+  /** 時価総額の推移（古い順） */
+  readonly samples: readonly ValuationSample[];
+  /** 推移を記録する間隔（営業日） */
+  readonly sampleEvery: number;
+}
+
+/** 達成した実績（content/achievements.ts） */
+export interface AchievementRun {
+  readonly id: string;
+  readonly at: number;
+}
+
+/** 人材の引き抜きの打診（core/companyEvents.ts） */
+export interface PoachRun {
+  readonly staffId: string;
+  /** 返事の期限（ゲーム内の時刻）。過ぎたら退職が決まる */
+  readonly deadline: number;
+  /** 退職が決まった（仕事を抱えていれば終わってから退職する） */
+  readonly leaving: boolean;
+}
+
+/** 後半の事件の状態 */
+export interface CompanyEventsRun {
+  readonly offers: readonly PoachRun[];
+  /** 競合の値下げが続く時刻。値下げしていなければ null */
+  readonly priceWarUntil: number | null;
+  /** 起きた回数（決算の集計に使う） */
+  readonly outages: number;
+  readonly poached: number;
 }
 
 /** チームの管理者。人間 PM はチームの社員を1人任命する。AI PM は運用者の Seat の使用量と AI 費用を使う */
@@ -309,6 +449,20 @@ export interface GameState {
   readonly agents: readonly string[];
   /** 直轄以外のチーム（作った順） */
   readonly teams: readonly TeamRun[];
+  /** 大手の後の格付け（0 は格付けなし、n は ★n+1。core/company.ts） */
+  readonly rank: number;
+  /** 後半の事件の損害と引き留めの賞与の合計（円）。会社の費用なので会社のスコアで引く */
+  readonly eventCost: number;
+  /** 累計の記録（core/archive.ts） */
+  readonly ledger: LedgerRun;
+  /** 会社の期と決算（core/fiscal.ts） */
+  readonly fiscal: FiscalRun;
+  /** 資金と時価総額（core/funds.ts） */
+  readonly funds: FundsRun;
+  /** 達成した実績（達成した順） */
+  readonly achievements: readonly AchievementRun[];
+  /** 後半の事件（core/companyEvents.ts） */
+  readonly companyEvents: CompanyEventsRun;
   /** Workflow Library にプレイヤーが保存した Workflow（保存した順。同梱のプリセットは content/library.ts） */
   readonly library: readonly LibraryWorkflowDef[];
   /** Workflow を Task に適用した記録（適用した順。同じ Task に適用し直したら古い記録は消す） */
@@ -374,9 +528,49 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     officeCost: 0,
     agents: aiWorkers.map((w) => w.id),
     teams: [],
+    rank: 0,
+    eventCost: 0,
+    ledger: createLedger(),
+    fiscal: createFiscal(isBoard && !tutorial ? 0 : null),
+    funds: createFunds(),
+    achievements: [],
+    companyEvents: { offers: [], priceWarUntil: null, outages: 0, poached: 0 },
     library: [],
     libraryUses: [],
   };
+}
+
+export function createLedger(): LedgerRun {
+  return {
+    delivered: 0,
+    revenue: 0,
+    projectProfit: 0,
+    humanMinutes: 0,
+    tasksCompleted: 0,
+    defectsEscaped: 0,
+    modeCompleted: {},
+    templates: [],
+    industries: {},
+    library: {},
+  };
+}
+
+export const emptyTotals: CompanyTotals = {
+  revenue: 0,
+  profit: 0,
+  humanMinutes: 0,
+  delivered: 0,
+  outages: 0,
+  poached: 0,
+};
+
+/** 最初の期。startDay が null なら、会社が営業を始めた営業日から数える */
+export function createFiscal(startDay: number | null): FiscalRun {
+  return { no: 1, startDay, opening: emptyTotals, teams: {}, best: null, worst: null, achievements: [], reports: [] };
+}
+
+export function createFunds(): FundsRun {
+  return { shortDays: 0, bankruptAt: null, samples: [], sampleEvery: balance.valuation.sampleDays };
 }
 
 /** 社員を入社したときの Seat で迎える */
@@ -411,7 +605,7 @@ export function createProjectRun(
   const def = getProject(projectId);
   const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
   const { revenue, deadlineDays } = terms ?? def;
-  const management = { minutes: 0, laborCost: 0, aiCost: 0 };
+  const management = { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0 };
   return { projectId, startedAt: clock, completedAt: null, revenue, deadlineDays, tasks, management };
 }
 
@@ -457,4 +651,12 @@ export function updateTask(
     ...state,
     projects: { ...state.projects, [projectId]: { ...project, tasks: { ...project.tasks, [taskId]: fn(run) } } },
   };
+}
+
+/** プレイヤーが案件の Task の担当を決めたことを記録する（ManagementRun.playerAssigned） */
+export function notePlayerAssigned(state: GameState, projectId: string, count = 1): GameState {
+  const project = state.projects[projectId];
+  if (!project) return state;
+  const management = { ...project.management, playerAssigned: project.management.playerAssigned + count };
+  return { ...state, projects: { ...state.projects, [projectId]: { ...project, management } } };
 }

@@ -87,6 +87,26 @@ export type GameEvent =
   /** Workflow Library に Workflow を保存した（オフィスのライブラリ棚にバインダーが1冊増える） */
   /** 会社の規模が昇格した（core/company.ts）。Tier 4 の演出と、新しく解放された要素の案内 */
   | { readonly type: 'CompanyPromoted'; readonly from: CompanyTierId; readonly tier: CompanyTierId }
+  /** 大手の格付けが上がった（rank は ★ の数 − 1） */
+  | { readonly type: 'CompanyRanked'; readonly rank: number }
+  /** 期を締めて決算を出した（core/fiscal.ts。no は締めた期の番号）。決算の画面を出す */
+  | { readonly type: 'FiscalClosed'; readonly no: number }
+  /** 実績を達成した（content/achievements.ts） */
+  | { readonly type: 'AchievementUnlocked'; readonly id: string }
+  /** 営業日の終わりに資金がマイナスになった（資金繰りの警告。graceDays 営業日続くと倒産する） */
+  | { readonly type: 'CashShort'; readonly cash: number; readonly daysLeft: number }
+  /** 倒産した（ゲームオーバー） */
+  | { readonly type: 'CompanyBankrupt' }
+  /** 大規模障害（後半の事件）。納品した案件の損害と評判の低下 */
+  | { readonly type: 'OutageOccurred'; readonly projectId: string; readonly cost: number; readonly reputation: number }
+  /** 人材の引き抜きの打診が来た */
+  | { readonly type: 'PoachOffered'; readonly staffId: string }
+  /** 引き抜きの打診に返事をした（retained: 引き留めた / 見送った） */
+  | { readonly type: 'PoachAnswered'; readonly staffId: string; readonly retained: boolean }
+  /** 引き抜かれて退職した */
+  | { readonly type: 'StaffPoached'; readonly staffId: string }
+  /** 競合の値下げが始まった・終わった */
+  | { readonly type: 'PriceWarChanged'; readonly active: boolean }
   /** AI Worker を増やした */
   | { readonly type: 'AiWorkerAdded'; readonly workerId: string }
   /** チームを作った */

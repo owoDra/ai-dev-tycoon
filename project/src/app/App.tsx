@@ -4,22 +4,28 @@ import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from
 import { tutorialScript } from '../content/tutorial';
 import { catchUp, dayEnd, runsUnattended } from '../core/away';
 import { activeProjects } from '../core/board';
+import { isBankrupt } from '../core/funds';
 import { createInitialState, type GameState } from '../core/state';
 import { businessDay } from '../core/team';
 import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
+import { CompanyStrip } from '../ui/company/CompanyStrip';
+import { DeliveryCards } from '../ui/company/DeliveryCard';
 import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
 import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
+import { BankruptScreen } from '../ui/screens/BankruptScreen';
+import { FiscalScreen } from '../ui/screens/FiscalScreen';
 import { ProjectBoard } from '../ui/screens/ProjectBoard';
 import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
 import { createSelection } from '../ui/selection';
 import { WorldCanvas } from '../ui/WorldCanvas';
+import { type DeliveryView, deliveryView } from '../view/fiscal';
 import { type DaySummary, daySummary, type Recap, recapView } from '../view/session';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
@@ -68,6 +74,11 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [dayCard, setDayCard] = createSignal<DaySummary | null>(null);
   const [recap, setRecap] = createSignal<Recap | null>(null);
+  /** 出している決算の期（null なら出していない）と、あらすじの後に出す決算 */
+  const [fiscal, setFiscal] = createSignal<number | null>(null);
+  let pendingFiscal: number | null = null;
+  const [bankrupt, setBankrupt] = createSignal(false);
+  const [deliveries, setDeliveries] = createSignal<readonly DeliveryView[]>([]);
   /** 今の営業日が始まったときの state（その日の成果の比較に使う） */
   let dayStart = game().state();
   const openSettings = () => setSettingsOpen(true);
@@ -84,6 +95,10 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
     setDayCard(null);
     setRecap(null);
+    setFiscal(null);
+    pendingFiscal = null;
+    setBankrupt(isBankrupt(state));
+    setDeliveries([]);
     dayStart = state;
     setGame(createGameStore(state));
   };
@@ -94,12 +109,20 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     return settings().dayBreak && (id === 'play' || id === 'select') && runsUnattended(game().state());
   };
 
-  /** 区切りやあらすじのカードを閉じて再開する */
+  /** 区切りやあらすじのカード・決算を閉じて再開する。閉じている間に締めた決算があれば、あらすじの後に出す */
   const resume = () => {
     setDayCard(null);
     setRecap(null);
+    if (pendingFiscal !== null) {
+      setFiscal(pendingFiscal);
+      pendingFiscal = null;
+      return;
+    }
+    setFiscal(null);
     if (game().state().paused) game().dispatch({ type: 'TogglePause' });
   };
+
+  const closeDelivery = (projectId: string) => setDeliveries((cards) => cards.filter((c) => c.projectId !== projectId));
 
   const save = () => {
     saveCompany(game().state());
@@ -135,12 +158,19 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const continueCampaign = () => {
     const state = loadCompany();
     if (!state) return newCampaign();
+    if (isBankrupt(state)) {
+      useState(state);
+      screens.go({ type: 'Open' });
+      return;
+    }
     const savedAt = loadSavedAt();
     const awaySeconds = settings().awayProgress && savedAt !== null ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
     const { state: after, events } = catchUp(state, awaySeconds);
-    const withRecap = after.tutorial === null;
-    useState({ ...after, paused: withRecap });
+    const withRecap = after.tutorial === null && !isBankrupt(after);
+    useState({ ...after, paused: withRecap || after.paused });
     if (withRecap) setRecap(recapView(state, after, events));
+    const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
+    if (closed !== undefined) pendingFiscal = closed;
     screens.go({ type: 'Open' });
     save();
   };
@@ -181,15 +211,43 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
             setRecap(null);
           }
           if (events.some((e) => e.type === 'SeatChanged' || e.type === 'BidWon' || e.type === 'BidSubmitted')) save();
+          // 期の終わり：一時停止して決算を出す（その日の区切りのカードの代わり）
+          const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
+          if (closed !== undefined && store.state().board) {
+            setDayCard(null);
+            setFiscal(closed);
+            if (!store.state().paused) store.dispatch({ type: 'TogglePause' });
+            save();
+          }
+          if (events.some((e) => e.type === 'CompanyBankrupt')) {
+            setDayCard(null);
+            setFiscal(null);
+            setBankrupt(true);
+            save();
+          }
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;
           save();
+          // 納品はカードで知らせる（全画面の結果画面には切り替えない。振り返りはカードから開く）
+          if (store.state().board) {
+            const cards = done.flatMap((id) => {
+              const card = deliveryView(store.state(), id);
+              return card ? [card] : [];
+            });
+            setDeliveries((prev) => [...prev, ...cards].slice(-uiLayout.flow.deliveryCards));
+            for (const c of cards) setTimeout(() => closeDelivery(c.projectId), uiLayout.flow.deliveryCardMs);
+          }
           const screen = screens.screen();
           if (screen.id !== 'play') return;
-          // 進行中の案件が残っていれば、そのフロアへ移って続ける。最後の案件を納品したら結果画面へ
+          // 進行中の案件が残っていれば、そのフロアへ移って続ける。会社で最後の案件を納品したら案件ボードへ
+          // （単発のプレイは、これまでどおり結果画面へ）
           const rest = activeProjects(store.state());
           if (rest.length === 0) {
             selection.dispatch({ type: 'SelectEntity', entityId: null });
+            if (store.state().board) {
+              screens.go({ type: 'Board' });
+              return;
+            }
             if (!done.includes(screen.projectId)) screens.go({ type: 'Switch', projectId: done.at(-1) ?? '' });
             screens.go({ type: 'Complete' });
           } else if (done.includes(screen.projectId)) {
@@ -282,8 +340,40 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
-      <Show when={dayCard()}>{(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} />}</Show>
+      <Show when={screens.screen().id === 'play' || screens.screen().id === 'select'}>
+        {/* 左上の列：会社の帯と、その下に積む納品のカード */}
+        <div class="pointer-events-none absolute top-2 left-2 z-30 flex w-[min(20rem,calc(100%-1rem))] flex-col gap-2">
+          <CompanyStrip store={game()} />
+          <DeliveryCards
+            cards={deliveries()}
+            onClose={closeDelivery}
+            onReview={(projectId) => {
+              closeDelivery(projectId);
+              selection.dispatch({ type: 'SelectEntity', entityId: null });
+              screens.go({ type: 'Review', projectId });
+            }}
+          />
+        </div>
+      </Show>
+      <Show when={dayCard() && fiscal() === null && !bankrupt() ? dayCard() : null}>
+        {(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} />}
+      </Show>
       <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} />}</Show>
+      <Show when={fiscal() !== null && recap() === null && !bankrupt() ? fiscal() : null}>
+        {(no) => <FiscalScreen store={game()} no={no()} onNext={resume} onTitle={toTitle} />}
+      </Show>
+      <Show when={bankrupt()}>
+        <BankruptScreen
+          store={game()}
+          onRestart={() => (progress().tutorialDone ? quickCampaign() : newCampaign())}
+          onTitle={() => {
+            clearCompany();
+            setSaved(false);
+            useState(createInitialState(IDLE_SEED));
+            screens.go({ type: 'ToTitle' });
+          }}
+        />
+      </Show>
       <TermCards store={game()} durationMs={uiLayout.flow.termCardMs} />
       <Show when={settingsOpen()}>
         <SettingsSheet onClose={() => setSettingsOpen(false)} />

@@ -1,7 +1,7 @@
-import type { GameState } from './state';
+import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -32,6 +32,34 @@ export const MIGRATIONS: readonly Migration[] = [
         ]),
       );
       return { ...state, projects, tier: 'solo', officeCost: 0, agents: ['agent'], teams: [] };
+    },
+  },
+  // v12 → v13：長く遊ぶための記録（Phase 22）。格付けなし・累計の記録は空・期は次の営業日から数え始める・資金は開業資金から・
+  // 実績なし・後半の事件なし。案件の運営の記録に、プレイヤーが担当を決めた数を足す（それまでの分は数えていないので、
+  // 委任していない案件は1件とみなして「管理者だけで納品」に数えない）
+  {
+    from: 12,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.projects)) return state;
+      const projects = Object.fromEntries(
+        Object.entries(state.projects).map(([id, p]) => {
+          if (!isRecord(p) || !isRecord(p.management)) return [id, p];
+          const m = p.management;
+          const managed = m.minutes !== 0 || m.aiCost !== 0;
+          return [id, { ...p, management: { ...m, playerAssigned: managed ? 0 : 1 } }];
+        }),
+      );
+      return {
+        ...state,
+        projects,
+        rank: 0,
+        eventCost: 0,
+        ledger: createLedger(),
+        fiscal: createFiscal(null),
+        funds: createFunds(),
+        achievements: [],
+        companyEvents: { offers: [], priceWarUntil: null, outages: 0, poached: 0 },
+      };
     },
   },
 ];
@@ -115,6 +143,16 @@ function isGameState(v: unknown): v is GameState {
     typeof v.officeCost === 'number' &&
     Array.isArray(v.agents) &&
     Array.isArray(v.teams) &&
+    typeof v.rank === 'number' &&
+    typeof v.eventCost === 'number' &&
+    isRecord(v.ledger) &&
+    isRecord(v.fiscal) &&
+    Array.isArray(v.fiscal.reports) &&
+    isRecord(v.funds) &&
+    Array.isArray(v.funds.samples) &&
+    Array.isArray(v.achievements) &&
+    isRecord(v.companyEvents) &&
+    Array.isArray(v.companyEvents.offers) &&
     Array.isArray(v.library) &&
     Array.isArray(v.libraryUses)
   );

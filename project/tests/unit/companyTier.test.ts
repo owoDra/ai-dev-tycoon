@@ -16,6 +16,8 @@ import { agentBlock, teamBlock } from '../../src/core/teams';
 import { growCompany } from '../helpers/growth';
 
 const DAY = balance.project.minutesPerBusinessDay;
+/** 会社を育てる営業日（中堅まで昇格する長さ） */
+const GROW_DAYS = 150;
 
 /** 案件ボードのある会社（チュートリアルなし） */
 const company = (seed = 'tier', tier: GameState['tier'] = 'solo') =>
@@ -48,7 +50,7 @@ function emptyProject(projectId: string) {
     revenue: 0,
     deadlineDays: 1,
     tasks: {},
-    management: { minutes: 0, laborCost: 0, aiCost: 0 },
+    management: { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0 },
   };
 }
 
@@ -166,10 +168,11 @@ describe('規模による上限の変化', () => {
 });
 
 describe('ヘッドレスで会社を育てる（tests/helpers/growth.ts）', () => {
-  it('上手に進める会社は、個人事業から大手まで順に昇格していく', () => {
-    const { state, promotions } = growCompany('grow-a', 60, 'human');
+  // 大手と、その後の格付けまでの数年分は tests/balance/long-run.test.ts で確かめる（昇格は数年かけて進むように調整したため）
+  it('上手に進める会社は、個人事業から中堅まで順に昇格していく', () => {
+    const { state, promotions } = growCompany('grow-a', GROW_DAYS, 'human');
     console.log(
-      '[会社の成長] 60営業日・人間 PM\n' +
+      `[会社の成長] ${GROW_DAYS}営業日・人間 PM\n` +
         promotions
           .map(
             (p) =>
@@ -178,8 +181,8 @@ describe('ヘッドレスで会社を育てる（tests/helpers/growth.ts）', ()
           )
           .join('\n'),
     );
-    expect(promotions.map((p) => p.from)).toEqual(['solo', 'startup', 'small', 'mid']);
-    expect(state.tier).toBe('large');
+    expect(promotions.map((p) => p.from)).toEqual(['solo', 'startup', 'small']);
+    expect(state.tier).toBe('mid');
     // 段階が上がるほど次の昇格までの日数は延び、人員と AI Worker が増え、管理者を置いた2つ目のチームができる
     const days = promotions.map((p) => p.day);
     expect(days).toEqual([...days].sort((a, b) => a - b));

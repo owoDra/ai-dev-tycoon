@@ -1,7 +1,8 @@
 import { type Accessor, createSignal } from 'solid-js';
 
 /**
- * 画面。タイトル → 案件ボード（select：引き合いへの見積と進行中の案件）→ プレイ → 結果（仮）の順に進む。
+ * 画面。タイトル → 案件ボード（select：引き合いへの見積と進行中の案件）→ プレイの順に進む。
+ * 案件の結果画面（振り返り）は、納品のカードから開く（決算は App が画面の上に重ねて出す）。
  * 会社はチュートリアルから始まり、タイトルから直接プレイへ進む。プレイ中はタブで案件を切り替え、
  * 新しい引き合いがあれば案件ボードへ戻って見積を出す。結果の後は案件ボードへ戻る。
  * 実務モード（実際の仕事の試算）はタイトルから開き、タイトルへ戻る
@@ -27,7 +28,9 @@ export type ScreenAction =
   /** プレイ中・結果の後に案件ボードへ戻る */
   | { readonly type: 'Board' }
   /** タイトルから実務モードを開く */
-  | { readonly type: 'Practice' };
+  | { readonly type: 'Practice' }
+  /** 納品のカードから、その案件の結果画面（振り返り）を開く（案件ボード・プレイから） */
+  | { readonly type: 'Review'; readonly projectId: string };
 
 export const titleScreen: Screen = { id: 'title' };
 
@@ -54,6 +57,8 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
       return screen.id === 'play' || screen.id === 'result' ? { id: 'select' } : screen;
     case 'Practice':
       return screen.id === 'title' ? { id: 'practice' } : screen;
+    case 'Review':
+      return screen.id === 'play' || screen.id === 'select' ? { id: 'result', projectId: action.projectId } : screen;
   }
 }
 

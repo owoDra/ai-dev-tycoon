@@ -9,7 +9,7 @@ import { ByteReader, ByteWriter, openCode, sealCode } from '../lib/codec';
 import { getSession, updateSession } from './context';
 import { averageSkill } from './expectation';
 import { equipPart, equippedParts, harnessOf, removePart, setModel } from './harness';
-import { type GameState, updateTask } from './state';
+import { type GameState, type LibraryUse, updateTask } from './state';
 
 /*
  * Workflow Library（企画書25章）。良い改善（AI Worker の構成と担当モードの組）を名前を付けて保存し、
@@ -152,20 +152,30 @@ export interface WorkflowStats {
   readonly savedHumanMinutes: number;
 }
 
+/**
+ * Workflow の適用の記録1件の、削減した人間時間（分）。担当がその後変わって数えない記録は null、まだ完了していなければ 0
+ */
+export function libraryUseSaving(state: GameState, u: LibraryUse): number | null {
+  const w = findWorkflow(state, u.workflowId);
+  const run = state.projects[u.projectId]?.tasks[u.taskId];
+  if (!w || run?.assignment?.mode !== w.mode || run.assignment.workerId !== u.workerId) return null;
+  if (run.status !== 'done') return 0;
+  const task = getProject(u.projectId).tasks.find((t) => t.id === u.taskId);
+  return task ? task.effort / averageSkill() - run.humanMinutes : 0;
+}
+
+/** Workflow の実績。記録に移した案件（core/archive.ts）の分を含む */
 export function workflowStats(state: GameState, workflowId: string): WorkflowStats {
-  const w = findWorkflow(state, workflowId);
-  let uses = 0;
-  let saved = 0;
-  if (!w) return { uses, savedHumanMinutes: saved };
-  const skill = averageSkill();
+  const archived = state.ledger.library[workflowId];
+  let uses = archived?.uses ?? 0;
+  let saved = archived?.savedHumanMinutes ?? 0;
+  if (!findWorkflow(state, workflowId)) return { uses: 0, savedHumanMinutes: 0 };
   for (const u of state.libraryUses) {
     if (u.workflowId !== workflowId) continue;
-    const run = state.projects[u.projectId]?.tasks[u.taskId];
-    if (run?.assignment?.mode !== w.mode || run.assignment.workerId !== u.workerId) continue;
+    const saving = libraryUseSaving(state, u);
+    if (saving === null) continue;
     uses++;
-    if (run.status !== 'done') continue;
-    const task = getProject(u.projectId).tasks.find((t) => t.id === u.taskId);
-    if (task) saved += task.effort / skill - run.humanMinutes;
+    saved += saving;
   }
   return { uses, savedHumanMinutes: saved };
 }

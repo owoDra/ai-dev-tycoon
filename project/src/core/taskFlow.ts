@@ -7,6 +7,7 @@ import { rateDelivery } from './bidding';
 import { promote } from './company';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
 import { aiSuccessWithContext, aiWorkTime } from './contextWork';
+import { settleDelivery } from './fiscal';
 import {
   type ActorProfile,
   escapedQuality,
@@ -431,6 +432,7 @@ function completeTask(state: GameState, projectId: string, taskId: string, ctx: 
     next = { ...next, projects: { ...next.projects, [projectId]: { ...project, completedAt: state.clock } } };
     ctx.emit({ type: 'ProjectCompleted', projectId });
     next = promote(rateDelivery(next, projectId, ctx.emit), ctx.emit);
+    next = settleDelivery(next, projectId, ctx.emit);
   }
   return next;
 }

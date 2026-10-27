@@ -1,3 +1,4 @@
+import type { IconName } from '../assets/icons';
 /**
  * ゲームデータのスキーマ。案件・Task・Worker・Model・担当モードはこの型のデータとして追加する。
  * 文言（name）は i18n/ja.ts から参照する。
@@ -581,3 +582,48 @@ export interface CompanyTierDef {
   /** オフィスの固定費（円/営業日） */
   readonly officeDaily: number;
 }
+
+/**
+ * 実績の条件（content/achievements.ts。判定は core/achievements.ts）。
+ * delivery は納品した1件の案件で、fiscal は締めた1期の決算で、ほかは会社の今の state で判定する
+ */
+export type AchievementCondition =
+  /** 累計の納品数が count 件以上 */
+  | { readonly type: 'delivered'; readonly count: number }
+  /** 会社の規模がその段階以上 */
+  | { readonly type: 'tier'; readonly tier: CompanyTierId }
+  /** 大手の格付けが rank 以上（★ の数 − 1） */
+  | { readonly type: 'rank'; readonly rank: number }
+  /**
+   * 条件に合う案件を納品した。size はその規模以上、manager は運営した人（ai: AI PM だけ / human: 人間 PM だけ / player: 管理者なし）、
+   * flawless は失敗を見逃さず納期内、minProfitPerPersonDay はその案件の 利益 / 人日 の下限
+   */
+  | {
+      readonly type: 'delivery';
+      readonly size?: ProjectSize;
+      readonly manager?: 'ai' | 'human' | 'player';
+      readonly flawless?: boolean;
+      readonly minProfitPerPersonDay?: number;
+    }
+  /** 決算で、利益 / 人日 が minProfitPerPersonDay 以上、または利益が前期の growth 倍以上（前期の利益がプラスのとき） */
+  | { readonly type: 'fiscal'; readonly minProfitPerPersonDay?: number; readonly growth?: number }
+  /** 評判が min 以上 */
+  | { readonly type: 'reputation'; readonly min: number }
+  /** 時価総額が min 円以上 */
+  | { readonly type: 'valuation'; readonly min: number }
+  /** AI Worker の最長の介入間隔（Autonomy）が minutes 分以上 */
+  | { readonly type: 'autonomy'; readonly minutes: number }
+  /** Workflow Library に保存した Workflow が count 個以上 */
+  | { readonly type: 'library'; readonly count: number }
+  /** 管理者に任せているチームが count 個以上 */
+  | { readonly type: 'delegated'; readonly count: number };
+
+/** 実績（content/achievements.ts）。名前と説明は i18n の ja.achievements */
+export interface AchievementDef {
+  readonly id: string;
+  readonly when: AchievementCondition;
+  readonly icon: IconName;
+}
+
+/** 後半の事件の種類（content/companyEvents.ts。値は balance.companyEvents） */
+export type CompanyEventId = 'outage' | 'poach' | 'priceWar';

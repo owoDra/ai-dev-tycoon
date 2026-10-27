@@ -13,16 +13,23 @@ export function holds(state: GameState, c: Condition): boolean {
   switch (c.type) {
     case 'start':
       return true;
+    // 記録に移した案件（core/archive.ts）の Task はどれも開始・完了している
     case 'tasksStarted':
-      return count(state, (t) => t.status !== 'waiting') >= c.count;
+      return state.ledger.tasksCompleted + count(state, (t) => t.status !== 'waiting') >= c.count;
     case 'tasksCompleted':
-      return count(state, (t) => t.status === 'done') >= c.count;
+      return state.ledger.tasksCompleted + count(state, (t) => t.status === 'done') >= c.count;
     case 'defectsEscaped':
-      return count(state, (t) => t.status === 'done' && t.escaped) >= c.count;
+      return state.ledger.defectsEscaped + count(state, (t) => t.status === 'done' && t.escaped) >= c.count;
     case 'modeCompleted':
-      return count(state, (t) => t.status === 'done' && t.assignment?.mode === c.mode) >= c.count;
+      return (
+        (state.ledger.modeCompleted[c.mode] ?? 0) +
+          count(state, (t) => t.status === 'done' && t.assignment?.mode === c.mode) >=
+        c.count
+      );
     case 'projectsCompleted':
-      return Object.values(state.projects).filter((p) => p.completedAt !== null).length >= c.count;
+      return (
+        state.ledger.delivered + Object.values(state.projects).filter((p) => p.completedAt !== null).length >= c.count
+      );
     case 'unlocked':
       return state.unlocked.includes(c.feature);
     case 'taskAssigned': {
@@ -34,10 +41,13 @@ export function holds(state: GameState, c: Condition): boolean {
     case 'projectCompleted':
       return (state.projects[c.projectId]?.completedAt ?? null) !== null;
     case 'templateCompleted':
-      return Object.values(state.projects).some(
-        (p) =>
-          p.completedAt !== null &&
-          (p.projectId === c.templateId || getProject(p.projectId).brief?.templateId === c.templateId),
+      return (
+        state.ledger.templates.includes(c.templateId) ||
+        Object.values(state.projects).some(
+          (p) =>
+            p.completedAt !== null &&
+            (p.projectId === c.templateId || getProject(p.projectId).brief?.templateId === c.templateId),
+        )
       );
     case 'contextStat':
       return state.contextStats[c.stat] >= c.count;

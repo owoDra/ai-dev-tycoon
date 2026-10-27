@@ -213,11 +213,43 @@ export const balance = {
    * 省く Task（型の optional）を省くか、品質要求に足す量を決める
    */
   projectGen: {
+    /**
+     * 規模ごとの補正。大きい案件ほど失敗しやすく（failRisk。Eval・Hook・Skill で防ぐ価値が上がる）、
+     * 資料が大きく散らかる（docScale は資料の大きさの倍率。Context の絞り込みと Handoff の価値が上がる）。
+     * 並行する複製（copies）は同じ種類の Task を増やすので、Workflow Library の使い回しが効く
+     */
     sizes: {
-      S: { effort: 0.6, price: 0.6, deadline: 0.7, copies: 0, dropOptional: true, qualityReq: -0.05 },
-      M: { effort: 1, price: 1, deadline: 1, copies: 0, dropOptional: false, qualityReq: 0 },
-      L: { effort: 1.5, price: 1.5, deadline: 1.3, copies: 1, dropOptional: false, qualityReq: 0.05 },
-      XL: { effort: 2.2, price: 2.2, deadline: 1.6, copies: 2, dropOptional: false, qualityReq: 0.1 },
+      S: {
+        effort: 0.6,
+        price: 0.6,
+        deadline: 0.7,
+        copies: 0,
+        dropOptional: true,
+        qualityReq: -0.05,
+        failRisk: 0,
+        docScale: 1,
+      },
+      M: { effort: 1, price: 1, deadline: 1, copies: 0, dropOptional: false, qualityReq: 0, failRisk: 0, docScale: 1 },
+      L: {
+        effort: 1.5,
+        price: 1.5,
+        deadline: 1.3,
+        copies: 1,
+        dropOptional: false,
+        qualityReq: 0.05,
+        failRisk: 0.03,
+        docScale: 1.2,
+      },
+      XL: {
+        effort: 2.2,
+        price: 2.2,
+        deadline: 1.6,
+        copies: 2,
+        dropOptional: false,
+        qualityReq: 0.1,
+        failRisk: 0.1,
+        docScale: 2.4,
+      },
     },
     /** Task ごとの作業量のばらつき（倍率の範囲）と、丸める刻み（分） */
     effortJitter: { min: 0.85, max: 1.15 },
@@ -233,6 +265,8 @@ export const balance = {
     },
     /** 競合の数の範囲 */
     rivals: { min: 2, max: 4 },
+    /** 生成した案件の定義と資料のキャッシュの上限（超えたら捨てて作り直す。同じ id なら同じ結果になる） */
+    cacheLimit: 2000,
   },
   /**
    * 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、応募の締切に結果が出る。
@@ -306,7 +340,7 @@ export const balance = {
         officeDaily: 0,
       },
       startup: {
-        requires: { profit: 1_000_000, reputation: 50, delivered: 3 },
+        requires: { profit: 3_000_000, reputation: 55, delivered: 8 },
         maxStaff: 5,
         maxAiWorkers: 2,
         maxTeams: 1,
@@ -317,7 +351,7 @@ export const balance = {
         officeDaily: 10_000,
       },
       small: {
-        requires: { profit: 6_000_000, reputation: 60, delivered: 10 },
+        requires: { profit: 40_000_000, reputation: 65, delivered: 40 },
         maxStaff: 8,
         maxAiWorkers: 3,
         maxTeams: 2,
@@ -328,7 +362,7 @@ export const balance = {
         officeDaily: 30_000,
       },
       mid: {
-        requires: { profit: 25_000_000, reputation: 70, delivered: 30 },
+        requires: { profit: 300_000_000, reputation: 75, delivered: 200 },
         maxStaff: 12,
         maxAiWorkers: 4,
         maxTeams: 3,
@@ -339,7 +373,7 @@ export const balance = {
         officeDaily: 60_000,
       },
       large: {
-        requires: { profit: 100_000_000, reputation: 80, delivered: 80 },
+        requires: { profit: 1_500_000_000, reputation: 85, delivered: 700 },
         maxStaff: 18,
         maxAiWorkers: 6,
         maxTeams: 4,
@@ -350,6 +384,66 @@ export const balance = {
         officeDaily: 120_000,
       },
     },
+  },
+  /**
+   * 大手の後の格付け（★2, ★3, …。core/company.ts）。格付け n の条件は、大手の条件に n × perRank を足したもの（評判は reputation 以上）。
+   * 人員などの上限は大手のまま増やさず、格付けごとにオフィスの固定費と、規模 XL の引き合いの重みだけを上げる
+   */
+  ranks: {
+    perRank: { profit: 1_000_000_000, delivered: 250 },
+    reputation: 85,
+    officePerRank: 30_000,
+    xlPerRank: 0.5,
+  },
+  /**
+   * 決算（core/fiscal.ts）。会社の期は days 営業日ごとに締め、前期と比べる。state に残す決算は keep 期まで（古いものから捨てる）
+   */
+  fiscal: {
+    days: 60,
+    keep: 40,
+  },
+  /**
+   * 納品した案件を累計の記録（core/archive.ts）に移すまでの営業日。直近の案件は画面で見せるため state に残し、
+   * それより前の案件は数だけを残す（長く遊んでも state の大きさと1ステップの処理時間が増え続けない）
+   */
+  archive: {
+    keepDays: 2,
+  },
+  /**
+   * 資金と倒産（core/funds.ts）。資金 = 開業資金 + 会社の累計の利益。営業日の終わりに資金がマイナスなら資金繰りの警告を出し、
+   * graceDays 営業日続けてマイナスなら倒産する（ゲームオーバー）
+   */
+  funds: {
+    initial: 3_000_000,
+    graceDays: 20,
+  },
+  /**
+   * 時価総額（core/funds.ts）= 資金 + 直近の利益のペース（windowDays 営業日の利益を1年に換算。マイナスなら 0）× multiple ×
+   * 評判の補正（1 +（評判 − 初期値）/ 評判の幅 × reputationWeight）。0 を下回らない。
+   * 推移は sampleDays 営業日ごとに記録し、maxSamples を超えたら1つおきに間引いて間隔を倍にする
+   */
+  valuation: {
+    windowDays: 60,
+    businessDaysPerYear: 240,
+    multiple: 6,
+    reputationWeight: 0.6,
+    sampleDays: 5,
+    maxSamples: 96,
+    /** 間引くときに残す間隔（この数ごとに1つ残し、記録の間隔をこの倍にする） */
+    thinning: 2,
+  },
+  /**
+   * 後半の事件（content/companyEvents.ts・core/companyEvents.ts）。どれも会社がある規模（minTier）以上になってから起きる。
+   * - outage（大規模障害）：規模 L・XL の案件の納品時に、見逃した失敗の Task の数 × perEscaped（max まで）の確率で起きる。
+   *   売上の costShare の損害と、評判 reputation の低下
+   * - poach（人材の引き抜き）：営業日ごとに perDay の確率で、売値の最も高い社員に打診が来る。noticeDays 営業日のうちに
+   *   引き留め（売値の retainDays 人日分の賞与）か見送りを選ぶ。何もしなければ退職する（仕事を抱えていれば終わってから）
+   * - priceWar（競合の値下げ）：営業日ごとに perDay の確率で始まり、days 営業日のあいだ競合の価格の比が priceCut だけ下がる
+   */
+  companyEvents: {
+    outage: { minTier: 'small', perEscaped: 0.2, max: 0.7, costShare: 0.3, reputation: 10 },
+    poach: { minTier: 'small', perDay: 0.03, noticeDays: 3, retainDays: 10, minStaff: 2 },
+    priceWar: { minTier: 'startup', perDay: 0.02, days: 10, priceCut: 0.15 },
   },
   /**
    * 管理者（core/manager.ts）。直轄以外のチームの担当モードと担当者を、期待値（core/expectation.ts）で決める。

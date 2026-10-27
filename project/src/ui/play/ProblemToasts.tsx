@@ -23,11 +23,17 @@ export function ProblemToasts(props: {
   onResolve: (advice: Advice) => void;
   /** 事件の「Context を見る」「Harness を見る」 */
   onView: (sheet: 'context' | 'harness') => void;
+  /** 左上に会社の帯（ui/company/CompanyStrip.tsx）が出ている。スマホ幅では、その下に出す */
+  belowStrip?: boolean;
 }) {
   return (
     <section
       aria-label={t.title}
-      class={`pointer-events-none absolute top-2 flex flex-col gap-2 ${props.layout.width === null ? 'inset-x-2' : 'right-3 max-w-[calc(100%-1.5rem)]'}`}
+      class={`pointer-events-none absolute flex flex-col gap-2 ${props.layout.width === null ? 'inset-x-2' : 'right-3 max-w-[calc(100%-1.5rem)]'}`}
+      classList={{
+        'top-2': props.layout.width !== null || !props.belowStrip,
+        'top-14': props.layout.width === null && props.belowStrip === true,
+      }}
       style={{ width: props.layout.width === null ? undefined : `${props.layout.width}px` }}
     >
       <Index each={props.problems.slice(0, props.layout.max)}>

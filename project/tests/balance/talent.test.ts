@@ -96,15 +96,15 @@ describe('採用の経営判断', () => {
   it('人を増やすとキャンペーンを早く納品できるが、契約金と待機中の給与がかかる（採用は無料の上位互換ではない）', () => {
     const options = { thinkSeconds: 20, tutorialThinkSeconds: 5, limitMinutes: 20_000 };
     const lean = playCampaign({ ...options, policy: smartPolicy });
-    const grown = playCampaign({ ...options, policy: smartHirePolicy(4) });
+    const grown = playCampaign({ ...options, policy: smartHirePolicy(3) });
     const a = scoreCompany(lean.state);
     const b = scoreCompany(grown.state);
     console.log(
       `[採用] 2人のまま：クリア ${fmt(lean.clearedAt ?? 0)} 分・待機中の給与 ${fmt(a.idleCost)} 円 / ` +
-        `4人に増やす：クリア ${fmt(grown.clearedAt ?? 0)} 分・契約金 ${fmt(b.hireCost)} 円・待機中の給与 ${fmt(b.idleCost)} 円` +
+        `3人に増やす：クリア ${fmt(grown.clearedAt ?? 0)} 分・契約金 ${fmt(b.hireCost)} 円・待機中の給与 ${fmt(b.idleCost)} 円` +
         ` / 会社の Profit/Person-Day ${fmt(a.profitPerPersonDay)} vs ${fmt(b.profitPerPersonDay)} 円/人日`,
     );
-    expect(Object.keys(grown.state.team)).toHaveLength(4);
+    expect(Object.keys(grown.state.team)).toHaveLength(3);
     expect(lean.clearedAt).not.toBeNull();
     expect(grown.clearedAt ?? Infinity).toBeLessThan(lean.clearedAt ?? 0);
     expect(b.hireCost).toBeGreaterThan(0);

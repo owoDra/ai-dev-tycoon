@@ -2,7 +2,7 @@ import { balance } from '../content/balance';
 import { findWorker, getProject } from '../content/index';
 import type { ProjectSize } from '../content/types';
 import type { Command } from '../core/commands';
-import { promotionProgress, tierOf } from '../core/company';
+import { goalProgress, tierOf } from '../core/company';
 import { perPersonDay } from '../core/formulas';
 import { scoreProject } from '../core/scoring';
 import type { GameState, ManagerRun } from '../core/state';
@@ -93,7 +93,8 @@ export interface TeamsView {
 
 /** 会社の規模の表示用データ */
 export function companyView(state: GameState): CompanyView {
-  const p = promotionProgress(state);
+  // 最上位の段階では、次の格付け（★）を目標にする
+  const p = goalProgress(state);
   const r = ja.company.requires;
   return {
     tier: tierOf(state).name,

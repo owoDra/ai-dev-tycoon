@@ -3,6 +3,7 @@ import type { GameStore } from '../../app/store';
 import { textureUrl } from '../../assets/registry';
 import { attributeProject, type Impact } from '../../core/attribution';
 import { deliveryRating } from '../../core/bidding';
+import { encodeResultCode } from '../../core/resultCode';
 import { feel } from '../../fx/feel';
 import { countUp, enter, morph, pop, prefersReducedMotion } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -240,7 +241,7 @@ export function ResultScreen(props: {
                 <Details view={v()} />
               </Show>
 
-              <Show when={stage() >= 2 && record}>{(r) => <ResultCodePanel record={r()} />}</Show>
+              <Show when={stage() >= 2 && record}>{(r) => <ResultCodePanel code={encodeResultCode(r())} />}</Show>
 
               <Show when={growth.length > 1}>
                 <section class="w-full text-left" data-campaign>

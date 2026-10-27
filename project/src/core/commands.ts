@@ -7,15 +7,17 @@ import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, S
 import { allFeatures, modeFeature } from '../content/unlocks';
 import { type DeadlineStep, type PriceStep, submitBid } from './bidding';
 import { canStartProject } from './board';
+import { answerPoach } from './companyEvents';
 import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
+import { isBankrupt } from './funds';
 import { equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
 import type { ManagerRun } from './state';
-import { createProjectRun, type GameState, updateTask } from './state';
+import { createProjectRun, type GameState, notePlayerAssigned, updateTask } from './state';
 import { hire, inTeam, release, setSeat } from './team';
 import {
   addAgent,
@@ -76,6 +78,8 @@ export type Command =
   | { readonly type: 'SetManager'; readonly teamId: string; readonly manager: ManagerRun | null }
   /** 委任したチームに介入する（一時的に直轄として担当を決める）・委任に戻す */
   | { readonly type: 'Intervene'; readonly teamId: string; readonly on: boolean }
+  /** 人材の引き抜きの打診に返事をする（retain: 賞与を払って引き留める / 見送って退職を受け入れる。core/companyEvents.ts） */
+  | { readonly type: 'AnswerPoach'; readonly staffId: string; readonly retain: boolean }
   /** チュートリアルをやめる。残りの機能をすべて解放し、案件はそのまま続ける */
   | { readonly type: 'SkipTutorial' }
   /** AI Worker の Session に渡す資料を決める（企画書10章）。pick の資料は、その AI Worker が作業する案件のもの */
@@ -125,11 +129,11 @@ export interface Transition {
 const unchanged = (state: GameState): Transition => ({ state, events: [] });
 
 /**
- * Command を適用する。無効な Command（チュートリアルの今のステップで許していない操作・未解放のモードを含む）は
+ * Command を適用する。無効な Command（チュートリアルの今のステップで許していない操作・未解放のモードを含む）と倒産した会社への Command は
  * 状態を変えず、events も出さない。状態が変わったら、解放とチュートリアルの進行を判定する。
  */
 export function reduce(state: GameState, command: Command): Transition {
-  if (!isAllowed(state, command)) return unchanged(state);
+  if (isBankrupt(state) || !isAllowed(state, command)) return unchanged(state);
   const result = apply(state, command);
   if (result.state === state) return result;
   const events = [...result.events];
@@ -183,7 +187,11 @@ function apply(state: GameState, command: Command): Transition {
         return unchanged(state);
       }
       const assignment = { mode: mode.id, workerId: worker.id };
-      return { state: updateTask(state, command.projectId, command.taskId, (r) => ({ ...r, assignment })), events: [] };
+      const assigned = updateTask(state, command.projectId, command.taskId, (r) => ({ ...r, assignment }));
+      return {
+        state: command.by === 'manager' ? assigned : notePlayerAssigned(assigned, command.projectId),
+        events: [],
+      };
     }
     case 'SkipTutorial': {
       if (!state.tutorial) return unchanged(state);
@@ -238,6 +246,11 @@ function apply(state: GameState, command: Command): Transition {
     case 'Intervene': {
       const next = setIntervened(state, command.teamId, command.on);
       return next === state ? unchanged(state) : { state: next, events: [] };
+    }
+    case 'AnswerPoach': {
+      const events: GameEvent[] = [];
+      const next = answerPoach(state, command.staffId, command.retain, (e) => events.push(e));
+      return next === state ? unchanged(state) : { state: next, events };
     }
     case 'SetSeat': {
       const { staffId, seat } = command;
@@ -300,6 +313,7 @@ function apply(state: GameState, command: Command): Transition {
       for (const taskId of taskIds) {
         next = updateTask(next, projectId, taskId, (r) => ({ ...r, assignment: { mode: 'agentWorkflow', workerId } }));
       }
+      next = notePlayerAssigned(next, projectId, taskIds.length);
       return { state: next, events: [{ type: 'WorkflowAssigned', projectId, taskIds }] };
     }
     case 'SaveLibraryWorkflow': {
@@ -325,7 +339,7 @@ function apply(state: GameState, command: Command): Transition {
         skipped,
         savedHumanHours,
       };
-      return { state: applied.state, events: [event] };
+      return { state: notePlayerAssigned(applied.state, projectId), events: [event] };
     }
   }
 }

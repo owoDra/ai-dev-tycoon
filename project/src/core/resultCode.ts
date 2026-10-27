@@ -1,5 +1,7 @@
 import { balance } from '../content/balance';
+import { companyTiers } from '../content/companyTiers';
 import { content } from '../content/index';
+import type { CompanyTierId } from '../content/types';
 import { ByteReader, ByteWriter, crc16, openCode, sealCode } from '../lib/codec';
 import { RESULT_CODE_FORMAT } from './serialize';
 
@@ -122,4 +124,86 @@ let fingerprint: number | undefined;
 export function buildFingerprint(): number {
   fingerprint ??= crc16(new TextEncoder().encode(JSON.stringify({ balance, content })));
   return fingerprint;
+}
+
+/*
+ * 決算の結果コード。会社の1期の主要な数字を、案件の結果コードと同じ仕組み（lib/codec.ts）で短い英数字にする。
+ * 中身は [印 'F', 形式のバージョン, ビルドの指紋, seed, 期, 売上, 利益, 利益 / 人日, 人間の時間, 納品数, 評判, 規模, 格付け, 時価総額]
+ */
+
+/** 案件の結果コードと見分けるための先頭の印（'F'） */
+const FISCAL_CODE_MAGIC = 'F'.charCodeAt(0);
+export const FISCAL_CODE_VERSION = 1;
+
+/** 決算の結果コードに入れる値。金額は円、時間はゲーム内の分（どれも整数に丸める） */
+export interface FiscalRecord {
+  readonly seed: string;
+  /** 期の番号（1 から） */
+  readonly no: number;
+  readonly revenue: number;
+  readonly profit: number;
+  readonly profitPerPersonDay: number;
+  readonly humanMinutes: number;
+  readonly delivered: number;
+  readonly reputation: number;
+  readonly tier: CompanyTierId;
+  readonly rank: number;
+  readonly valuation: number;
+}
+
+export type FiscalDecodeResult =
+  | { readonly ok: true; readonly record: FiscalRecord; readonly sameBuild: boolean }
+  | { readonly ok: false; readonly error: DecodeError };
+
+export function encodeFiscalCode(record: FiscalRecord, options: EncodeOptions = {}): string {
+  const w = new ByteWriter()
+    .byte(FISCAL_CODE_MAGIC)
+    .byte(options.version ?? FISCAL_CODE_VERSION)
+    .u16(options.build ?? buildFingerprint())
+    .text(record.seed)
+    .uint(record.no)
+    .uint(record.revenue)
+    .int(record.profit)
+    .int(record.profitPerPersonDay)
+    .uint(record.humanMinutes)
+    .uint(record.delivered)
+    .uint(record.reputation)
+    .uint(companyTiers.findIndex((t) => t.id === record.tier))
+    .uint(record.rank)
+    .uint(record.valuation);
+  return sealCode(w.bytes);
+}
+
+export function decodeFiscalCode(code: string): FiscalDecodeResult {
+  const opened = openCode(code);
+  if (!opened.ok) return opened;
+  try {
+    const r = new ByteReader(opened.bytes);
+    if (r.byte() !== FISCAL_CODE_MAGIC) return { ok: false, error: 'format' };
+    if (r.byte() !== FISCAL_CODE_VERSION) return { ok: false, error: 'version' };
+    const build = r.u16();
+    const record: FiscalRecord = {
+      seed: r.text(),
+      no: r.uint(),
+      revenue: r.uint(),
+      profit: r.int(),
+      profitPerPersonDay: r.int(),
+      humanMinutes: r.uint(),
+      delivered: r.uint(),
+      reputation: r.uint(),
+      tier: tierAt(r.uint()),
+      rank: r.uint(),
+      valuation: r.uint(),
+    };
+    if (!r.done()) return { ok: false, error: 'format' };
+    return { ok: true, record, sameBuild: build === buildFingerprint() };
+  } catch {
+    return { ok: false, error: 'format' };
+  }
+}
+
+function tierAt(i: number): CompanyTierId {
+  const tier = companyTiers[i];
+  if (!tier) throw new RangeError(`不正な規模 ${i}`);
+  return tier.id;
 }

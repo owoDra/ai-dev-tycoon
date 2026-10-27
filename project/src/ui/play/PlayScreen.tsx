@@ -9,6 +9,8 @@ import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
+import { tierOf } from '../../core/company';
+import { companyRunning } from '../../core/funds';
 import { getIncidentDef } from '../../core/incidents';
 import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
 import { teamName } from '../../core/teams';
@@ -188,6 +190,46 @@ export function PlayScreen(props: {
           notices.push({ text: ja.company.promoted(getCompanyTier(e.tier).name), icon: 'trophy', tone: 'success' });
           for (const note of notes)
             notices.push({ text: `${ja.unlocks.badge} ${note}`, icon: 'success', tone: 'success' });
+        }
+        if (e.type === 'CompanyRanked') {
+          notices.push({
+            text: ja.company.rankedUp(tierOf(props.store.state()).name),
+            icon: 'trophy',
+            tone: 'success',
+          });
+        }
+        if (e.type === 'AchievementUnlocked') {
+          const name = ja.achievements.defs[e.id]?.name ?? e.id;
+          notices.push({ text: ja.achievements.unlocked(name), icon: 'trophy', tone: 'success' });
+        }
+        if (e.type === 'FiscalClosed') {
+          notices.push({ text: ja.fiscal.closedNotice(e.no), icon: 'money', tone: 'neutral' });
+        }
+        if (e.type === 'CashShort') {
+          notices.push({ text: ja.funds.shortNotice(e.daysLeft), icon: 'warning', tone: 'danger' });
+        }
+        if (e.type === 'OutageOccurred') {
+          const text = ja.companyEvents.outage(getProject(e.projectId).name, ja.score.yen(e.cost));
+          notices.push({ text, icon: 'failure', tone: 'danger' });
+        }
+        if (e.type === 'PoachOffered') {
+          notices.push({
+            text: ja.companyEvents.poachOffered(getHuman(e.staffId).name),
+            icon: 'human',
+            tone: 'warning',
+          });
+        }
+        if (e.type === 'PoachAnswered') {
+          const name = getHuman(e.staffId).name;
+          const text = e.retained ? ja.companyEvents.retained(name) : ja.companyEvents.leaving(name);
+          notices.push({ text, icon: 'human', tone: 'neutral' });
+        }
+        if (e.type === 'StaffPoached') {
+          notices.push({ text: ja.companyEvents.poached(getHuman(e.staffId).name), icon: 'human', tone: 'danger' });
+        }
+        if (e.type === 'PriceWarChanged') {
+          const text = e.active ? ja.companyEvents.priceWarOn : ja.companyEvents.priceWarOff;
+          notices.push({ text, icon: e.active ? 'failure' : 'success', tone: e.active ? 'warning' : 'neutral' });
         }
         if (e.type === 'TeamCreated') {
           notices.push({
@@ -438,6 +480,7 @@ export function PlayScreen(props: {
           }
         }}
         onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
+        belowStrip={companyRunning(props.store.state())}
       />
       <Show when={move()}>
         {(m) => (
@@ -457,6 +500,7 @@ export function PlayScreen(props: {
               setMove(null);
               setCompare(false);
             }}
+            belowStrip={companyRunning(props.store.state())}
           />
         )}
       </Show>

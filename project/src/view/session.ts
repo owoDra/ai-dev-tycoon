@@ -6,6 +6,7 @@ import { deadlineMinutes } from '../core/formulas';
 import { scoreCompany } from '../core/scoring';
 import type { GameState } from '../core/state';
 import { businessDay } from '../core/team';
+import { managerOf, teamIds, teamName, teamOfProject, teamProjects } from '../core/teams';
 
 /*
  * 隙間時間に少しずつ遊ぶためのカードの ViewModel。営業日の終わりの区切り（その日の成果）と、
@@ -31,6 +32,16 @@ export type NextStep =
   /** やることがなく、見守るだけ */
   | { readonly kind: 'watch' };
 
+/** チームごとの進み具合（チームが2つ以上あるときだけ出す） */
+export interface TeamProgressView {
+  readonly teamId: string;
+  readonly name: string;
+  readonly active: number;
+  /** 区切りの間・閉じていた間に納品した数 */
+  readonly delivered: number;
+  readonly manager: 'human' | 'ai' | null;
+}
+
 /** 営業日の終わりの区切り */
 export interface DaySummary {
   /** 終わった営業日（1 から） */
@@ -44,6 +55,7 @@ export interface DaySummary {
   readonly humanMinutes: number;
   readonly active: readonly ActiveProjectView[];
   readonly next: readonly NextStep[];
+  readonly teams: readonly TeamProgressView[];
 }
 
 /** 再開したときのあらすじ */
@@ -56,6 +68,21 @@ export interface Recap {
   readonly incidents: number;
   readonly active: readonly ActiveProjectView[];
   readonly next: readonly NextStep[];
+  readonly teams: readonly TeamProgressView[];
+  /** 閉じていた間に締めた期（決算の画面をあらすじの後に出す）。なければ null */
+  readonly fiscalClosed: number | null;
+}
+
+/** チームごとの進み具合。delivered は納品した案件の id（どのチームの案件かは end の state で決める） */
+export function teamProgressViews(state: GameState, delivered: readonly string[]): TeamProgressView[] {
+  if (state.teams.length === 0) return [];
+  return teamIds(state).map((teamId) => ({
+    teamId,
+    name: teamName(state, teamId),
+    active: teamProjects(state, teamId).length,
+    delivered: delivered.filter((id) => teamOfProject(state, id) === teamId).length,
+    manager: managerOf(state, teamId)?.kind ?? null,
+  }));
 }
 
 export function activeProjectViews(state: GameState): ActiveProjectView[] {
@@ -94,9 +121,10 @@ export function daySummary(start: GameState, end: GameState): DaySummary {
   const tasksDone = Object.values(end.projects)
     .flatMap((p) => Object.values(p.tasks))
     .filter((t) => t.completedAt !== null && t.completedAt > start.clock && t.completedAt <= end.clock).length;
-  const delivered = Object.values(end.projects)
+  const deliveredIds = Object.values(end.projects)
     .filter((p) => p.completedAt !== null && p.completedAt > start.clock && p.completedAt <= end.clock)
-    .map((p) => getProject(p.projectId).name);
+    .map((p) => p.projectId);
+  const delivered = deliveredIds.map((id) => getProject(id).name);
   const before = scoreCompany(start);
   const after = scoreCompany(end);
   return {
@@ -107,6 +135,7 @@ export function daySummary(start: GameState, end: GameState): DaySummary {
     humanMinutes: after.humanMinutes - before.humanMinutes,
     active: activeProjectViews(end),
     next: nextSteps(end),
+    teams: teamProgressViews(end, deliveredIds),
   };
 }
 
@@ -119,5 +148,10 @@ export function recapView(before: GameState, after: GameState, events: readonly 
     incidents: events.filter((e) => e.type === 'IncidentStarted').length,
     active: activeProjectViews(after),
     next: nextSteps(after),
+    teams: teamProgressViews(
+      after,
+      events.flatMap((e) => (e.type === 'ProjectCompleted' ? [e.projectId] : [])),
+    ),
+    fiscalClosed: events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1) ?? null,
   };
 }

@@ -1,5 +1,4 @@
 import { createMemo, createSignal, Show } from 'solid-js';
-import { encodeResultCode, type ResultRecord } from '../../core/resultCode';
 import { ja } from '../../i18n/ja';
 import { encodeQr, qrPath } from '../../lib/qr';
 import { Icon } from '../Icon';
@@ -12,11 +11,11 @@ const QUIET = 4;
 type CopyState = 'idle' | 'copied' | 'failed';
 
 /**
- * 結果コード（core/resultCode.ts）の表示。コピーボタンと、スマホで読み取れる QR コードを出す。
+ * 結果コード（core/resultCode.ts の案件か決算のコード）の表示。コピーボタンと、スマホで読み取れる QR コードを出す。
  * インターネットには接続しない。クリップボードが使えなければ、コードの文字を選択して手でコピーできるようにする
  */
-export function ResultCodePanel(props: { record: ResultRecord }) {
-  const code = createMemo(() => encodeResultCode(props.record));
+export function ResultCodePanel(props: { code: string }) {
+  const code = () => props.code;
   const qr = createMemo(() => encodeQr(code()));
   const [copy, setCopy] = createSignal<CopyState>('idle');
   const [showQr, setShowQr] = createSignal(false);

@@ -259,7 +259,7 @@ export const managementSystem: System = (state) => {
       const m = run.management;
       projectRuns[id] = {
         ...run,
-        management: { minutes: m.minutes + minutes, laborCost: m.laborCost + wage, aiCost: m.aiCost + ai },
+        management: { ...m, minutes: m.minutes + minutes, laborCost: m.laborCost + wage, aiCost: m.aiCost + ai },
       };
     }
     next = { ...next, projects: projectRuns };

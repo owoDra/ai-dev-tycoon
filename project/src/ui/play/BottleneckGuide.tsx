@@ -28,6 +28,8 @@ export function BottleneckGuide(props: {
   onCompare: (open: boolean) => void;
   onGo: (entityId: string) => void;
   onClose: () => void;
+  /** 左上に会社の帯（ui/company/CompanyStrip.tsx）が出ている。その下に出す */
+  belowStrip?: boolean;
 }) {
   return (
     <>
@@ -38,7 +40,10 @@ export function BottleneckGuide(props: {
         aria-label={t.moved}
         data-bottleneck-guide
         class={`${panel} pointer-events-auto absolute left-2 flex w-[min(22rem,calc(100%-1rem))] flex-col gap-2 p-2.5 text-xs`}
-        classList={{ 'top-2': !props.compact }}
+        classList={{
+          'top-2': !props.compact && !props.belowStrip,
+          'top-14': !props.compact && props.belowStrip === true,
+        }}
         style={{ bottom: props.compact ? `${props.bottom}px` : undefined }}
       >
         <p class="flex items-center gap-1.5 font-bold">

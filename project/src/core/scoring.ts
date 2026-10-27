@@ -136,6 +136,8 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
 export interface CompanyScore {
   /** 納品した案件の数 */
   readonly delivered: number;
+  /** 売上の合計（納品した案件） */
+  readonly revenue: number;
   /** 始めた案件の利益の合計（Harness 部品の導入コストを除く） */
   readonly projectProfit: number;
   /** Harness 部品の導入コストの合計（同時に進めた案件で重複して数えない） */
@@ -148,7 +150,9 @@ export interface CompanyScore {
   readonly idleCost: number;
   /** オフィスの固定費（日割り。会社の規模で決まる） */
   readonly officeCost: number;
-  /** 会社の利益 = 案件の利益の合計 − 導入コスト − Seat の固定費 − 契約金 − 待機中の給与 − オフィスの固定費 */
+  /** 後半の事件の損害と引き留めの賞与 */
+  readonly eventCost: number;
+  /** 会社の利益 = 案件の利益の合計 − 導入コスト − Seat の固定費 − 契約金 − 待機中の給与 − オフィスの固定費 − 事件の費用 */
   readonly profit: number;
   /** 人間の総稼働時間（分） */
   readonly humanMinutes: number;
@@ -161,26 +165,32 @@ export interface CompanyScore {
  * 同時に進めた案件で重なって数えられうる Harness 部品の導入コスト）は会社として1回だけ引く
  */
 export function scoreCompany(state: GameState): CompanyScore {
-  let projectProfit = 0;
-  let humanMinutes = 0;
-  let delivered = 0;
+  // 記録に移した案件（core/archive.ts）の分から数え始める
+  let projectProfit = state.ledger.projectProfit;
+  let humanMinutes = state.ledger.humanMinutes;
+  let delivered = state.ledger.delivered;
+  let revenue = state.ledger.revenue;
   for (const projectId of Object.keys(state.projects)) {
     const s = scoreProject(state, projectId);
     if (!s) continue;
     projectProfit += s.profit + s.harnessCost;
     humanMinutes += s.humanMinutes;
+    revenue += s.revenue;
     if (s.completed) delivered++;
   }
   const harnessCost = state.harnessLedger.reduce((sum, e) => sum + e.cost, 0);
-  const profit = projectProfit - harnessCost - state.seatCost - state.hireCost - state.idleCost - state.officeCost;
+  const profit =
+    projectProfit - harnessCost - state.seatCost - state.hireCost - state.idleCost - state.officeCost - state.eventCost;
   return {
     delivered,
+    revenue,
     projectProfit,
     harnessCost,
     seatCost: state.seatCost,
     hireCost: state.hireCost,
     idleCost: state.idleCost,
     officeCost: state.officeCost,
+    eventCost: state.eventCost,
     profit,
     humanMinutes,
     profitPerPersonDay: perPersonDay(profit, humanMinutes),

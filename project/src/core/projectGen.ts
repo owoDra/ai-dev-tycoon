@@ -76,6 +76,12 @@ export function shapeTasks(template: ProjectTemplateDef, size: ProjectSize): { t
 }
 
 const cache = new Map<string, ProjectDef>();
+/** キャッシュに入れる。長く遊ぶと引き合いが増え続けるので、上限を超えたら捨てて作り直す */
+function remember<T>(map: Map<string, T>, key: string, value: T): T {
+  if (map.size >= balance.projectGen.cacheLimit) map.clear();
+  map.set(key, value);
+  return value;
+}
 
 /** 生成した案件の定義。同じ id なら必ず同じ定義になる。生成した案件の id でなければ undefined */
 export function generateProject(id: string): ProjectDef | undefined {
@@ -103,7 +109,7 @@ export function generateProject(id: string): ProjectDef | undefined {
       ...t,
       effort: roundTo((t.effort * size.effort * jitter) / split, gen.effortStep),
       qualityReq: clamp01(t.qualityReq + industry.qualityReq + size.qualityReq),
-      failRisk: clamp01(t.failRisk + industry.failRisk),
+      failRisk: clamp01(t.failRisk + industry.failRisk + size.failRisk),
       aiAptitude: clamp01(t.aiAptitude + industry.aiAptitude),
     };
   });
@@ -124,15 +130,22 @@ export function generateProject(id: string): ProjectDef | undefined {
       rivals,
     },
   };
-  cache.set(id, def);
-  return def;
+  return remember(cache, id, def);
 }
 
 /**
  * 生成した案件の資料。型の資料（content/documents.ts の、型の id の案件の資料）を写し、id を `<案件の id>/<資料の id>` にする。
  * 役に立つ Task は、省いた Task を除き、複製した Task にはすべての複製を含める
  */
-export function generatedDocuments(projectId: string): DocumentDef[] {
+export function generatedDocuments(projectId: string): readonly DocumentDef[] {
+  const hit = docCache.get(projectId);
+  if (hit) return hit;
+  return remember(docCache, projectId, buildDocuments(projectId));
+}
+
+const docCache = new Map<string, readonly DocumentDef[]>();
+
+function buildDocuments(projectId: string): DocumentDef[] {
   const def = generateProject(projectId);
   if (!def?.brief) return [];
   const ids = new Set(def.tasks.map((t) => t.id));
@@ -140,10 +153,12 @@ export function generatedDocuments(projectId: string): DocumentDef[] {
     def.tasks.map((t) => t.id).filter((id) => id === taskId || id.startsWith(`${taskId}-`));
   const docId = (id: string) => `${projectId}/${id}`;
   const templateId = def.brief.templateId;
+  const scale = balance.projectGen.sizes[def.brief.size].docScale;
   return documents
     .filter((d) => d.projectId === templateId)
     .map((d) => ({
       ...d,
+      size: Math.round(d.size * scale),
       id: docId(d.id),
       projectId,
       relevantTo: d.relevantTo.flatMap(expand).filter((id) => ids.has(id)),

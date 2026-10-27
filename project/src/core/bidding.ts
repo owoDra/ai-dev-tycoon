@@ -1,6 +1,7 @@
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import type { ProjectDef } from '../content/types';
+import { priceWarCut } from './companyEvents';
 import type { GameEvent } from './events';
 import { hashSeed } from './rng';
 import { scoreProject } from './scoring';
@@ -82,9 +83,10 @@ export const bidDeadline = (def: ProjectDef, deadline: DeadlineStep) => bidDeadl
 export function industryTrack(state: GameState, def: ProjectDef): number {
   const industry = def.brief?.industry;
   if (industry === undefined) return 0;
-  return Object.values(state.projects).filter(
+  const live = Object.values(state.projects).filter(
     (p) => p.completedAt !== null && getProject(p.projectId).brief?.industry === industry,
   ).length;
+  return (state.ledger.industries[industry] ?? 0) + live;
 }
 
 /** 提案力の内訳（どれも 0〜1）と合計 */
@@ -148,7 +150,10 @@ export function winChance(state: GameState, def: ProjectDef, amount: number, dea
     proposal: proposalOf(state, def).total,
     deadline: deadlineDays / def.deadlineDays - 1,
   });
+  // 競合の値下げ（core/companyEvents.ts）の間は、競合がみな価格の比を下げてくる
+  const cut = priceWarCut(state);
   const rivals = rivalsOf(def)
+    .map((r) => ({ ...r, price: r.price - cut }))
     .filter((r) => def.revenue * (1 + r.price) <= brief.budget)
     .reduce((sum, r) => sum + weight(r), 0);
   return own / (own + rivals);

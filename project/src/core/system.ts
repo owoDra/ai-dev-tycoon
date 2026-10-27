@@ -1,7 +1,9 @@
+import { archiveSystem } from './archive';
 import { autonomySystem } from './autonomy';
 import { boardSystem } from './board';
 import { bottleneckSystem } from './bottleneck';
 import type { GameEvent } from './events';
+import { fiscalSystem } from './fiscal';
 import { humanQueueSystem } from './humanQueueSystem';
 import { incidentSystem } from './incidents';
 import { managerSystem } from './manager';
@@ -35,10 +37,14 @@ export const releaseScheduledEvents: System = (state, ctx) => {
 /** 1ステップごとに先頭から順に適用されるシステム */
 export const defaultSystems: readonly System[] = [
   releaseScheduledEvents,
+  // 営業日が変わったら、納品から日のたった案件を累計の記録に移す
+  archiveSystem,
   // 営業日が変わったら Seat の使用量を戻し、固定費を日割りで計上する
   seatSystem,
   // 営業日が変わったら採用市場の候補を入れ替える
   marketSystem,
+  // 営業日の始まり：資金の確認・後半の事件・実績・期の終わりなら決算
+  fiscalSystem,
   // 締切を迎えた引き合いのコンペの結果を出す（受注した案件はこのステップから進む）
   boardSystem,
   // 委任されたチームの管理者が、担当の決まっていない Task の担当を決める（Command を reduce に通す）

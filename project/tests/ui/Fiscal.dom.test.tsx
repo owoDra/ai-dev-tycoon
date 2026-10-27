@@ -1,0 +1,141 @@
+import { render } from 'solid-js/web';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createGameStore } from '../../src/app/store';
+import { balance } from '../../src/content/balance';
+import { decodeFiscalCode } from '../../src/core/resultCode';
+import type { GameState } from '../../src/core/state';
+import { step } from '../../src/core/step';
+import { ja } from '../../src/i18n/ja';
+import { CompanyStrip } from '../../src/ui/company/CompanyStrip';
+import { DeliveryCards } from '../../src/ui/company/DeliveryCard';
+import { BankruptScreen } from '../../src/ui/screens/BankruptScreen';
+import { FiscalScreen } from '../../src/ui/screens/FiscalScreen';
+import { deliveryView } from '../../src/view/fiscal';
+import { growCompany } from '../helpers/growth';
+
+const DAY = balance.project.minutesPerBusinessDay;
+let dispose = () => {};
+afterEach(() => {
+  dispose();
+  document.body.innerHTML = '';
+  vi.useRealTimers();
+});
+
+function mount(view: () => unknown) {
+  const root = document.createElement('div');
+  document.body.append(root);
+  dispose = render(view as () => never, root);
+  return <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel);
+}
+
+/** 1期を締めた会社（決算の画面と帯で共通に使う） */
+const closed = (() => {
+  let cached: GameState | undefined;
+  return () => {
+    cached ??= growCompany('fiscal-ui', balance.fiscal.days + 1).state;
+    return cached;
+  };
+})();
+
+describe('決算の画面', () => {
+  it('第1段（利益 / 人日・増益か減益のスタンプ）から始まり、結果コード → 内訳 → 推移の順に開示する', () => {
+    vi.useFakeTimers();
+    const state = closed();
+    const onNext = vi.fn();
+    const q = mount(() => <FiscalScreen store={createGameStore(state)} no={1} onNext={onNext} onTitle={() => {}} />);
+    expect(q('#fiscal-title')?.textContent).toContain(ja.fiscal.title(1));
+    expect(q('[data-stamp]')?.textContent).toMatch(new RegExp(`${ja.fiscal.up}|${ja.fiscal.down}`));
+    expect(q('[data-vs-previous]')?.textContent).toBe(ja.fiscal.first);
+    expect(q('[data-stage="2"]')).toBeNull();
+    vi.runOnlyPendingTimers();
+    expect(q('[data-metric="revenue"]')).not.toBeNull();
+    expect(q('[data-metric="profit"]')).not.toBeNull();
+    const code = q('[data-code]')?.textContent ?? '';
+    expect(decodeFiscalCode(code)).toMatchObject({ ok: true, record: { no: 1, seed: state.seed } });
+    expect(q('[data-stage="3"]')).toBeNull();
+    q<HTMLButtonElement>('[data-more]')?.click();
+    expect(q('[data-stage="3"] [data-team-row]')).not.toBeNull();
+    expect(q('[data-best]')).not.toBeNull();
+    expect(q('[data-fiscal-achievement="firstDelivery"]')).not.toBeNull();
+    q<HTMLButtonElement>('[data-advanced]')?.click();
+    expect(q('[data-stage="4"]')?.textContent).toContain(ja.fiscal.trend);
+    q<HTMLButtonElement>('[data-next]')?.click();
+    expect(onNext).toHaveBeenCalledOnce();
+  });
+});
+
+describe('会社の帯', () => {
+  it('1行のピルで規模・目標の達成率・資金・決算までの日数をいつも出し、押すと目標の内訳と実績の一覧を開ける', () => {
+    const state = closed();
+    const q = mount(() => <CompanyStrip store={createGameStore(state)} />);
+    expect(q('[data-goal-percent]')?.textContent).toContain(ja.fiscal.goal);
+    expect(q('[data-goal]')).toBeNull();
+    q<HTMLButtonElement>('[data-strip-toggle]')?.click();
+    expect(q('[data-strip-toggle]')?.getAttribute('aria-expanded')).toBe('true');
+    expect(q('[data-goal]')?.textContent).toContain(ja.company.next(''));
+    expect(q('[data-goal-item="profit"]')).not.toBeNull();
+    expect(q('[data-cash]')?.textContent).toContain(ja.funds.cash);
+    expect(q('[data-fiscal-days]')?.textContent).toContain(ja.fiscal.period2(2));
+    expect(q('[data-achievements]')).toBeNull();
+    q<HTMLButtonElement>('[data-open-achievements]')?.click();
+    expect(q('[data-achievement="firstDelivery"]')?.dataset.done).toBe('true');
+    expect(q('[data-achievement="large"]')?.textContent).toContain(ja.achievements.locked);
+  });
+
+  it('資金がマイナスなら倒産までの日数を警告し、引き抜きの打診には引き留めと見送りのボタンを出す', () => {
+    const base = closed();
+    const staffId = Object.keys(base.team)[0] ?? '';
+    const state: GameState = {
+      ...base,
+      idleCost: base.idleCost + 10_000_000_000,
+      funds: { ...base.funds, shortDays: 3 },
+      companyEvents: { ...base.companyEvents, offers: [{ staffId, deadline: base.clock + DAY * 2, leaving: false }] },
+    };
+    const store = createGameStore(state);
+    const dispatched: string[] = [];
+    const dispatch = store.dispatch;
+    store.dispatch = (c) => {
+      dispatched.push(c.type === 'AnswerPoach' ? `${c.type}:${c.retain}` : c.type);
+      dispatch(c);
+    };
+    const q = mount(() => <CompanyStrip store={store} />);
+    expect(q('[data-cash-short]')?.textContent).toContain(ja.funds.short(balance.funds.graceDays - 3));
+    // 資金がマイナスの間は、目標の内訳を開いたままにする
+    expect(q('[data-goal]')).not.toBeNull();
+    expect(q(`[data-poach="${staffId}"]`)).not.toBeNull();
+    q<HTMLButtonElement>('[data-retain]')?.click();
+    expect(dispatched).toEqual(['AnswerPoach:true']);
+  });
+});
+
+describe('倒産の画面と納品のカード', () => {
+  it('倒産したら、時価総額の推移を折れ線で見せ、最高値に印を付ける', () => {
+    const base = closed();
+    const broke = step(
+      { ...base, idleCost: base.idleCost + 10_000_000_000 },
+      DAY * (balance.funds.graceDays + 1),
+    ).state;
+    expect(broke.funds.bankruptAt).not.toBeNull();
+    const onRestart = vi.fn();
+    const q = mount(() => <BankruptScreen store={createGameStore(broke)} onRestart={onRestart} onTitle={() => {}} />);
+    expect(q('#bankrupt-title')?.textContent).toContain(ja.funds.bankruptTitle);
+    const chart = q('[data-valuation-chart]');
+    expect(chart?.getAttribute('role')).toBe('img');
+    expect(chart?.querySelector('[data-peak]')).not.toBeNull();
+    expect(q('[data-peak-text]')).not.toBeNull();
+    q<HTMLButtonElement>('[data-restart]')?.click();
+    expect(onRestart).toHaveBeenCalledOnce();
+  });
+
+  it('納品のカードは成果を短く出し、「振り返りを見る」でその案件を開ける', () => {
+    const state = growCompany('delivery-ui', 3).state;
+    const id = Object.values(state.projects).find((p) => p.completedAt !== null)?.projectId ?? '';
+    const card = deliveryView(state, id);
+    if (!card) throw new Error('納品した案件がない');
+    const onReview = vi.fn();
+    const q = mount(() => <DeliveryCards cards={[card]} onReview={onReview} onClose={() => {}} />);
+    expect(q(`[data-delivery="${id}"]`)?.textContent).toContain(ja.delivery.title(card.name));
+    q<HTMLButtonElement>('[data-review]')?.click();
+    expect(onReview).toHaveBeenCalledWith(id);
+  });
+});

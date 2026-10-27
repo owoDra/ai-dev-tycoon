@@ -115,7 +115,11 @@ export function fxSignals(events: readonly GameEvent[], ctx: FxContext): FxSigna
         if (e.projectId === ctx.projectId) out.push({ kind: 'projectComplete', entityId: null });
         break;
       case 'CompanyPromoted':
+      case 'CompanyRanked':
         out.push({ kind: 'companyPromoted', entityId: null });
+        break;
+      case 'AchievementUnlocked':
+        out.push({ kind: 'unlock', entityId: null });
         break;
       case 'WorkflowSaved':
         out.push({ kind: 'workflowSaved', entityId: null });

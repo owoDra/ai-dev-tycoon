@@ -89,6 +89,9 @@ export interface LayoutFlow {
   termCardMs: number;
   /** チュートリアルのスポットライトの、照らす対象からの余白（px） */
   coachPadding: number;
+  /** 納品のカードを一度に積む数（古いものから消す）と、出しておく時間（ms）。閉じるボタンでも閉じられる */
+  deliveryCards: number;
+  deliveryCardMs: number;
 }
 
 export interface UiLayout {
@@ -126,6 +129,8 @@ export const uiLayout: UiLayout = {
     dismiss: ['esc', 'closeButton', 'emptyClick', 'swipeDown'],
     termCardMs: 9000,
     coachPadding: 10,
+    deliveryCards: 3,
+    deliveryCardMs: 10000,
   },
 };
 

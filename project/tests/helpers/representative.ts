@@ -2,11 +2,13 @@ import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { AssignModeId, TaskDef } from '../../src/content/types';
+import { archiveSystem } from '../../src/core/archive';
 import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { createInitialState, createProjectRun, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
+import { defaultSystems } from '../../src/core/system';
 import { humanSpeed, teamMembers } from '../../src/core/team';
 import { currentTutorialStep } from '../../src/core/tutorial';
 import { isUnlocked } from '../../src/core/unlocks';
@@ -149,6 +151,12 @@ export interface CampaignResult {
   readonly clearedAt: number | null;
 }
 
+/**
+ * 最後に案件ごとの結果（state.projects）を調べるので、納品した案件を累計の記録（core/archive.ts）に移さずに進める。
+ * 記録に移すのは数え方の違いだけで、進み方は変わらない
+ */
+const SYSTEMS = defaultSystems.filter((s) => s !== archiveSystem);
+
 /** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、考える時間が過ぎたら Command を出す */
 export function playCampaign(options: CampaignOptions): CampaignResult {
   const perSecond = balance.time.minutesPerRealSecond;
@@ -190,7 +198,7 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
       // チュートリアルの後に始めた案件や、途中で解放された担当で、まだ決めていない Task を決める
       for (const id of activeProjects(state)) apply(assignProject(state, id, options.policy));
     }
-    const r = step(state, balance.time.tickMinutes);
+    const r = step(state, balance.time.tickMinutes, SYSTEMS);
     state = r.state;
     events.push(...r.events);
   }

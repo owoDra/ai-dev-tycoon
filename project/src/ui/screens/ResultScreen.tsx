@@ -29,7 +29,7 @@ function formatMetric(key: ResultMetric['key'], v: number): string {
 
 /**
  * 結果画面（企画書40章・58〜60章）。数十個の数字を並べず、段階的に開示する。
- * 第1段：トロフィーと Profit / Human Hour のカウントアップ・伸び・ランクのスタンプ
+ * 第1段：トロフィーと Profit / Person-Day のカウントアップ・伸び・ランクのスタンプ
  * 第2段：主要3指標の Before（人間だけの見込み）→ After の変形
  * 第3段（詳しく見る）：一番効いた改善・最大の無駄・次に改善できる場所の3枚のカード
  * 第4段（上級者向け）：工程別の時間・介入の時系列・AI コストの内訳。グラフは2つまでにとどめる
@@ -103,7 +103,7 @@ export function ResultScreen(props: {
     el.querySelector<HTMLButtonElement>('[data-next], [data-retry]')?.focus();
     if (!view) return;
     const duration = prefersReducedMotion() ? 0 : feel().countUpMs;
-    if (big) stops.push(countUp(big, 0, view.score.profitPerHumanHour, ja.hud.yenPerHour));
+    if (big) stops.push(countUp(big, 0, view.score.profitPerPersonDay, ja.hud.yenPerPersonDay));
     later(() => {
       if (stamp) pop(stamp, 2);
       setStage((s) => Math.max(s, 2));
@@ -150,10 +150,10 @@ export function ResultScreen(props: {
                     {ja.campaign.cleared}
                   </p>
                 </Show>
-                <span class="text-xs font-bold text-ink-muted">{t.profitPerHumanHour}</span>
+                <span class="text-xs font-bold text-ink-muted">{t.profitPerPersonDay}</span>
                 <div class="flex items-center gap-3">
                   <span ref={big} class="font-heading text-4xl tabular-nums" data-pph>
-                    {ja.hud.yenPerHour(v().score.profitPerHumanHour)}
+                    {ja.hud.yenPerPersonDay(v().score.profitPerPersonDay)}
                   </span>
                   <span
                     ref={stamp}
@@ -176,7 +176,7 @@ export function ResultScreen(props: {
                         {t.change(ratio())}
                       </span>
                       <span class="tabular-nums">
-                        （{t.baseline} {ja.hud.yenPerHour(v().baseline)}）
+                        （{t.baseline} {ja.hud.yenPerPersonDay(v().baseline)}）
                       </span>
                     </p>
                   )}
@@ -249,7 +249,7 @@ export function ResultScreen(props: {
                       {(g) => (
                         <li class="grid grid-cols-[1fr_auto] items-center gap-x-2 text-sm" data-growth={g.projectId}>
                           <span class="font-bold">{g.name}</span>
-                          <span class="tabular-nums">{ja.hud.yenPerHour(g.profitPerHumanHour)}</span>
+                          <span class="tabular-nums">{ja.hud.yenPerPersonDay(g.profitPerPersonDay)}</span>
                           <span class="h-2 rounded-full bg-sunken">
                             <span
                               class="block h-2 rounded-full bg-primary-500"

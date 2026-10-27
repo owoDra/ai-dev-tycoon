@@ -10,8 +10,8 @@
 
 /** HUD に常時表示する項目（企画書31章「常に見える」） */
 export type HudItemId =
-  /** Profit / Human Hour */
-  | 'profitPerHumanHour'
+  /** Profit / Person-Day */
+  | 'profitPerPersonDay'
   /** 残り時間（営業日と時刻） */
   | 'remaining'
   /** 人間と AI の稼働バー */
@@ -101,7 +101,7 @@ export interface UiLayout {
   flow: LayoutFlow;
 }
 
-const dockItems: readonly HudItemId[] = ['profitPerHumanHour', 'remaining', 'utilization', 'speed', 'problems'];
+const dockItems: readonly HudItemId[] = ['profitPerPersonDay', 'remaining', 'utilization', 'speed', 'problems'];
 
 export const uiLayout: UiLayout = {
   breakpoints: { compact: 768 },

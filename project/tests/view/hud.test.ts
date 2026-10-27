@@ -21,7 +21,7 @@ describe('hudView', () => {
 
   it('見込みは担当で動く：実装を AI に任せてレビューすると、全部人間のときより上がる', () => {
     const s = reduce(createInitialState('hud'), { type: 'StartProject', projectId: P }).state;
-    const allHuman = hudView(s, P)?.profitPerHumanHour ?? 0;
+    const allHuman = hudView(s, P)?.profitPerPersonDay ?? 0;
     const withAi = reduce(s, {
       type: 'AssignTask',
       projectId: P,
@@ -30,7 +30,7 @@ describe('hudView', () => {
       workerId: 'agent',
     }).state;
     expect(allHuman).toBeGreaterThan(0);
-    expect(hudView(withAi, P)?.profitPerHumanHour ?? 0).toBeGreaterThan(allHuman);
+    expect(hudView(withAi, P)?.profitPerPersonDay ?? 0).toBeGreaterThan(allHuman);
   });
 
   it('納品前は売上を入れた見込みを出し、納品後は確定値になる', () => {
@@ -45,13 +45,13 @@ describe('hudView', () => {
     });
     const hud = hudView(state, P);
     expect(hud?.projected).toBe(true);
-    expect(hud?.profitPerHumanHour).toBeGreaterThan(0);
+    expect(hud?.profitPerPersonDay).toBeGreaterThan(0);
     expect(hud?.human).toBeGreaterThan(0);
 
     const done = playProject(P, strategies.smart(P), 'hud');
     const final = hudView(done.state, P);
     expect(final?.projected).toBe(false);
-    expect(final?.profitPerHumanHour).toBeCloseTo(done.score.profitPerHumanHour);
+    expect(final?.profitPerPersonDay).toBeCloseTo(done.score.profitPerPersonDay);
   });
 });
 
@@ -62,7 +62,7 @@ describe('見込みと Context（決済画面の修正）', () => {
     for (const c of strategies.aiWithReview(PF)(s)) s = reduce(s, c).state;
     return s;
   };
-  const projected = (s: ReturnType<typeof assigned>) => hudView(s, PF)?.profitPerHumanHour ?? 0;
+  const projected = (s: ReturnType<typeof assigned>) => hudView(s, PF)?.profitPerPersonDay ?? 0;
 
   it('資料の渡し方で見込みが動く：「必要な資料だけ」は「すべての資料」より高い', () => {
     const all = assigned();

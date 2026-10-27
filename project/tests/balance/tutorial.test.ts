@@ -7,7 +7,7 @@ import type { Command } from '../../src/core/commands';
 import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { currentTutorialStep } from '../../src/core/tutorial';
-import { projectedProfitPerHumanHour } from '../../src/view/hud';
+import { projectedProfitPerPersonDay } from '../../src/view/hud';
 import { runHeadless, type TimedCommand } from '../helpers/headless';
 
 /**
@@ -107,7 +107,7 @@ function play() {
     commands,
     full,
     ended,
-    start: projectedProfitPerHumanHour(started.state, P, startScore),
+    start: projectedProfitPerPersonDay(started.state, P, startScore),
     end: endScore,
   };
 }
@@ -136,12 +136,12 @@ describe('チュートリアル「小さなLP制作」（企画書50〜51章）'
     }
   });
 
-  it('最終的な Profit / Human Hour が、開始時（人間だけの見込み）の2倍以上になる', () => {
+  it('最終的な Profit / Person-Day が、開始時（人間だけの見込み）の2倍以上になる', () => {
     console.info(
-      `[tutorial] Profit/Human Hour 開始時（人間だけの見込み）: ${Math.round(r.start)} 円/人時 → 終了時: ${Math.round(r.end.profitPerHumanHour)} 円/人時（×${(r.end.profitPerHumanHour / r.start).toFixed(2)}）`,
+      `[tutorial] Profit/Person-Day 開始時（人間だけの見込み）: ${Math.round(r.start)} 円/人日 → 終了時: ${Math.round(r.end.profitPerPersonDay)} 円/人日（×${(r.end.profitPerPersonDay / r.start).toFixed(2)}）`,
     );
     expect(r.end.completed).toBe(true);
-    expect(r.end.profitPerHumanHour).toBeGreaterThanOrEqual(r.start * 2);
+    expect(r.end.profitPerPersonDay).toBeGreaterThanOrEqual(r.start * 2);
   });
 
   it('所要時間：ゲーム内時間を1倍速の実時間に換算して3分以内（各ステップの読む時間を含む）', () => {

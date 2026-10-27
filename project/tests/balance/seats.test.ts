@@ -19,20 +19,20 @@ const play = (seats: Readonly<Record<string, SeatId>>) => (seed: string) =>
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
 describe('Seat のバランス（企画書6章・キャンペーンの最後の同時進行）', () => {
-  it('全員 Premium は最適ではない：AI Worker を運用する人だけ Premium の方が Profit / Human Hour が高い', () => {
+  it('全員 Premium は最適ではない：AI Worker を運用する人だけ Premium の方が Profit / Person-Day が高い', () => {
     const allPremium = Object.fromEntries(FULL_TEAM.map((id) => [id, 'premium' as const]));
     const r = compare(
       { allStandard: play({}), operator: play({ [OPERATOR]: 'premium' }), allPremium: play(allPremium) },
       SEEDS,
     );
     console.log(
-      `[企画書6章] ${RUSH.map((id) => getProject(id).name).join('＋')} の Profit/Human Hour：` +
-        `全員Premium ${fmt(r.allPremium.profitPerHumanHour)} vs 一部Premium（運用者だけ） ${fmt(r.operator.profitPerHumanHour)} 円/人時` +
-        `（参考：全員Standard ${fmt(r.allStandard.profitPerHumanHour)}）` +
+      `[企画書6章] ${RUSH.map((id) => getProject(id).name).join('＋')} の Profit/Person-Day：` +
+        `全員Premium ${fmt(r.allPremium.profitPerPersonDay)} vs 一部Premium（運用者だけ） ${fmt(r.operator.profitPerPersonDay)} 円/人日` +
+        `（参考：全員Standard ${fmt(r.allStandard.profitPerPersonDay)}）` +
         ` / 納品まで ${fmt(r.allPremium.finishedAt)} vs ${fmt(r.operator.finishedAt)} 分（全員Standard ${fmt(r.allStandard.finishedAt)} 分）` +
         ` / Seat の固定費 ${fmt(r.allPremium.seatCost)} vs ${fmt(r.operator.seatCost)} 円（全員Standard ${fmt(r.allStandard.seatCost)} 円）`,
     );
-    expect(r.operator.profitPerHumanHour).toBeGreaterThan(r.allPremium.profitPerHumanHour);
+    expect(r.operator.profitPerPersonDay).toBeGreaterThan(r.allPremium.profitPerPersonDay);
     // 運用者以外の Premium は AI の容量を増やさない（速くならず、固定費だけが増える）
     expect(r.allPremium.finishedAt).toBeCloseTo(r.operator.finishedAt);
     expect(r.allPremium.seatCost).toBeGreaterThan(r.operator.seatCost);

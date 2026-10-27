@@ -46,7 +46,7 @@ const KINDS = Object.keys(ja.harness.kinds) as TaskKind[];
 
 /**
  * 実務モード（企画書24章）。実際の業務を工程に分けて入力し、各工程に担当モードと Harness 部品を割り当てると、
- * ゲームと同じ式（core/practice.ts）で改善後の人間時間・年間の削減時間・AI の追加コスト・ROI・人時あたりの利益を出す。
+ * ゲームと同じ式（core/practice.ts）で改善後の人間時間・年間の削減時間・AI の追加コスト・ROI・人日あたりの利益を出す。
  * Harness の設計はゲームの Harness Builder（HarnessSheet）をそのまま使う。結果は「2.0h → 0.3h / −88%」のように数字を主役にし、
  * テキストか Markdown でコピーできる。入力は localStorage に保存する（保存できなくても動く）
  */
@@ -175,9 +175,9 @@ export function PracticeScreen(props: { onBack: () => void }) {
             {(id) => (
               <NumberInput
                 id={id}
-                value={job().hourlyWage}
+                value={job().dailyWage}
                 max={Number.MAX_SAFE_INTEGER}
-                onChange={(v) => update({ hourlyWage: v })}
+                onChange={(v) => update({ dailyWage: v })}
               />
             )}
           </Field>
@@ -400,7 +400,7 @@ function ResultPanel(props: { job: PracticeJobInput; estimate: PracticeEstimate 
   const e = () => props.estimate;
   const h = () => practiceHeadline(e());
   const r = t.result;
-  const perHour = (v: number | null) => (v === null ? t.none : t.yenPerHour(v));
+  const perHour = (v: number | null) => (v === null ? t.none : t.yenPerPersonDay(v));
   return (
     <section
       class="flex flex-col gap-3 rounded-lg border-[3px] border-line bg-sunken p-3"
@@ -432,7 +432,7 @@ function ResultPanel(props: { job: PracticeJobInput; estimate: PracticeEstimate 
         <Stat label={r.roi} value={formatRoi(e().roi)} data="roi" />
         <Stat
           label={r.profit}
-          value={`${perHour(e().profitPerHumanHour.before)} → ${perHour(e().profitPerHumanHour.after)}`}
+          value={`${perHour(e().profitPerPersonDay.before)} → ${perHour(e().profitPerPersonDay.after)}`}
         />
         <Stat label={r.quality} value={t.percent(e().quality)} />
       </dl>

@@ -43,14 +43,14 @@ describe('キャンペーン（企画書21章）', () => {
       const company = scoreCompany(state);
       console.log(
         `[企画書21章] seed ${seed}：キャンペーン全体 ${minutes.toFixed(1)} 分（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +
-          ` / 会社の Profit/Human Hour ${fmt(company.profitPerHumanHour)} 円/人時（Seat の固定費 ${fmt(company.seatCost)} 円）`,
+          ` / 会社の Profit/Person-Day ${fmt(company.profitPerPersonDay)} 円/人日（Seat の固定費 ${fmt(company.seatCost)} 円）`,
       );
       if (seed === tutorialScript.seed) {
         for (const id of campaignProjects) {
           const run = state.projects[id];
           const s = scoreProject(state, id);
           console.log(
-            `  ${getProject(id).name}：Profit/Human Hour ${fmt(s?.profitPerHumanHour ?? 0)} 円/人時` +
+            `  ${getProject(id).name}：Profit/Person-Day ${fmt(s?.profitPerPersonDay ?? 0)} 円/人日` +
               ` / 受注 ${realMinutes(run?.startedAt ?? 0).toFixed(1)} 分 → 納品 ${realMinutes(run?.completedAt ?? 0).toFixed(1)} 分` +
               ` / 遅延損失 ${fmt(s?.delayLoss ?? 0)} 円`,
           );

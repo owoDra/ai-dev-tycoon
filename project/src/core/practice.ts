@@ -5,7 +5,7 @@ import { practiceAptitudes } from '../content/practice/index';
 import type { AssignModeDef, HarnessPartDef, PracticeJobInput, PracticeStepInput, TaskDef } from '../content/types';
 import type { Command } from './commands';
 import { type AiSetup, expectWithSetup, harnessSetup } from './expectation';
-import { escapedQuality, laborCost } from './formulas';
+import { escapedQuality, laborCost, perPersonDay } from './formulas';
 import { partsModel, partsModifiers, withPart } from './harness';
 import { MINUTES_PER_HOUR } from './units';
 
@@ -88,19 +88,22 @@ export interface PracticeEstimate {
   readonly installCost: number;
   /** 1年目の AI の追加コスト（利用料 + 導入コスト、円） */
   readonly aiExtraCost: number;
-  /** 年間の削減時間を時給で換算した額（円） */
+  /** 年間の削減時間を人件費で換算した額（円） */
   readonly annualLaborSaved: number;
   /** ROI（(削減額 − AI の追加コスト) ÷ AI の追加コスト）。追加コストがなければ null */
   readonly roi: number | null;
-  /** 人時あたりの利益（円/h。(業務の価値 − 人件費 − AI の費用) ÷ 人間時間）。人間時間が 0 なら null */
-  readonly profitPerHumanHour: { readonly before: number | null; readonly after: number | null };
+  /** 人日あたりの利益（円/人日。(業務の価値 − 人件費 − AI の費用) ÷ 人間時間）。人間時間が 0 なら null */
+  readonly profitPerPersonDay: { readonly before: number | null; readonly after: number | null };
   /** 品質の期待値（工程の作業量による加重平均。見逃した失敗の分だけ下がる） */
   readonly quality: number;
   /** AI が人間なしで作業する時間（分、業務1回） */
   readonly aiMinutes: number;
 }
 
-const perHour = (value: number, minutes: number) => (minutes > 0 ? value / (minutes / MINUTES_PER_HOUR) : null);
+/** 1人日の時間（h）。時給で持っていた古い入力の換算に使う */
+const personDayHours = balance.project.minutesPerBusinessDay / MINUTES_PER_HOUR;
+
+const perDay = (value: number, minutes: number) => (minutes > 0 ? perPersonDay(value, minutes) : null);
 
 /** 業務の試算（純粋関数）。改善前はすべての工程を人間が行う */
 export function estimatePractice(job: PracticeJobInput): PracticeEstimate {
@@ -129,7 +132,7 @@ export function estimatePractice(job: PracticeJobInput): PracticeEstimate {
   const annualAiCost = aiCostPerRun * runsPerYear;
   const aiExtraCost = annualAiCost + installCost;
   const annualSavedHours = ((beforeMinutes - afterMinutes) * runsPerYear) / MINUTES_PER_HOUR;
-  const annualLaborSaved = annualSavedHours * job.hourlyWage;
+  const annualLaborSaved = laborCost((beforeMinutes - afterMinutes) * runsPerYear, job.dailyWage);
   const effort = steps.reduce((s, x) => s + x.task.effort, 0);
   const quality =
     effort > 0
@@ -150,9 +153,9 @@ export function estimatePractice(job: PracticeJobInput): PracticeEstimate {
     aiExtraCost,
     annualLaborSaved,
     roi: aiExtraCost > 0 ? (annualLaborSaved - aiExtraCost) / aiExtraCost : null,
-    profitPerHumanHour: {
-      before: perHour(job.valuePerRun - laborCost(beforeMinutes, job.hourlyWage), beforeMinutes),
-      after: perHour(job.valuePerRun - laborCost(afterMinutes, job.hourlyWage) - aiCostPerRun, afterMinutes),
+    profitPerPersonDay: {
+      before: perDay(job.valuePerRun - laborCost(beforeMinutes, job.dailyWage), beforeMinutes),
+      after: perDay(job.valuePerRun - laborCost(afterMinutes, job.dailyWage) - aiCostPerRun, afterMinutes),
     },
     quality,
     aiMinutes: sum('aiMinutes'),
@@ -235,7 +238,9 @@ function parseStep(v: unknown): PracticeStepInput | null {
 export function parsePracticeJob(v: unknown): PracticeJobInput | null {
   if (!isRecord(v) || !Array.isArray(v.steps)) return null;
   const name = text(v.name);
-  const wage = clampNumber(v.hourlyWage, Number.MAX_SAFE_INTEGER);
+  // Phase 18 より前の入力は時給で持っていたので、1営業日分に換算して読む
+  const legacyWage = typeof v.hourlyWage === 'number' ? v.hourlyWage * personDayHours : undefined;
+  const wage = clampNumber(v.dailyWage ?? legacyWage, Number.MAX_SAFE_INTEGER);
   const value = clampNumber(v.valuePerRun, Number.MAX_SAFE_INTEGER);
   const steps = v.steps.slice(0, balance.practice.maxSteps).map(parseStep);
   if (name === null || wage === null || value === null || !FREQUENCIES.includes(v.frequency as string)) return null;
@@ -243,7 +248,7 @@ export function parsePracticeJob(v: unknown): PracticeJobInput | null {
   return {
     name,
     frequency: v.frequency as PracticeJobInput['frequency'],
-    hourlyWage: wage,
+    dailyWage: wage,
     valuePerRun: value,
     steps: steps as PracticeStepInput[],
   };

@@ -111,7 +111,7 @@ export function ProjectPanel(props: { store: GameStore; projectId: string }) {
         <Show when={score()}>
           {(s) => (
             <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
-              <Stat label={ja.score.profitPerHumanHour} value={ja.score.yen(s().profitPerHumanHour)} strong />
+              <Stat label={ja.score.profitPerPersonDay} value={ja.score.yen(s().profitPerPersonDay)} strong />
               <Stat label={ja.score.profit} value={ja.score.yen(s().profit)} />
               <Stat label={ja.score.humanHours} value={ja.score.minutes(s().humanMinutes)} />
               <Stat label={ja.score.quality} value={ja.score.percent(s().quality)} />

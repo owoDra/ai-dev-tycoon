@@ -5,7 +5,14 @@ import type { AssignModeId } from '../content/types';
 import { autonomyOf } from '../core/autonomy';
 import { reduce } from '../core/commands';
 import { expectTask } from '../core/expectation';
-import { deadlineMinutes, escapedDefectCost, escapedFixMinutes, laborCost } from '../core/formulas';
+import {
+  dailyCost,
+  deadlineMinutes,
+  escapedDefectCost,
+  escapedFixMinutes,
+  laborCost,
+  perPersonDay,
+} from '../core/formulas';
 import { type ProjectScore, scoreProject } from '../core/scoring';
 import { createInitialState, type GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
@@ -19,9 +26,9 @@ const FALLBACK_MODE: AssignModeId = 'human';
 export const WORKDAY_START_MINUTES = 9 * MINUTES_PER_HOUR;
 
 export interface HudView {
-  /** Profit / Human Hour。納品前は見込み（projectedProfitPerHumanHour）、納品後は確定値（core の scoreProject と同じ） */
-  readonly profitPerHumanHour: number;
-  /** profitPerHumanHour が見込みか（納品前） */
+  /** Profit / Person-Day。納品前は見込み（projectedProfitPerPersonDay）、納品後は確定値（core の scoreProject と同じ） */
+  readonly profitPerPersonDay: number;
+  /** profitPerPersonDay が見込みか（納品前） */
   readonly projected: boolean;
   /** 納期までの残り。超過していれば overdue で、days と time は超過分 */
   readonly remaining: { readonly days: number; readonly time: string; readonly overdue: boolean };
@@ -71,9 +78,9 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   const def = getProject(projectId);
   const perDay = balance.project.minutesPerBusinessDay;
 
-  const profitPerHumanHour = score.completed
-    ? score.profitPerHumanHour
-    : projectedProfitPerHumanHour(state, projectId, score);
+  const profitPerPersonDay = score.completed
+    ? score.profitPerPersonDay
+    : projectedProfitPerPersonDay(state, projectId, score);
 
   const elapsed = score.elapsedMinutes;
   const left = deadlineMinutes(def) - elapsed;
@@ -95,7 +102,7 @@ export function hudView(state: GameState, projectId: string): HudView | null {
   }
 
   return {
-    profitPerHumanHour,
+    profitPerPersonDay,
     projected: !score.completed,
     remaining: { days: Math.floor(span / perDay), time: hhmm(span % perDay), overdue: left < 0 },
     today: { day: Math.floor(elapsed / perDay) + 1, time: hhmm(WORKDAY_START_MINUTES + (elapsed % perDay)) },
@@ -107,20 +114,20 @@ export function hudView(state: GameState, projectId: string): HudView | null {
 }
 
 /**
- * 納品したときの Profit / Human Hour の見込み。今の担当のまま最後まで進めたと考え、
+ * 納品したときの Profit / Person-Day の見込み。今の担当のまま最後まで進めたと考え、
  * 完了した Task は実績、残りの Task は期待値（人間の工程の時間・AI の作業時間・レビューがなければ見逃しの損害と修正時間）で数える。
  * 担当が決まっていない Task は人間が担当するものとみなすので、AI に任せると見込みがすぐに動く。
- * 人間の時給はメンバーの平均、AI は担当の AI Worker の Harness（Model と部品）で見積もる（core/expectation.ts）。遅延損失はここまでの分だけを入れる。
+ * 人間の原価はメンバーの平均、AI は担当の AI Worker の Harness（Model と部品）で見積もる（core/expectation.ts）。遅延損失はここまでの分だけを入れる。
  * 資料のある案件では、AI の作業の成功確率・所要時間・費用に今の Context（Session と発生中の事件）の影響を入れる
  * （シミュレーションと同じ core/contextWork.ts の式。Session の履歴がこの先さらに溜まる分は入れない）
  */
-export function projectedProfitPerHumanHour(state: GameState, projectId: string, score: ProjectScore): number {
+export function projectedProfitPerPersonDay(state: GameState, projectId: string, score: ProjectScore): number {
   const def = getProject(projectId);
   const run = state.projects[projectId];
   const ai = content.workers.find((w) => w.kind === 'ai');
   const humans = teamMembers(state);
   if (!run || !ai || humans.length === 0) return 0;
-  const wage = humans.reduce((sum, h) => sum + h.hourlyWage, 0) / humans.length;
+  const wage = humans.reduce((sum, h) => sum + dailyCost(h), 0) / humans.length;
   const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;
 
   let human = score.aftercareMinutes;
@@ -143,18 +150,17 @@ export function projectedProfitPerHumanHour(state: GameState, projectId: string,
       Math.max(t.aiCost, e.aiCost) +
       e.accidentCost +
       e.pEscape * escapedDefectCost(task) +
-      laborCost(fix, balance.score.escapedFixHourlyWage);
+      laborCost(fix, balance.score.escapedFixDailyCost);
   }
-  const hours = human / MINUTES_PER_HOUR;
-  return hours > 0 ? (def.revenue - cost) / hours : 0;
+  return perPersonDay(def.revenue - cost, human);
 }
 
 /**
- * 案件を人間だけで進めた場合の Profit / Human Hour の見込み（開始直後の HUD と同じ値）。
+ * 案件を人間だけで進めた場合の Profit / Person-Day の見込み（開始直後の HUD と同じ値）。
  * 結果画面で「人間だけの見込み → 結果」の伸びを示すのに使う
  */
-export function baselineProfitPerHumanHour(projectId: string): number {
+export function baselineProfitPerPersonDay(projectId: string): number {
   const state = reduce(createInitialState(projectId), { type: 'StartProject', projectId }).state;
   const score = scoreProject(state, projectId);
-  return score ? projectedProfitPerHumanHour(state, projectId, score) : 0;
+  return score ? projectedProfitPerPersonDay(state, projectId, score) : 0;
 }

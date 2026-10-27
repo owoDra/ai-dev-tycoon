@@ -19,9 +19,9 @@ const implementationByAi: Strategy = (state) =>
     );
 
 describe('バランスの基本（ECサイトリニューアル）', () => {
-  it('AI 適性の高い Task だけ AI に任せる smart は、allHuman より Profit / Human Hour が高い（企画書22章）', () => {
+  it('AI 適性の高い Task だけ AI に任せる smart は、allHuman より Profit / Person-Day が高い（企画書22章）', () => {
     const r = compare({ smart: scoreOf('smart'), allHuman: scoreOf('allHuman') }, SEEDS);
-    expect(r.smart.profitPerHumanHour).toBeGreaterThan(r.allHuman.profitPerHumanHour);
+    expect(r.smart.profitPerPersonDay).toBeGreaterThan(r.allHuman.profitPerPersonDay);
     expect(r.smart.humanMinutes).toBeLessThan(r.allHuman.humanMinutes);
   });
 

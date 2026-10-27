@@ -6,12 +6,16 @@ import type { ModeStep, TaskDef } from '../../src/content/types';
 import {
   type ActorProfile,
   aiCost,
+  autoTestCatch,
   deadlineMinutes,
   delayLoss,
   escapedDefectCost,
   escapedQuality,
+  evalLoop,
   expectedHumanMinutes,
   laborCost,
+  modeOutcome,
+  reviewCatch,
   reworkMinutes,
   stepMinutes,
   successProbability,
@@ -82,8 +86,9 @@ describe('時間とコスト', () => {
   it('費用は時間に比例し、0 分なら 0 円', () => {
     expect(aiCost(0, model)).toBe(0);
     expect(aiCost(10, model)).toBe(10 * model.costPerMinute);
-    expect(laborCost(0, 3000)).toBe(0);
-    expect(laborCost(90, 3000)).toBe(4500);
+    // 原価は円/人日（1人日 = 480 分）。240 分は 0.5 人日
+    expect(laborCost(0, 40_000)).toBe(0);
+    expect(laborCost(240, 40_000)).toBe(20_000);
   });
 
   it('手戻りは skill が高いほど短い', () => {
@@ -120,5 +125,39 @@ describe('品質と損失', () => {
     expect(delayLoss(deadline, project)).toBe(0);
     expect(delayLoss(deadline + day, project)).toBeCloseTo(project.revenue * balance.project.delayLossPerDay);
     expect(delayLoss(deadline + 2 * day, project)).toBeCloseTo(2 * delayLoss(deadline + day, project));
+  });
+});
+
+describe('自動テストと最後の確認（AI → 自動テスト → 確認）', () => {
+  const evalMode = getAssignMode('aiThenEval');
+  const reviewMode = getAssignMode('aiThenHumanReview');
+
+  it('自動テストの検出率は Task の種類で決まり、コードは企画より高い', () => {
+    expect(autoTestCatch({ ...task, kind: 'code' })).toBeGreaterThan(autoTestCatch({ ...task, kind: 'planning' }));
+    expect(autoTestCatch(task)).toBe(balance.assign.autoTestCatchDefault);
+    for (const c of Object.values(balance.assign.autoTestCatch)) expect(c).toBeLessThan(1);
+  });
+
+  it('人間のレビューは必ず見つけ、最後の確認と自動テストは一部しか見つけない', () => {
+    const [, , aiTest, finalCheck] = evalMode.steps;
+    if (!aiTest || !finalCheck) throw new Error('工程が足りない');
+    expect(reviewCatch(task, reviewMode.steps[2] ?? work)).toBe(1);
+    expect(reviewCatch(task, finalCheck)).toBe(balance.assign.finalCheckCatch);
+    expect(reviewCatch({ ...task, kind: 'code' }, aiTest)).toBe(balance.assign.autoTestCatch.code);
+  });
+
+  it('人間レビューでは見逃しが残らず、自動テストでは検出率が低い種類ほど見逃しが残る', () => {
+    expect(modeOutcome(task, reviewMode, 1, model).defect).toBeCloseTo(0, 9);
+    const code = modeOutcome({ ...task, kind: 'code' }, evalMode, 1, model).defect;
+    const planning = modeOutcome({ ...task, kind: 'planning' }, evalMode, 1, model).defect;
+    expect(code).toBeGreaterThan(0);
+    expect(planning).toBeGreaterThan(code * 2);
+  });
+
+  it('見逃しの確率は、作業の失敗 → 自動テストのループ → 最後の確認、の順の計算と一致する', () => {
+    const t: TaskDef = { ...task, kind: 'design' };
+    const p = successProbability(t, ai);
+    const afterTest = evalLoop(p, autoTestCatch(t)).defect;
+    expect(modeOutcome(t, evalMode, 1, model).defect).toBeCloseTo(afterTest * (1 - balance.assign.finalCheckCatch), 9);
   });
 });

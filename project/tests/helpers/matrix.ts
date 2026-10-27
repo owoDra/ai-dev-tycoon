@@ -63,7 +63,7 @@ export const matrixProjects: readonly string[] = content.projects.map((p) => p.i
 
 /** 対戦表の1マス（seed 平均） */
 export interface MatrixCell {
-  readonly profitPerHumanHour: number;
+  readonly profitPerPersonDay: number;
   readonly profit: number;
   readonly humanMinutes: number;
   /** 納品までの時間 ÷ 納期 */
@@ -96,7 +96,7 @@ export function matrixCell(
   return averageOver(seedList, (seed): MatrixCell => {
     const s = playMatrixCell(projectId, make(projectId), seed);
     return {
-      profitPerHumanHour: s.profitPerHumanHour,
+      profitPerPersonDay: s.profitPerPersonDay,
       profit: s.profit,
       humanMinutes: s.humanMinutes,
       deadlineRatio: s.elapsedMinutes / deadline,
@@ -122,9 +122,9 @@ export function buildMatrix(
   );
 }
 
-/** 案件ごとに Profit / Human Hour が最も高い戦略 */
+/** 案件ごとに Profit / Person-Day が最も高い戦略 */
 export function bestStrategy(row: Readonly<Record<string, MatrixCell>>): string {
-  const [best] = Object.entries(row).sort(([, a], [, b]) => b.profitPerHumanHour - a.profitPerHumanHour);
+  const [best] = Object.entries(row).sort(([, a], [, b]) => b.profitPerPersonDay - a.profitPerPersonDay);
   if (!best) throw new Error('戦略がない');
   return best[0];
 }

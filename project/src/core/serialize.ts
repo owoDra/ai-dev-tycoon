@@ -6,6 +6,12 @@ import { createHumanQueues, createSessions, createTeam, type GameState } from '.
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
 export const SAVE_VERSION = 9;
 
+/**
+ * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
+ * 2：KPI を円/人時から円/人日に変更
+ */
+export const RESULT_CODE_FORMAT = 2;
+
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
   readonly from: number;

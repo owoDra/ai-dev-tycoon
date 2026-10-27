@@ -21,6 +21,11 @@ export interface ModeStep {
   readonly effortShare: number;
   /** 依存 Task がすべて連鎖するモードで処理済みなら、この工程を省く（Agent Workflow の指示出し） */
   readonly skipWhenChained?: boolean;
+  /**
+   * review の工程が、残っている失敗を見つける確率。省略すると、人間のレビューは必ず見つけ、
+   * AI の自動テストは Task の種類ごとの検出率（balance.assign.autoTestCatch）で見つける
+   */
+  readonly catchRate?: number;
 }
 
 /** 担当モード。計算式はモード名で分岐せず、工程の並びと modifier を読む */
@@ -98,8 +103,10 @@ export interface HumanWorkerDef {
   readonly kind: 'human';
   readonly id: string;
   readonly name: string;
-  /** 時給（円） */
-  readonly hourlyWage: number;
+  /**
+   * 売値（見積単価、円/人日）。能力が高い人ほど高い。原価（給与）は売値に balance.staff.costRatio を掛けたもの
+   */
+  readonly dailyRate: number;
   /** 作業速度の倍率。1 が標準 */
   readonly skill: number;
   readonly role: StaffRole;
@@ -505,9 +512,9 @@ export interface PracticeStepInput {
 export interface PracticeJobInput {
   readonly name: string;
   readonly frequency: PracticeFrequency;
-  /** 時給（円）。人件費の換算に使う */
-  readonly hourlyWage: number;
-  /** 業務1回が生む価値（円）。人時あたりの利益に使う */
+  /** 人件費（円/人日）。人件費の換算に使う */
+  readonly dailyWage: number;
+  /** 業務1回が生む価値（円）。人日あたりの利益に使う */
   readonly valuePerRun: number;
   /** 上から順に行う工程（最大 balance.practice.maxSteps） */
   readonly steps: readonly PracticeStepInput[];

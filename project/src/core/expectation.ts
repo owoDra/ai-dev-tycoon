@@ -13,7 +13,7 @@ import {
   aiCost,
   escapedQuality,
   evalLoop,
-  expectedHumanMinutes,
+  modeOutcome,
   repairMinutes,
   stepMinutes,
   successProbability,
@@ -24,7 +24,7 @@ import { MINUTES_PER_HOUR } from './units';
 
 /*
  * 見込み（期待値）。シミュレーションと同じ式（formulas・contextWork・harness）を、乱数を引かずに確率で平均した値。
- * HUD の Profit / Human Hour の見込み（view/hud.ts）と、Harness Builder の Before → After（view/harness.ts）で使う。
+ * HUD の Profit / Person-Day の見込み（view/hud.ts）と、Harness Builder の Before → After（view/harness.ts）で使う。
  */
 
 /** 1つの Task をモードで処理したときの見込み */
@@ -112,36 +112,22 @@ export function expectTask(
 /** Task をモードで処理したときの見込み（AI の作業の条件を渡す） */
 export function expectWithSetup(task: TaskDef, mode: AssignModeDef, skill: number, setup: AiSetup): TaskExpectation {
   const { mods, model, aiSuccess, time } = setup;
-  const humanMinutes = expectedHumanMinutes(task, mode, skill, model, aiSuccess, mods);
-  let aiMinutes = 0;
-  let pOk = 1;
+  const outcome = modeOutcome(task, mode, skill, model, aiSuccess, mods);
+  let aiMinutes = outcome.aiReviewMinutes;
   let aiWorks = 0;
   for (const s of mode.steps) {
-    if (s.actor === 'ai') {
-      const minutes = stepMinutes(task, s, { kind: 'ai', model });
-      aiMinutes += s.phase === 'work' ? expectedAiWorkMinutes(minutes, time) : minutes;
-    }
-    if (s.phase !== 'work') continue;
-    if (s.actor === 'human') {
-      pOk *= successProbability(task, { kind: 'human', skill });
-      continue;
-    }
+    if (s.actor !== 'ai' || s.phase !== 'work') continue;
     aiWorks++;
-    const p = aiSuccess(successProbability(task, { kind: 'ai', model }));
-    if (mods.evalCatch <= 0) {
-      pOk *= p;
-      continue;
-    }
-    const loop = evalLoop(p, mods.evalCatch);
-    pOk *= 1 - loop.defect;
+    aiMinutes += expectedAiWorkMinutes(stepMinutes(task, s, { kind: 'ai', model }), time);
+    if (mods.evalCatch <= 0) continue;
+    const loop = evalLoop(aiSuccess(successProbability(task, { kind: 'ai', model })), mods.evalCatch);
     aiMinutes += loop.evalRuns * evalMinutes(task, model) + loop.repairs * repairMinutes(task, model);
   }
-  const pEscape = mode.steps.some((s) => s.phase === 'review') ? 0 : 1 - pOk;
   return {
-    humanMinutes,
+    humanMinutes: outcome.humanMinutes,
     aiMinutes,
     aiCost: aiCost(aiMinutes, model) * setup.costFactor,
-    pEscape,
+    pEscape: outcome.defect,
     accidentCost: aiWorks * mods.risk * balance.harness.accidentCost,
   };
 }

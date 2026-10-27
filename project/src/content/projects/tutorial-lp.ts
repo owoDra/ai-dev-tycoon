@@ -6,7 +6,7 @@ const t = ja.tasks.tutorialLp;
 /**
  * チュートリアル案件「小さなLP制作」（企画書50〜51章）。構成案 → ページ実装 → 問い合わせフォーム → スマホ対応の一本道。
  * 構成案は AI 適性が高く、人間だと約3.7時間・AI に任せると人間の時間がほぼ消える（「-3.5 人間時間」の演出）。
- * 後半の Task は人間だと時間がかかるので、AI とレビュー・自動テストを使うほど Profit / Human Hour が伸びる。
+ * 後半の Task は人間だと時間がかかるので、AI とレビュー・自動テストを使うほど Profit / Person-Day が伸びる。
  * AI の成否は content/tutorial.ts のシナリオで決める。
  */
 export const tutorialLp: ProjectDef = {

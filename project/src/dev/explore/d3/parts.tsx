@@ -54,8 +54,8 @@ export const modeIcon: Record<AssignModeId, IconName> = {
 export function HudItem(props: { id: HudItemId; proto: Proto; dense?: boolean; onProblems?: () => void }) {
   return (
     <Switch>
-      <Match when={props.id === 'profitPerHumanHour'}>
-        <ProfitItem value={props.proto.hud().profitPerHumanHour} dense={props.dense} />
+      <Match when={props.id === 'profitPerPersonDay'}>
+        <ProfitItem value={props.proto.hud().profitPerPersonDay} dense={props.dense} />
       </Match>
       <Match when={props.id === 'remaining'}>
         <RemainingItem hud={props.proto.hud()} dense={props.dense} />
@@ -80,7 +80,7 @@ function ProfitItem(props: { value: number; dense?: boolean }) {
       <div class="flex flex-col leading-tight">
         <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">{t.hud.profit}</span>
         <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-base' : 'text-xl'}`}>
-          {t.hud.yenPerHour(props.value)}
+          {t.hud.yenPerPersonDay(props.value)}
         </span>
       </div>
     </div>

@@ -51,8 +51,8 @@ export interface BoardProjectView {
   readonly tasks: number;
   /** 完了した Task の割合（進行中の案件） */
   readonly progress: number;
-  /** 納品した案件の Profit / Human Hour */
-  readonly profitPerHumanHour: number | null;
+  /** 納品した案件の Profit / Person-Day */
+  readonly profitPerPersonDay: number | null;
 }
 
 export interface BoardView {
@@ -75,7 +75,7 @@ export function boardView(state: GameState): BoardView {
       deadlineDays: def.deadlineDays,
       tasks: def.tasks.length,
       progress: doneRatio(state, projectId),
-      profitPerHumanHour: score?.completed ? score.profitPerHumanHour : null,
+      profitPerPersonDay: score?.completed ? score.profitPerPersonDay : null,
     };
   };
   const offered = offeredProjects(state);

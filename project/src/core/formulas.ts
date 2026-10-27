@@ -1,6 +1,5 @@
 import { balance } from '../content/balance';
 import type { AssignModeDef, ModelDef, ModeStep, ProjectDef, TaskDef } from '../content/types';
-import { MINUTES_PER_HOUR } from './units';
 
 /** 工程の担い手。人間は skill、AI は Model の性能で計算する */
 export type ActorProfile =
@@ -40,9 +39,24 @@ export function aiCost(minutes: number, model: ModelDef): number {
   return minutes * model.costPerMinute;
 }
 
-/** 人間が minutes 分働いたときの人件費（円） */
-export function laborCost(minutes: number, hourlyWage: number): number {
-  return (minutes / MINUTES_PER_HOUR) * hourlyWage;
+/** 人間の稼働時間（分）を人日に換算する。1人日は1営業日（balance.project.minutesPerBusinessDay） */
+export function personDays(minutes: number): number {
+  return minutes / balance.project.minutesPerBusinessDay;
+}
+
+/** 人日あたりの値。value を人間の稼働時間（分）の人日で割る。稼働がなければ 0 */
+export function perPersonDay(value: number, minutes: number): number {
+  return minutes > 0 ? value / personDays(minutes) : 0;
+}
+
+/** 人間が minutes 分働いたときの人件費（円）。dailyCost は1人日あたりの原価 */
+export function laborCost(minutes: number, dailyCost: number): number {
+  return personDays(minutes) * dailyCost;
+}
+
+/** 社員の1人日あたりの原価（給与）。売値（dailyRate）に原価率を掛ける */
+export function dailyCost(worker: { readonly dailyRate: number }): number {
+  return worker.dailyRate * balance.staff.costRatio;
 }
 
 /** レビューで失敗が見つかったときの手戻りにかかる人間の時間（分） */
@@ -50,9 +64,9 @@ export function reworkMinutes(task: TaskDef, skill: number): number {
   return (task.effort * balance.assign.reworkShare) / skill;
 }
 
-/** 自動テストで失敗が見つかったときに AI が修復する時間（分）。手戻りと同じ量を AI の速度で処理する */
+/** 自動テストで失敗が見つかったときに AI が修復する時間（分） */
 export function repairMinutes(task: TaskDef, model: ModelDef): number {
-  return (task.effort * balance.assign.reworkShare) / model.speed;
+  return (task.effort * balance.assign.repairShare) / model.speed;
 }
 
 /** Eval → Repair → Eval のループの見込み（Generate の後の検証。企画書18章） */
@@ -67,12 +81,13 @@ export interface EvalLoopOutcome {
 
 /**
  * 成功確率 p の作業の後に、失敗を catchRate の確率で見つける検証を行う。見つけたら直して（修復も確率 p で成功する）もう一度検証し、
- * 修復が balance.harness.maxRepairLoops 回に達したら、残った失敗のまま抜ける。シミュレーション（core/taskFlow.ts）と同じ流れの期待値
+ * 修復が balance.harness.maxRepairLoops 回に達したら、残った失敗のまま抜ける。シミュレーション（core/taskFlow.ts）と同じ流れの期待値。
+ * initialDefect は最初の検証の時点で失敗が残っている確率（既定は作業そのものの失敗確率）
  */
-export function evalLoop(p: number, catchRate: number): EvalLoopOutcome {
-  if (catchRate <= 0) return { defect: 1 - p, evalRuns: 0, repairs: 0 };
+export function evalLoop(p: number, catchRate: number, initialDefect = 1 - p): EvalLoopOutcome {
+  if (catchRate <= 0) return { defect: initialDefect, evalRuns: 0, repairs: 0 };
   let mass = 1;
-  let d = 1 - p;
+  let d = initialDefect;
   let defect = 0;
   let evalRuns = 0;
   let repairs = 0;
@@ -92,6 +107,17 @@ export function evalLoop(p: number, catchRate: number): EvalLoopOutcome {
   return { defect, evalRuns, repairs };
 }
 
+/** AI の自動テストが、残っている失敗を見つける確率。Task の種類で決まる（balance.assign.autoTestCatch） */
+export function autoTestCatch(task: TaskDef): number {
+  const { autoTestCatch: byKind, autoTestCatchDefault } = balance.assign;
+  return task.kind ? byKind[task.kind] : autoTestCatchDefault;
+}
+
+/** review の工程が、残っている失敗を見つける確率（ModeStep.catchRate） */
+export function reviewCatch(task: TaskDef, step: ModeStep): number {
+  return step.catchRate ?? (step.actor === 'ai' ? autoTestCatch(task) : 1);
+}
+
 /** Harness が人間の時間の見込みに与える補正（core/harness.ts の HarnessModifiers の一部） */
 export interface HumanTimeHarness {
   /** AI が関わる Task の指示出しと確認の時間の倍率 */
@@ -106,13 +132,68 @@ const NO_HARNESS: HumanTimeHarness = { humanTime: 1, evalCatch: 0 };
 export const isIntervention = (step: ModeStep) =>
   step.actor === 'human' && (step.phase === 'instruct' || step.phase === 'review');
 
+/** モードの工程を順にたどった見込み（modeOutcome） */
+export interface ModeOutcome {
+  /** 人間の拘束時間（分）。指示出し・確認・レビューで見つかった失敗の手戻り */
+  readonly humanMinutes: number;
+  /** AI の自動テストの工程（検証の繰り返しと修復）にかかる AI の時間（分） */
+  readonly aiReviewMinutes: number;
+  /** 失敗を見逃したまま完了する確率 */
+  readonly defect: number;
+}
+
 /**
- * 人間の拘束時間の見込み（分）。モードの人間の工程の合計に、
- * 人間のレビューでは、それまでに残っている失敗の確率 × 手戻り時間を足す。
- * AI の自動テストは失敗を見つけて AI が直すので、それ以降に残る失敗はなくなる（連鎖による指示出しの省略は考えない）。
- * aiSuccess で AI の作業の成功確率を補正できる（Context と Harness の影響。core/contextWork.ts・core/harness.ts）。
- * harness を渡すと、指示出しと確認の時間を補正し、AI の作業の後の自動検証（Eval のループ）で残る失敗を減らす。
+ * モードの工程を順にたどった見込み。シミュレーション（core/taskFlow.ts）と同じ流れを、乱数を引かずに確率で平均する。
+ * - 作業の工程は成功確率で失敗を残す。aiSuccess で AI の作業の成功確率を補正できる（Context と Harness の影響。core/contextWork.ts・core/harness.ts）。
+ *   harness の Eval（evalCatch）があれば AI の作業の直後に検証して残る失敗を減らす
+ * - 人間のレビューは、残っている失敗を catchRate の確率で見つけて手戻りにする（既定は必ず見つける）
+ * - AI の自動テストは、Task の種類の検出率で見つけて AI が直し、もう一度テストする（Eval と同じループ）
+ * harness を渡すと、指示出しと確認の時間を補正する（連鎖による指示出しの省略は考えない）。
  */
+export function modeOutcome(
+  task: TaskDef,
+  mode: AssignModeDef,
+  skill: number,
+  model: ModelDef,
+  aiSuccess: (p: number) => number = (p) => p,
+  harness: HumanTimeHarness = NO_HARNESS,
+): ModeOutcome {
+  const human: ActorProfile = { kind: 'human', skill };
+  const ai: ActorProfile = { kind: 'ai', model };
+  let minutes = 0;
+  let aiReviewMinutes = 0;
+  let pAllOk = 1;
+  let aiP = aiSuccess(successProbability(task, ai));
+  for (const step of mode.steps) {
+    if (step.actor === 'human') {
+      const m = stepMinutes(task, step, human);
+      minutes += isIntervention(step) && harness.humanTime !== 1 ? m * harness.humanTime : m;
+    }
+    if (step.phase === 'work') {
+      if (step.actor === 'human') {
+        pAllOk *= successProbability(task, human);
+        continue;
+      }
+      aiP = aiSuccess(successProbability(task, ai));
+      pAllOk *= harness.evalCatch > 0 ? 1 - evalLoop(aiP, harness.evalCatch).defect : aiP;
+      continue;
+    }
+    if (step.phase !== 'review') continue;
+    const c = reviewCatch(task, step);
+    if (step.actor === 'human') {
+      minutes += (1 - pAllOk) * c * reworkMinutes(task, skill);
+      pAllOk = 1 - (1 - pAllOk) * (1 - c);
+      continue;
+    }
+    const loop = evalLoop(aiP, c, 1 - pAllOk);
+    aiReviewMinutes +=
+      Math.max(1, loop.evalRuns) * stepMinutes(task, step, ai) + loop.repairs * repairMinutes(task, model);
+    pAllOk = 1 - loop.defect;
+  }
+  return { humanMinutes: minutes, aiReviewMinutes, defect: 1 - pAllOk };
+}
+
+/** 人間の拘束時間の見込み（分）。modeOutcome の humanMinutes */
 export function expectedHumanMinutes(
   task: TaskDef,
   mode: AssignModeDef,
@@ -121,24 +202,7 @@ export function expectedHumanMinutes(
   aiSuccess: (p: number) => number = (p) => p,
   harness: HumanTimeHarness = NO_HARNESS,
 ): number {
-  const human: ActorProfile = { kind: 'human', skill };
-  const ai: ActorProfile = { kind: 'ai', model };
-  let minutes = 0;
-  let pAllOk = 1;
-  for (const step of mode.steps) {
-    if (step.actor === 'human') {
-      const m = stepMinutes(task, step, human);
-      minutes += isIntervention(step) && harness.humanTime !== 1 ? m * harness.humanTime : m;
-    }
-    if (step.phase === 'work') {
-      const p = step.actor === 'human' ? successProbability(task, human) : aiSuccess(successProbability(task, ai));
-      pAllOk *= step.actor === 'ai' && harness.evalCatch > 0 ? 1 - evalLoop(p, harness.evalCatch).defect : p;
-    }
-    if (step.phase !== 'review') continue;
-    if (step.actor === 'human') minutes += (1 - pAllOk) * reworkMinutes(task, skill);
-    pAllOk = 1;
-  }
-  return minutes;
+  return modeOutcome(task, mode, skill, model, aiSuccess, harness).humanMinutes;
 }
 
 /** 失敗を見逃したまま完了した Task の品質。品質要求が高い Task ほど落ち込みが大きい */

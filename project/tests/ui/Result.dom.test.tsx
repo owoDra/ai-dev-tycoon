@@ -38,7 +38,7 @@ function mount() {
 }
 
 describe('結果画面', () => {
-  it('第1段（トロフィー・Profit / Human Hour・ランク・伸び）から始まり、各段が段階的に開示される', () => {
+  it('第1段（トロフィー・Profit / Person-Day・ランク・伸び）から始まり、各段が段階的に開示される', () => {
     const { q } = mount();
     expect(q('[data-stage="1"]')).not.toBeNull();
     expect(q('[data-stage="1"] [role="img"]')?.getAttribute('aria-label')).toBe(ja.screens.result.trophy);

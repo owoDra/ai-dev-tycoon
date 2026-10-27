@@ -42,12 +42,23 @@ export const balance = {
     reviewShare: 0.25,
     /** Human → AI で人間が行う重要判断（effort に対する割合）。残りを AI が処理する */
     judgementShare: 0.3,
-    /** レビューで失敗が見つかったときの手戻り（effort に対する割合）。AI の修復も同じ量を AI の速度で処理する */
+    /** レビューで失敗が見つかったときの手戻り（effort に対する割合） */
     reworkShare: 0.3,
+    /** 自動テスト・Eval が見つけた失敗を AI が直す修復（effort に対する割合）。テストが場所を示すので、人間の手戻りより軽い */
+    repairShare: 0.15,
     /** AI → 自動テスト → 確認：自動テスト（AI の工程、effort に対する割合） */
     evalShare: 0.1,
     /** AI → 自動テスト → 確認：自動テストの後の人間の最終確認（effort に対する割合）。レビューの 1/5 */
     finalCheckShare: 0.05,
+    /**
+     * AI の自動テストが、残っている失敗を見つける確率（Task の種類ごと）。コードやテストのように結果を機械で確かめられる仕事は高く、
+     * 企画・設計・文章のように良し悪しが判断で決まる仕事は低い。自動テストは万能ではないので、仕事の性質で人間レビューと使い分ける
+     */
+    autoTestCatch: { planning: 0.15, research: 0.25, design: 0.25, content: 0.3, code: 0.9, test: 0.75, release: 0.5 },
+    /** 種類のない Task（実務モードの工程など）の自動テストの検出率 */
+    autoTestCatchDefault: 0.5,
+    /** 人間の最終確認（軽く見るだけ）が、自動テストをすり抜けた失敗を見つける確率。じっくり見るレビューは必ず見つける */
+    finalCheckCatch: 0.3,
     /** Workflow にまとめて任せる Task の最小数（企画書5章「複数工程を自動的につなげる」） */
     workflowMinTasks: 2,
   },
@@ -64,8 +75,8 @@ export const balance = {
      * レビューを省く手は「失敗が少なければ大勝ち、多ければ大損」の賭けになる
      */
     escapedFixShare: 1.2,
-    /** 納品後の修正にかかる人件費の時給（円） */
-    escapedFixHourlyWage: 4000,
+    /** 納品後の修正にかかる人件費（円/人日） */
+    escapedFixDailyCost: 40_000,
   },
   /** Context（企画書9〜11章）。大きさは資料の size と同じ単位 */
   context: {
@@ -138,7 +149,7 @@ export const balance = {
     /** AI へのお願い（指示文に書いたルール）が1回の作業で守られる確率（企画書14章） */
     requestCompliance: 0.5,
     /** Eval の自動検証1回にかかる AI の時間（effort に対する割合） */
-    evalShare: 0.06,
+    evalShare: 0.1,
     /** Eval → Repair → Eval を繰り返す上限。超えたら残った失敗のまま次の工程へ進む */
     maxRepairLoops: 3,
     /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる */
@@ -165,11 +176,13 @@ export const balance = {
   staff: {
     /** 得意分野の Task の人間の工程の速度の倍率 */
     strengthSpeed: 1.25,
+    /** 原価率。社員の1人日あたりの原価（給与）＝売値（dailyRate）× この値 */
+    costRatio: 0.5,
   },
   /** 結果画面と振り返り（view/retrospective.ts・view/rank.ts） */
   result: {
     /**
-     * ランク（S / A / B / C）。Profit / Human Hour が、人間だけで進めた場合の見込みの何倍になったかの下限（上から順に判定）。
+     * ランク（S / A / B / C）。Profit / Person-Day が、人間だけで進めた場合の見込みの何倍になったかの下限（上から順に判定）。
      * 納品していない・利益が出ていなければ C
      */
     rank: { S: 3, A: 2, B: 1.3 },
@@ -200,8 +213,8 @@ export const balance = {
   practice: {
     /** 頻度ごとの1年の実施回数（毎日は営業日） */
     runsPerYear: { daily: 240, weekly: 52, monthly: 12 },
-    /** 時給の既定値（円）。人件費の換算と ROI に使う */
-    hourlyWage: 4000,
+    /** 人件費の既定値（円/人日）。人件費の換算と ROI に使う */
+    dailyWage: 32_000,
     /** 工程の数の上限 */
     maxSteps: 8,
     /** 業務名・工程名の長さの上限（文字） */

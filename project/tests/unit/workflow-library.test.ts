@@ -211,7 +211,7 @@ describe('Workflow の共有コード', () => {
       seed: 's',
       projectId: 'corporateSite',
       profit: 0,
-      profitPerHumanHour: 0,
+      profitPerPersonDay: 0,
       humanMinutes: 0,
       aiCost: 0,
       quality: 1,

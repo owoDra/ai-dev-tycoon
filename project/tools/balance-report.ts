@@ -15,7 +15,7 @@ const matrix = buildMatrix(seedList);
 const yen = (n: number) => Math.round(n).toLocaleString('ja-JP');
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const COLUMNS: ReadonlyArray<[string, (c: MatrixCell) => string]> = [
-  ['Profit/Human Hour', (c) => yen(c.profitPerHumanHour)],
+  ['Profit/Person-Day', (c) => yen(c.profitPerPersonDay)],
   ['利益', (c) => yen(c.profit)],
   ['人間時間(分)', (c) => yen(c.humanMinutes)],
   ['納期比', (c) => c.deadlineRatio.toFixed(2)],
@@ -38,17 +38,17 @@ for (const [projectId, row] of Object.entries(matrix)) {
   }
 }
 console.log(lines.join('\n'));
-console.log(`\n★ 案件ごとの最適戦略（Profit/Human Hour）\n${winners.map((w) => `- ${w}`).join('\n')}`);
+console.log(`\n★ 案件ごとの最適戦略（Profit/Person-Day）\n${winners.map((w) => `- ${w}`).join('\n')}`);
 
 // 構成（Model・部品・資料の渡し方）だけの比較：担当モードをそろえて、同梱プリセットの構成を全案件で比べる
 for (const mode of configModes) {
   const configs = buildMatrix(seedList, configStrategies(mode));
   const names = Object.keys(configStrategies(mode));
-  console.log(`\n構成だけの比較（全 Task を ${mode}、Profit/Human Hour）`);
+  console.log(`\n構成だけの比較（全 Task を ${mode}、Profit/Person-Day）`);
   console.log(`| 案件 | ${names.join(' | ')} | 最適 |`);
   console.log(`|---|${names.map(() => '---:').join('|')}|---|`);
   for (const [projectId, row] of Object.entries(configs)) {
-    const cells = names.map((n) => yen(row[n]?.profitPerHumanHour ?? 0));
+    const cells = names.map((n) => yen(row[n]?.profitPerPersonDay ?? 0));
     console.log(`| ${getProject(projectId).name} | ${cells.join(' | ')} | ${bestStrategy(row)} |`);
   }
 }

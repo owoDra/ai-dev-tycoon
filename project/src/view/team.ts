@@ -2,6 +2,7 @@ import { aiWorkers, getModel } from '../content/index';
 import { seats } from '../content/seats';
 import type { SeatId } from '../content/types';
 import type { Command } from '../core/commands';
+import { dailyCost } from '../core/formulas';
 import { harnessOf } from '../core/harness';
 import type { GameState } from '../core/state';
 import { operatedWorkers, overLimit, seatMonthlyCost, seatOf, teamMembers } from '../core/team';
@@ -32,6 +33,10 @@ export interface MemberView {
   readonly role: string;
   /** 得意分野の名前（なければ空） */
   readonly strengths: readonly string[];
+  /** 売値（見積単価、円/人日） */
+  readonly dailyRate: number;
+  /** 原価（給与、円/人日） */
+  readonly dailyCost: number;
   /** AI Worker を運用している（Seat の使用量を使う） */
   readonly operator: boolean;
   /** 今日の使用量と上限。運用していなければ null */
@@ -70,6 +75,8 @@ export function teamView(state: GameState): TeamView {
       name: h.name,
       role: ja.roles[h.role],
       strengths: h.strengths.map((k) => ja.taskKinds[k]),
+      dailyRate: h.dailyRate,
+      dailyCost: dailyCost(h),
       operator,
       usage: operator ? { used, limit: seat.dailyUsage, over: overLimit(state, h.id) } : null,
       monthlyCost: seatMonthlyCost(seat),

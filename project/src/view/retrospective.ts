@@ -13,6 +13,7 @@ import {
   ZERO_IMPACT,
 } from '../core/attribution';
 import { stageTimes } from '../core/bottleneck';
+import { dailyCost, personDays } from '../core/formulas';
 import type { ProjectScore } from '../core/scoring';
 import type { GameState } from '../core/state';
 import { teamMembers } from '../core/team';
@@ -43,15 +44,15 @@ export interface Retrospective {
   readonly next: RetroCard;
 }
 
-/** 人間の時間を円に換算する時給（会社にいる社員の平均） */
+/** 人間の時間を円に換算する人日あたりの原価（会社にいる社員の平均） */
 export function averageWage(state: GameState): number {
   const team = teamMembers(state);
-  return team.reduce((sum, h) => sum + h.hourlyWage, 0) / Math.max(1, team.length);
+  return team.reduce((sum, h) => sum + dailyCost(h), 0) / Math.max(1, team.length);
 }
 
 /** 影響を円に換算した値。正なら得（人間時間と費用が減った）、負なら損 */
 export function impactValue(impact: Impact, wage: number): number {
-  return -(impact.humanMinutes / MINUTES_PER_HOUR) * wage - impact.cost;
+  return -personDays(impact.humanMinutes) * wage - impact.cost;
 }
 
 export function factorName(ref: FactorRef): string {
@@ -128,14 +129,14 @@ const hours = (minutes: number) => ja.retro.hours(Math.abs(minutes) / MINUTES_PE
 
 /** 改善の効果の1行。円に換算して大きい方（人間時間 / 費用）で言う */
 function gainLine(impact: Impact, wage: number): string {
-  const timeValue = (-impact.humanMinutes / MINUTES_PER_HOUR) * wage;
+  const timeValue = -personDays(impact.humanMinutes) * wage;
   if (timeValue >= -impact.cost) return ja.retro.savedTime(hours(impact.humanMinutes));
   return ja.retro.savedCost(-impact.cost);
 }
 
 /** 無駄の1行 */
 function lossLine(ref: FactorRef | null, impact: Impact, wage: number): string {
-  const timeLoss = (impact.humanMinutes / MINUTES_PER_HOUR) * wage;
+  const timeLoss = personDays(impact.humanMinutes) * wage;
   if (timeLoss > impact.cost) return ja.retro.lostTime(hours(impact.humanMinutes));
   if (ref?.kind === 'context') return ja.retro.contextCost(impact.cost);
   return ref?.kind === 'part' ? ja.retro.partCost(impact.cost) : ja.retro.lostCost(impact.cost);

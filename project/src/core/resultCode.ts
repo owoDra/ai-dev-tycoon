@@ -1,6 +1,7 @@
 import { balance } from '../content/balance';
 import { content } from '../content/index';
 import { ByteReader, ByteWriter, crc16, openCode, sealCode } from '../lib/codec';
+import { RESULT_CODE_FORMAT } from './serialize';
 
 /*
  * 結果コード（企画書28章「同じ Claude を使ったのに、なぜ結果が違ったのか」を比べるためのスコアの書き出し）。
@@ -8,8 +9,8 @@ import { ByteReader, ByteWriter, crc16, openCode, sealCode } from '../lib/codec'
  * 中身は [形式のバージョン, ビルドの指紋, seed, 案件の並び順, 指標..., ランク] で、チェックサムと Base32 は lib/codec.ts が受け持つ。
  */
 
-/** 形式のバージョン。並び・フィールドを変えたら上げる。違うバージョンのコードは読まない */
-export const RESULT_CODE_VERSION = 1;
+/** 形式のバージョン（数値は形式のバージョンをまとめている core/serialize.ts に置く） */
+export const RESULT_CODE_VERSION = RESULT_CODE_FORMAT;
 
 /** 結果のランク（view/rank.ts の Rank と同じ） */
 export type ResultRank = 'S' | 'A' | 'B' | 'C';
@@ -20,7 +21,7 @@ export interface ResultRecord {
   readonly seed: string;
   readonly projectId: string;
   readonly profit: number;
-  readonly profitPerHumanHour: number;
+  readonly profitPerPersonDay: number;
   readonly humanMinutes: number;
   readonly aiCost: number;
   /** 品質（0〜1）。コードには 0.1% 単位で入れる */
@@ -64,7 +65,7 @@ export function encodeResultCode(record: ResultRecord, options: EncodeOptions = 
     .text(record.seed)
     .uint(content.projects.findIndex((p) => p.id === record.projectId))
     .int(record.profit)
-    .int(record.profitPerHumanHour)
+    .int(record.profitPerPersonDay)
     .uint(record.humanMinutes)
     .uint(record.aiCost)
     .ratio(record.quality)
@@ -85,7 +86,7 @@ export function decodeResultCode(code: string): DecodeResult {
       seed: r.text(),
       projectId: projectAt(r.uint()),
       profit: r.int(),
-      profitPerHumanHour: r.int(),
+      profitPerPersonDay: r.int(),
       humanMinutes: r.uint(),
       aiCost: r.uint(),
       quality: r.ratio(),

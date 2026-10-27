@@ -13,7 +13,7 @@ const RECORD: ResultRecord = {
   seed: 'PARTY-2026-01',
   projectId: 'corporateSite',
   profit: -123_456,
-  profitPerHumanHour: 83_210,
+  profitPerPersonDay: 83_210,
   humanMinutes: 588,
   aiCost: 32_400,
   quality: 0.94,

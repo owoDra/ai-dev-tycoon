@@ -31,7 +31,7 @@ describe('ProjectPanel（仮 UI）', () => {
     button(root, ja.project.start)?.click();
     const names = [...root.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent);
     expect(names).toEqual(Object.values(ja.tasks.ecRenewal));
-    expect(root.textContent).toContain(ja.score.profitPerHumanHour);
+    expect(root.textContent).toContain(ja.score.profitPerPersonDay);
     expect(root.textContent).toContain(ja.project.status.unassigned);
   });
 

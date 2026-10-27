@@ -18,7 +18,7 @@ import { contextStatusIcon } from './ContextSheet';
 import { ProjectTabs } from './ProjectTabs';
 
 const t = ja.hud;
-/** Profit / Human Hour の増減チップを出す最小の変化（円/人時）。見込みの細かな揺れでは出さない */
+/** Profit / Person-Day の増減チップを出す最小の変化（円/人日）。見込みの細かな揺れでは出さない */
 const PROFIT_CHIP_MIN = 100;
 
 /**
@@ -184,11 +184,11 @@ function HudItem(props: {
 }) {
   return (
     <Switch>
-      <Match when={props.id === 'profitPerHumanHour'}>
+      <Match when={props.id === 'profitPerPersonDay'}>
         <Figure
           icon="money"
           label={props.hud.projected ? `${t.profit}（${t.projected}）` : t.profit}
-          value={<Num value={props.hud.profitPerHumanHour} format={t.yenPerHour} chipMin={PROFIT_CHIP_MIN} />}
+          value={<Num value={props.hud.profitPerPersonDay} format={t.yenPerPersonDay} chipMin={PROFIT_CHIP_MIN} />}
           dense={props.dense}
         />
       </Match>

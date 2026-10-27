@@ -55,7 +55,7 @@ export function D3Explore() {
     hudValues(
       sandbox.store.state(),
       vm(),
-      scoreProject(sandbox.store.state(), SANDBOX_PROJECT)?.profitPerHumanHour ?? 0,
+      scoreProject(sandbox.store.state(), SANDBOX_PROJECT)?.profitPerPersonDay ?? 0,
     ),
   );
   // 中身が同じなら同じ配列を返し、問題の表示を毎フレーム作り直さない

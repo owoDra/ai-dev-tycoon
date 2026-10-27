@@ -85,12 +85,12 @@ function Section(props: {
                   data-board-project={p.projectId}
                 >
                   <div class="flex min-w-0 flex-1 items-center gap-3">
-                    <Icon name={p.profitPerHumanHour === null ? 'project' : 'success'} class="shrink-0 text-3xl" />
+                    <Icon name={p.profitPerPersonDay === null ? 'project' : 'success'} class="shrink-0 text-3xl" />
                     <div class="flex min-w-0 flex-col gap-1">
                       <h3 class="font-heading text-base">{p.name}</h3>
                       <p class="flex flex-wrap gap-x-3 text-xs font-bold text-ink-muted">
                         <Show
-                          when={p.profitPerHumanHour}
+                          when={p.profitPerPersonDay}
                           fallback={
                             <>
                               <span>{ja.project.deadline(p.deadlineDays)}</span>
@@ -99,10 +99,10 @@ function Section(props: {
                             </>
                           }
                         >
-                          {(v) => <span>{ja.hud.yenPerHour(v())}</span>}
+                          {(v) => <span>{ja.hud.yenPerPersonDay(v())}</span>}
                         </Show>
                       </p>
-                      <Show when={p.progress > 0 && p.profitPerHumanHour === null}>
+                      <Show when={p.progress > 0 && p.profitPerPersonDay === null}>
                         <Meter ratio={p.progress} label={ja.score.percent(p.progress)} color="bg-primary-400" />
                       </Show>
                     </div>

@@ -42,7 +42,7 @@ describe('実務モードの UI（企画書24章）', () => {
     q<HTMLButtonElement>('[data-practice-template="weeklyAnalytics"]')?.click();
     expect(q('[data-headline]')?.textContent).toBe('2.0h → 0.3h');
     expect(q('[data-reduction]')?.textContent).toBe('−88%');
-    expect(q('[data-stat="roi"]')?.textContent).toContain('387%');
+    expect(q('[data-stat="roi"]')?.textContent).toContain('386%');
 
     // 最後の工程（承認）を AI → 人間レビューに変え、Harness Builder で Eval を付ける
     const mode = q<HTMLSelectElement>('[data-practice-step="3"] [data-step-mode]');

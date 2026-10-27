@@ -15,7 +15,7 @@ describe('QR コードの生成（lib/qr.ts）', () => {
       seed: 'PARTY-2026-01',
       projectId: 'corporateSite',
       profit: 820_000,
-      profitPerHumanHour: 83_000,
+      profitPerPersonDay: 83_000,
       humanMinutes: 588,
       aiCost: 32_000,
       quality: 0.94,

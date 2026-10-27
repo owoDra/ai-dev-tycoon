@@ -4,9 +4,10 @@ import { reduce } from '../../src/core/commands';
 import { deadlineMinutes, escapedDefectCost } from '../../src/core/formulas';
 import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
-import { MINUTES_PER_HOUR } from '../../src/core/units';
 import { playProject, strategies } from '../helpers/strategies';
 
+/** 1人日（1営業日）の分。KPI は人日あたり */
+const MINUTES_PER_PERSON_DAY = 480;
 const P = 'ecRenewal';
 const def = getProject(P);
 
@@ -15,14 +16,14 @@ describe('scoreProject', () => {
     expect(scoreProject(createInitialState('s'), P)).toBeNull();
   });
 
-  it('利益は売上から人件費・AI費用・手戻り・遅延損失を引いたもので、Profit / Human Hour はそれを人間の時間で割る', () => {
+  it('利益は売上から人件費・AI費用・手戻り・遅延損失を引いたもので、Profit / Person-Day はそれを人間の時間で割る', () => {
     const { score } = playProject(P, strategies.smart(P), 'score');
     expect(score.completed).toBe(true);
     expect(score.revenue).toBe(def.revenue);
     expect(score.profit).toBeCloseTo(
       score.revenue - score.laborCost - score.aiCost - score.reworkCost - score.delayLoss,
     );
-    expect(score.profitPerHumanHour).toBeCloseTo(score.profit / (score.humanMinutes / MINUTES_PER_HOUR));
+    expect(score.profitPerPersonDay).toBeCloseTo(score.profit / (score.humanMinutes / MINUTES_PER_PERSON_DAY));
     expect(score.humanIntervention).toBeGreaterThan(0);
     expect(score.humanIntervention).toBeLessThanOrEqual(score.humanMinutes);
     expect(score.autonomousTime).toBeGreaterThan(0);
@@ -43,7 +44,7 @@ describe('scoreProject', () => {
     const score = scoreProject(late, P);
     expect(score?.revenue).toBe(0);
     expect(score?.delayLoss).toBeGreaterThan(0);
-    expect(score?.profitPerHumanHour).toBe(0);
+    expect(score?.profitPerPersonDay).toBe(0);
   });
 
   it('見逃した失敗は、損害と納品後の修正時間（人間の稼働）として数え、品質と Rework Rate に表れる', () => {

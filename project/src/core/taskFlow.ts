@@ -10,6 +10,7 @@ import {
   escapedQuality,
   isIntervention,
   repairMinutes,
+  reviewCatch,
   reworkMinutes,
   stepMinutes,
   successProbability,
@@ -167,7 +168,16 @@ export function enterStep(
       next = rollIncidents(next, 'aiWork', workerId, projectId, taskId, ctx);
       remaining = contextWorkMinutes(next, current, projectId, task, remaining, ctx);
     }
-    return updateTask(next, projectId, taskId, (r) => ({ ...r, stepIndex: i, phase: step.phase, remaining, setup }));
+    // 自動テストをやり直すときだけ、ここまでの修復の回数を持ち越す
+    const evalLoops = current.phase === 'repair' && current.stepIndex === i ? current.evalLoops : 0;
+    return updateTask(next, projectId, taskId, (r) => ({
+      ...r,
+      stepIndex: i,
+      phase: step.phase,
+      remaining,
+      setup,
+      evalLoops,
+    }));
   }
   const humanId = chooseHuman(state, run, task);
   let remaining = stepMinutes(task, step, { kind: 'human', skill: humanSpeed(humanId, task) });
@@ -241,20 +251,22 @@ function afterContextWork(state: GameState, run: TaskRun, projectId: string, tas
  */
 export function finishStep(state: GameState, projectId: string, taskId: string, ctx: SystemContext): GameState {
   const run = runOf(state, projectId, taskId);
-  if (run.phase === 'rework' || run.phase === 'repair') {
-    return enterStep(state, projectId, taskId, run.stepIndex + 1, ctx);
-  }
+  if (run.phase === 'rework') return enterStep(state, projectId, taskId, run.stepIndex + 1, ctx);
+  if (run.phase === 'repair') return finishTestRepair(state, projectId, taskId, ctx);
   if (run.phase === 'eval') return finishEval(state, projectId, taskId, ctx);
   if (run.phase === 'evalRepair') return finishEvalRepair(state, projectId, taskId, ctx);
   const step = currentStep(run);
   if (!step) return state;
 
-  if (step.phase === 'review' && run.defect && step.actor === 'ai') {
+  // 確認の工程は、残っている失敗を検出率の確率で見つける（必ず見つける確認では乱数を引かない）
+  const caught = step.phase === 'review' && run.defect && catches(getTask(projectId, taskId), step, ctx);
+
+  if (caught && step.actor === 'ai') {
     ctx.emit({ type: 'EvalCaught', projectId, taskId });
     return enterRepair(state, projectId, taskId, 'repair', ctx);
   }
 
-  if (step.phase === 'review' && run.defect && run.humanId) {
+  if (caught && run.humanId) {
     const humanId = run.humanId;
     ctx.emit({ type: 'ReworkDetected', projectId, taskId, humanId });
     const intervention = usesAi(run) ? 1 : 0;
@@ -293,6 +305,26 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     }
   }
   return enterStep(next, projectId, taskId, run.stepIndex + 1, ctx);
+}
+
+/** 確認の工程が残っている失敗を見つけるか。検出率が 1 なら乱数を引かない */
+function catches(task: TaskDef, step: ModeStep, ctx: SystemContext): boolean {
+  const c = reviewCatch(task, step);
+  return c >= 1 || ctx.rng.chance(c);
+}
+
+/**
+ * 自動テストで見つかった失敗の修復を終えた。修復も失敗しうるので、上限まではもう一度テストする（Eval と同じループ）。
+ * 上限に達したら、残った失敗のまま次の工程へ進む
+ */
+function finishTestRepair(state: GameState, projectId: string, taskId: string, ctx: SystemContext): GameState {
+  const run = runOf(state, projectId, taskId);
+  const task = getTask(projectId, taskId);
+  const ok = ctx.rng.chance(aiSuccess(state, run, projectId, task));
+  const loops = run.evalLoops + 1;
+  const next = updateTask(state, projectId, taskId, (r) => ({ ...r, defect: !ok, evalLoops: loops }));
+  if (loops >= balance.harness.maxRepairLoops) return enterStep(next, projectId, taskId, run.stepIndex + 1, ctx);
+  return enterStep(next, projectId, taskId, run.stepIndex, ctx);
 }
 
 /** 事故（権限・Tool の誤用）を確率で起こす。起きたら作業は失敗扱いになり、損害はスコアで数える */

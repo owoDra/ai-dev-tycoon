@@ -115,6 +115,9 @@ function MemberCard(props: { member: MemberView; editable: boolean; dispatch: (c
             <Show when={m().strengths.length > 0}>
               <span class="text-xs text-ink-muted">{t.strengths(m().strengths.join('・'))}</span>
             </Show>
+            <span class="text-xs text-ink-muted" data-stat="rate">
+              {t.rate(m().dailyRate)}・{t.dailyCost(m().dailyCost)}
+            </span>
           </div>
         </div>
         <Show when={m().operator}>

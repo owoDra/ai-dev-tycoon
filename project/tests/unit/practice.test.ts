@@ -35,7 +35,7 @@ describe('実務モードの試算（core/practice.ts）', () => {
     expect(e.annualSavedHours).toBeCloseTo(91, 6);
     expect(e.annualBeforeHours).toBeCloseTo(104, 6);
     expect(e.annualAfterHours).toBeCloseTo(13, 6);
-    // 削減額 = 91 h × 時給 4,000 円 = 364,000 円
+    // 削減額 = 91 h（= 11.375 人日）× 人件費 32,000 円/人日 = 364,000 円
     expect(e.annualLaborSaved).toBeCloseTo(364_000, 3);
     // 導入コスト = Analytics 5,000 + Research 10,000 + Report 30,000 + 受け入れ基準 20,000（Analytics は2工程で使うが1回だけ）
     expect(e.installCost).toBe(65_000);
@@ -46,9 +46,9 @@ describe('実務モードの試算（core/practice.ts）', () => {
     expect(e.aiExtraCost).toBeCloseTo(e.aiCostPerRun * 52 + 65_000, 6);
     expect(e.roi).toBeCloseTo(3.87, 1);
     expect(e.roi).toBeCloseTo((364_000 - e.aiExtraCost) / e.aiExtraCost, 9);
-    // 人時あたりの利益：改善前 (30,000 − 2h × 4,000) ÷ 2h = 11,000 円/h
-    expect(e.profitPerHumanHour.before).toBeCloseTo(11_000, 6);
-    expect(e.profitPerHumanHour.after ?? 0).toBeGreaterThan(100_000);
+    // 人日あたりの利益：改善前は 120 分 = 0.25 人日。(30,000 − 0.25 人日 × 32,000) ÷ 0.25 人日 = 88,000 円/人日
+    expect(e.profitPerPersonDay.before).toBeCloseTo(88_000, 6);
+    expect(e.profitPerPersonDay.after ?? 0).toBeGreaterThan(800_000);
   });
 
   it('ゲームの AI Worker と同じ modifier の定義で補正する（計算式を二重に持たない）', () => {
@@ -70,7 +70,7 @@ describe('実務モードの試算（core/practice.ts）', () => {
     expect(e.afterMinutes).toBeCloseTo(e.beforeMinutes, 9);
     expect(e.aiExtraCost).toBe(0);
     expect(e.roi).toBeNull();
-    expect(estimatePractice({ ...job, steps: [] }).profitPerHumanHour).toEqual({ before: null, after: null });
+    expect(estimatePractice({ ...job, steps: [] }).profitPerPersonDay).toEqual({ before: null, after: null });
   });
 
   it('Agent Workflow が続く工程は、ゲームと同じく2つ目から指示出しを省く', () => {
@@ -133,6 +133,9 @@ describe('実務モードの入力の保存と結果のコピー', () => {
   it('保存した入力（JSON）を読み直すと同じになり、壊れた値は拒む', () => {
     expect(parsePracticeJob(JSON.parse(JSON.stringify(job)))).toEqual(job);
     expect(parsePracticeJob(null)).toBeNull();
+    // Phase 18 より前の保存（時給）は、1営業日（8時間）分の人件費として読む
+    const { dailyWage: _w, ...legacy } = job;
+    expect(parsePracticeJob({ ...legacy, hourlyWage: 4000 })?.dailyWage).toBe(32_000);
     expect(parsePracticeJob({ ...job, frequency: 'hourly' })).toBeNull();
     expect(parsePracticeJob({ ...job, steps: [{ ...job.steps[0], mode: 'magic' }] })).toBeNull();
     const tooMany = parsePracticeJob({ ...job, steps: Array.from({ length: 20 }, () => job.steps[0]) });
@@ -146,7 +149,7 @@ describe('実務モードの入力の保存と結果のコピー', () => {
     const text = practiceReport(job, e, 'text');
     expect(text).toContain('2.0h → 0.3h / −88%');
     expect(text).toContain('年間の削減時間：91.0h');
-    expect(text).toContain('ROI：387%');
+    expect(text).toContain('ROI：386%');
     const md = practiceReport(job, e, 'markdown');
     expect(md.split('\n')[0]).toBe('## 週次アクセス解析 の改善試算');
     expect(md).toContain('| データ取得 | Agent Workflow | 20分 | 1分 |');

@@ -69,7 +69,7 @@ export function practiceHeadline(e: PracticeEstimate): PracticeHeadline {
 }
 
 export const formatRoi = (roi: number | null) => (roi === null ? t.result.roiNone : t.percent(roi));
-const perHour = (v: number | null) => (v === null ? t.none : t.yenPerHour(v));
+const perHour = (v: number | null) => (v === null ? t.none : t.yenPerPersonDay(v));
 
 /** 試算をコピー用の文書にする。text はチャットに貼る箇条書き、markdown は表付き */
 export function practiceReport(job: PracticeJobInput, e: PracticeEstimate, format: 'text' | 'markdown'): string {
@@ -81,7 +81,7 @@ export function practiceReport(job: PracticeJobInput, e: PracticeEstimate, forma
     r.saved(t.hours(e.annualSavedHours)),
     r.aiCost(t.yen(e.aiExtraCost)),
     r.roi(formatRoi(e.roi)),
-    r.profit(perHour(e.profitPerHumanHour.before), perHour(e.profitPerHumanHour.after)),
+    r.profit(perHour(e.profitPerPersonDay.before), perHour(e.profitPerPersonDay.after)),
   ];
   const steps = job.steps.map((s, i) => ({
     name: s.name,
@@ -115,7 +115,7 @@ export function blankJob(): PracticeJobInput {
   return {
     name: '',
     frequency: 'weekly',
-    hourlyWage: balance.practice.hourlyWage,
+    dailyWage: balance.practice.dailyWage,
     valuePerRun: 0,
     steps: [],
   };

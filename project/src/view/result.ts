@@ -12,7 +12,7 @@ import { type ProjectScore, scoreProject } from '../core/scoring';
 import { createInitialState, type GameState } from '../core/state';
 import { ja } from '../i18n/ja';
 import { bottleneckName } from './bottleneck';
-import { baselineProfitPerHumanHour } from './hud';
+import { baselineProfitPerPersonDay } from './hud';
 import { type Rank, rankOf } from './rank';
 
 /*
@@ -54,7 +54,7 @@ export interface CostRow {
 
 export interface ResultView {
   readonly score: ProjectScore;
-  /** 人間だけで進めた場合の Profit / Human Hour の見込み */
+  /** 人間だけで進めた場合の Profit / Person-Day の見込み */
   readonly baseline: number;
   /** baseline に対する倍率。基準がなければ null */
   readonly vsBaseline: number | null;
@@ -111,12 +111,12 @@ export function resultRecord(state: GameState, projectId: string): ResultRecord 
     seed: state.seed,
     projectId,
     profit: score.profit,
-    profitPerHumanHour: score.profitPerHumanHour,
+    profitPerPersonDay: score.profitPerPersonDay,
     humanMinutes: score.humanMinutes,
     aiCost: score.aiCost,
     quality: score.quality,
     elapsedMinutes: score.elapsedMinutes,
-    rank: rankOf(score.profitPerHumanHour, baselineProfitPerHumanHour(projectId), score.completed),
+    rank: rankOf(score.profitPerPersonDay, baselineProfitPerPersonDay(projectId), score.completed),
   };
 }
 
@@ -126,7 +126,7 @@ export function resultView(state: GameState, projectId: string): ResultView | nu
   const run = state.projects[projectId];
   if (!score || !run) return null;
   const def = getProject(projectId);
-  const baseline = baselineProfitPerHumanHour(projectId);
+  const baseline = baselineProfitPerPersonDay(projectId);
   const prevId = previousDelivered(state, projectId);
   const prevScore = prevId ? scoreProject(state, prevId) : null;
   const human = humanOnlyMetrics(projectId);
@@ -157,12 +157,12 @@ export function resultView(state: GameState, projectId: string): ResultView | nu
   return {
     score,
     baseline,
-    vsBaseline: baseline > 0 && score.profitPerHumanHour > 0 ? score.profitPerHumanHour / baseline : null,
+    vsBaseline: baseline > 0 && score.profitPerPersonDay > 0 ? score.profitPerPersonDay / baseline : null,
     previous:
-      prevId && prevScore && prevScore.profitPerHumanHour > 0
-        ? { name: getProject(prevId).name, ratio: score.profitPerHumanHour / prevScore.profitPerHumanHour }
+      prevId && prevScore && prevScore.profitPerPersonDay > 0
+        ? { name: getProject(prevId).name, ratio: score.profitPerPersonDay / prevScore.profitPerPersonDay }
         : null,
-    rank: rankOf(score.profitPerHumanHour, baseline, score.completed),
+    rank: rankOf(score.profitPerPersonDay, baseline, score.completed),
     metrics: [
       { key: 'humanTime', before: human.humanMinutes, after: score.humanMinutes, lowerIsBetter: true },
       { key: 'aiCost', before: 0, after: score.aiCost, lowerIsBetter: true },
@@ -188,10 +188,10 @@ export interface GrowthRow {
   readonly humanMinutes: number;
   /** 人間だけで進めた場合の見込みに対する、人間の時間の割合（案件の大きさをそろえて比べる） */
   readonly humanShare: number;
-  readonly profitPerHumanHour: number;
+  readonly profitPerPersonDay: number;
 }
 
-/** キャンペーン全体の成長の推移：納品した案件を納品した順に、人間の時間の減少と Profit / Human Hour の上昇を並べる */
+/** キャンペーン全体の成長の推移：納品した案件を納品した順に、人間の時間の減少と Profit / Person-Day の上昇を並べる */
 export function campaignGrowth(state: GameState): GrowthRow[] {
   return Object.entries(state.projects)
     .filter(([, run]) => run.completedAt !== null)
@@ -206,7 +206,7 @@ export function campaignGrowth(state: GameState): GrowthRow[] {
           name: getProject(projectId).name,
           humanMinutes: score.humanMinutes,
           humanShare: human > 0 ? score.humanMinutes / human : 1,
-          profitPerHumanHour: score.profitPerHumanHour,
+          profitPerPersonDay: score.profitPerPersonDay,
         },
       ];
     });
@@ -228,8 +228,8 @@ export interface WorkflowSnapshot {
     readonly parts: readonly string[];
     readonly feed: ContextFeed;
   }[];
-  /** 構成を使ったときの Profit / Human Hour */
-  readonly profitPerHumanHour: number;
+  /** 構成を使ったときの Profit / Person-Day */
+  readonly profitPerPersonDay: number;
 }
 
 /** 案件の構成をデータとして書き出す（JSON にそのまま変換できる値だけ） */
@@ -253,5 +253,5 @@ export function workflowSnapshot(state: GameState, projectId: string): WorkflowS
       feed: getSession(state, workerId).feed,
     };
   });
-  return { projectId, assignments, workers, profitPerHumanHour: score.profitPerHumanHour };
+  return { projectId, assignments, workers, profitPerPersonDay: score.profitPerPersonDay };
 }

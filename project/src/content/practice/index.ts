@@ -33,7 +33,7 @@ export const weeklyAnalytics: PracticeTemplateDef = {
   job: {
     name: w.name,
     frequency: 'weekly',
-    hourlyWage: 4000,
+    dailyWage: 32_000,
     valuePerRun: 30_000,
     steps: [
       {

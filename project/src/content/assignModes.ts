@@ -2,7 +2,7 @@ import { ja } from '../i18n/ja';
 import { balance } from './balance';
 import type { AssignModeDef, AssignModeId, ModePhase, Stage } from './types';
 
-const { instructShare, reviewShare, judgementShare, evalShare, finalCheckShare } = balance.assign;
+const { instructShare, reviewShare, judgementShare, evalShare, finalCheckShare, finalCheckCatch } = balance.assign;
 
 /** 担当モード（企画書5章）。並び順は UI の選択肢の順 */
 export const assignModes: readonly AssignModeDef[] = [
@@ -32,7 +32,8 @@ export const assignModes: readonly AssignModeDef[] = [
     chains: false,
   },
   {
-    // 簡易 Eval：AI の自動テストが先に失敗を見つけて AI が直すので、人間は最後に軽く確かめるだけになる
+    // 簡易 Eval：AI の自動テストが先に失敗を見つけて AI が直すので、人間は最後に軽く確かめるだけになる。
+    // 自動テストが見つけられるのは機械で確かめられる失敗だけで（Task の種類で決まる）、軽い確認ではすり抜けた失敗の一部しか見つからない
     // （Harness の Eval 部品は、どのモードでも AI の作業の直後に検証する。core/taskFlow.ts）
     id: 'aiThenEval',
     name: ja.modes.aiThenEval,
@@ -40,7 +41,7 @@ export const assignModes: readonly AssignModeDef[] = [
       { actor: 'human', phase: 'instruct', effortShare: instructShare },
       { actor: 'ai', phase: 'work', effortShare: 1 },
       { actor: 'ai', phase: 'review', effortShare: evalShare },
-      { actor: 'human', phase: 'review', effortShare: finalCheckShare },
+      { actor: 'human', phase: 'review', effortShare: finalCheckShare, catchRate: finalCheckCatch },
     ],
     chains: false,
   },

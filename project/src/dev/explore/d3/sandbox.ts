@@ -89,7 +89,7 @@ export function createSandbox(): Sandbox {
 
 /** HUD に出す値（仮）。Phase 06 で view に本実装する */
 export interface HudValues {
-  profitPerHumanHour: number;
+  profitPerPersonDay: number;
   /** 納期までの残り（日と時刻） */
   remainingDays: number;
   remainingTime: string;
@@ -98,7 +98,7 @@ export interface HudValues {
   ai: number;
 }
 
-export function hudValues(state: GameState, vm: WorldViewModel | undefined, profitPerHumanHour: number): HudValues {
+export function hudValues(state: GameState, vm: WorldViewModel | undefined, profitPerPersonDay: number): HudValues {
   const run = state.projects[SANDBOX_PROJECT];
   const deadline = getProject(SANDBOX_PROJECT).deadlineDays * MINUTES_PER_DAY;
   const left = Math.max(0, deadline - (run ? state.clock - run.startedAt : 0));
@@ -111,7 +111,7 @@ export function hudValues(state: GameState, vm: WorldViewModel | undefined, prof
     return list.length === 0 ? 0 : list.filter((a) => a.activity === 'work').length / list.length;
   };
   return {
-    profitPerHumanHour,
+    profitPerPersonDay,
     remainingDays: days,
     remainingTime: `${hh}:${mm}`,
     human: ratio('human'),

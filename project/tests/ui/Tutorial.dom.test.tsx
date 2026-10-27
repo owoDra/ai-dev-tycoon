@@ -71,7 +71,7 @@ describe('チュートリアル（コーチマークと機能の解放）', () =
   it('最初は早送り・稼働・問題の表示を出さず、Task が始まると早送りが解放される', () => {
     const { store, root, select } = mount();
     const items = () => [...root.querySelectorAll<HTMLElement>('[data-hud-item]')].map((e) => e.dataset.hudItem);
-    expect(items()).toEqual(['profitPerHumanHour', 'remaining']);
+    expect(items()).toEqual(['profitPerPersonDay', 'remaining']);
     select('wireframe');
     card(root, 'ai')?.click();
     store.advance(1);

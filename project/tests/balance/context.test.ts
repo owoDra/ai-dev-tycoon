@@ -49,7 +49,7 @@ function play(
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
 describe('Context のバランス（決済画面の修正）', () => {
-  it('「必要な資料だけ」は「すべての資料」より Profit / Human Hour が高い（企画書10章）', () => {
+  it('「必要な資料だけ」は「すべての資料」より Profit / Person-Day が高い（企画書10章）', () => {
     const r = compare(
       {
         needed: (seed) => play(seed, { mode: 'needed' }),
@@ -58,11 +58,11 @@ describe('Context のバランス（決済画面の修正）', () => {
       SEEDS,
     );
     console.log(
-      `[企画書10章] Profit/Human Hour：必要な資料だけ ${fmt(r.needed.profitPerHumanHour)} 円/人時` +
-        ` vs すべての資料 ${fmt(r.all.profitPerHumanHour)} 円/人時` +
+      `[企画書10章] Profit/Person-Day：必要な資料だけ ${fmt(r.needed.profitPerPersonDay)} 円/人日` +
+        ` vs すべての資料 ${fmt(r.all.profitPerPersonDay)} 円/人日` +
         `（品質 ${r.needed.quality.toFixed(3)} vs ${r.all.quality.toFixed(3)}・AI費用 ${fmt(r.needed.aiCost)} vs ${fmt(r.all.aiCost)} 円）`,
     );
-    expect(r.needed.profitPerHumanHour).toBeGreaterThan(r.all.profitPerHumanHour);
+    expect(r.needed.profitPerPersonDay).toBeGreaterThan(r.all.profitPerPersonDay);
     expect(r.needed.aiCost).toBeLessThan(r.all.aiCost);
   });
 
@@ -82,10 +82,10 @@ describe('Context のバランス（決済画面の修正）', () => {
       SEEDS,
     );
     console.log(
-      `[企画書11章] Profit/Human Hour：Handoff付きReset ${fmt(r.handoff.profitPerHumanHour)}` +
-        ` vs 継続 ${fmt(r.keep.profitPerHumanHour)} vs Handoffなし ${fmt(r.noHandoff.profitPerHumanHour)} 円/人時`,
+      `[企画書11章] Profit/Person-Day：Handoff付きReset ${fmt(r.handoff.profitPerPersonDay)}` +
+        ` vs 継続 ${fmt(r.keep.profitPerPersonDay)} vs Handoffなし ${fmt(r.noHandoff.profitPerPersonDay)} 円/人日`,
     );
-    expect(r.handoff.profitPerHumanHour).toBeGreaterThan(r.keep.profitPerHumanHour);
-    expect(r.handoff.profitPerHumanHour).toBeGreaterThan(r.noHandoff.profitPerHumanHour);
+    expect(r.handoff.profitPerPersonDay).toBeGreaterThan(r.keep.profitPerPersonDay);
+    expect(r.handoff.profitPerPersonDay).toBeGreaterThan(r.noHandoff.profitPerPersonDay);
   });
 });

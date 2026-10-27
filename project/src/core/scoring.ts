@@ -1,9 +1,8 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
-import { delayLoss, escapedDefectCost, escapedFixMinutes, laborCost as wageCost } from './formulas';
+import { delayLoss, escapedDefectCost, escapedFixMinutes, perPersonDay, laborCost as wageCost } from './formulas';
 import type { GameState } from './state';
-import { MINUTES_PER_HOUR } from './units';
 
 /** 案件のスコア（企画書22章）。金額は円、時間はゲーム内の分 */
 export interface ProjectScore {
@@ -23,8 +22,8 @@ export interface ProjectScore {
   readonly humanMinutes: number;
   /** 見逃した失敗を納品後に直す人間の時間（分） */
   readonly aftercareMinutes: number;
-  /** メイン KPI。利益 ÷ 人間の総稼働時間（時間）。人間が稼働していなければ 0 */
-  readonly profitPerHumanHour: number;
+  /** メイン KPI。利益 ÷ 人間の総稼働（人日）。人間が稼働していなければ 0 */
+  readonly profitPerPersonDay: number;
   /** AI が関わる Task に人間が費やした時間（指示出し・レビュー・手戻り） */
   readonly humanIntervention: number;
   /** AI が人間なしで処理した時間 */
@@ -84,7 +83,7 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     if (t.escaped) {
       const fix = escapedFixMinutes(task);
       aftercareMinutes += fix;
-      reworkCost += escapedDefectCost(task) + wageCost(fix, balance.score.escapedFixHourlyWage);
+      reworkCost += escapedDefectCost(task) + wageCost(fix, balance.score.escapedFixDailyCost);
     }
     if (t.status !== 'done') continue;
     doneCount++;
@@ -114,7 +113,7 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     profit,
     humanMinutes,
     aftercareMinutes,
-    profitPerHumanHour: humanMinutes > 0 ? profit / (humanMinutes / MINUTES_PER_HOUR) : 0,
+    profitPerPersonDay: perPersonDay(profit, humanMinutes),
     humanIntervention,
     autonomousTime,
     interventions,
@@ -143,8 +142,8 @@ export interface CompanyScore {
   readonly profit: number;
   /** 人間の総稼働時間（分） */
   readonly humanMinutes: number;
-  /** 会社の Profit / Human Hour */
-  readonly profitPerHumanHour: number;
+  /** 会社の Profit / Person-Day（利益 ÷ 人間の総稼働の人日） */
+  readonly profitPerPersonDay: number;
 }
 
 /**
@@ -171,6 +170,6 @@ export function scoreCompany(state: GameState): CompanyScore {
     seatCost: state.seatCost,
     profit,
     humanMinutes,
-    profitPerHumanHour: humanMinutes > 0 ? profit / (humanMinutes / MINUTES_PER_HOUR) : 0,
+    profitPerPersonDay: perPersonDay(profit, humanMinutes),
   };
 }

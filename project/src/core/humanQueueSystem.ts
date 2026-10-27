@@ -1,6 +1,6 @@
 import { balance } from '../content/balance';
 import { getHuman } from '../content/index';
-import { laborCost } from './formulas';
+import { dailyCost, laborCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
 import { finishStep } from './taskFlow';
@@ -16,7 +16,7 @@ export const humanQueueSystem: System = (state, ctx) => {
     const head = next.humanQueues[humanId]?.[0];
     if (!head) continue;
     const { projectId, taskId } = head;
-    const cost = laborCost(tick, getHuman(humanId).hourlyWage);
+    const cost = laborCost(tick, dailyCost(getHuman(humanId)));
     next = updateTask(next, projectId, taskId, (r) => ({
       ...r,
       remaining: r.remaining - tick,

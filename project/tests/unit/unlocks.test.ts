@@ -6,7 +6,7 @@ import { allFeatures } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
-import { expectedHumanMinutes, repairMinutes } from '../../src/core/formulas';
+import { autoTestCatch, expectedHumanMinutes, repairMinutes } from '../../src/core/formulas';
 import { deserialize, SAVE_VERSION } from '../../src/core/serialize';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 import { step } from '../../src/core/step';
@@ -85,10 +85,10 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
     workerId: 'agent',
   };
 
-  it('自動テストが AI の失敗を見つけると AI が修復し、人間の手戻りは発生しない', () => {
-    let s = reduce(started(createInitialState('eval')), assignEval).state;
+  /** 自動テストの直前に失敗を仕込み、Task が終わるまで進める */
+  function runWithPlantedDefect(seed: string) {
+    let s = reduce(started(createInitialState(seed)), assignEval).state;
     const events: GameEvent[] = [];
-    // 作業の直後に失敗を仕込む（AI の作業を終えた時点で defect にする）
     for (let i = 0; i < 600 && s.projects[P]?.tasks.hearing?.status !== 'done'; i++) {
       const run = s.projects[P]?.tasks.hearing;
       if (run?.phase === 'review' && run.stepIndex === 2 && !run.defect && run.reworks === 0) {
@@ -98,8 +98,17 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
       s = r.state;
       events.push(...r.events);
     }
-    const run = s.projects[P]?.tasks.hearing;
-    expect(events.some((e) => e.type === 'EvalCaught')).toBe(true);
+    return { run: s.projects[P]?.tasks.hearing, events };
+  }
+
+  // 自動テストの検出率は Task の種類で決まり 1 ではない（balance.assign.autoTestCatch）。
+  // 見つけて1回の修復で直った seed を選び、そのときの流れを確かめる
+  it('自動テストが AI の失敗を見つけると AI が修復し、人間の手戻りは発生しない', () => {
+    const found = Array.from({ length: 80 }, (_, i) => runWithPlantedDefect(`eval-${i}`)).find(
+      (x) => x.events.some((e) => e.type === 'EvalCaught') && x.run?.reworks === 1 && x.run.escaped === false,
+    );
+    expect(found).toBeDefined();
+    const { run, events } = found ?? { run: undefined, events: [] };
     expect(events.some((e) => e.type === 'ReworkDetected')).toBe(false);
     expect(run?.escaped).toBe(false);
     expect(run?.quality).toBe(1);
@@ -111,6 +120,14 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
     expect(run?.humanMinutes).toBeGreaterThanOrEqual(planned);
     expect(run?.humanMinutes).toBeLessThanOrEqual(planned + humanSteps.length);
     expect(run?.aiMinutes).toBeGreaterThan(repairMinutes(task, getModel('standard')) - 1);
+  });
+
+  it('自動テストは万能ではない：判断が中心の Task では失敗をすり抜けさせることがあり、最後の確認でも一部しか見つからない', () => {
+    const runs = Array.from({ length: 40 }, (_, i) => runWithPlantedDefect(`miss-${i}`));
+    expect(autoTestCatch(getTask(P, 'hearing'))).toBeLessThan(autoTestCatch(getTask(P, 'implementation')));
+    expect(runs.some((x) => x.run?.escaped)).toBe(true);
+    expect(runs.some((x) => x.events.some((e) => e.type === 'ReworkDetected'))).toBe(true);
+    expect(runs.some((x) => x.events.some((e) => e.type === 'EvalCaught'))).toBe(true);
   });
 
   it('人間の拘束時間の見込みは「AI → 人間レビュー」より短い（レビュー時間の激減）', () => {

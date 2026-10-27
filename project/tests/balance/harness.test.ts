@@ -74,16 +74,16 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
       SEEDS,
     );
     console.log(
-      `[企画書7章] Profit/Human Hour：最上位モデル＋Harnessなし ${fmt(r.frontier.profitPerHumanHour)}` +
-        ` vs 標準モデル＋適切なHarness ${fmt(r.harnessed.profitPerHumanHour)} 円/人時` +
-        `（参考：標準モデル＋Harnessなし ${fmt(r.standard.profitPerHumanHour)}）` +
+      `[企画書7章] Profit/Person-Day：最上位モデル＋Harnessなし ${fmt(r.frontier.profitPerPersonDay)}` +
+        ` vs 標準モデル＋適切なHarness ${fmt(r.harnessed.profitPerPersonDay)} 円/人日` +
+        `（参考：標準モデル＋Harnessなし ${fmt(r.standard.profitPerPersonDay)}）` +
         ` / 人間時間 ${fmt(r.frontier.humanMinutes)} vs ${fmt(r.harnessed.humanMinutes)} 分` +
         ` / 手戻り率 ${pct(r.frontier.reworkRate)} vs ${pct(r.harnessed.reworkRate)}` +
         ` / AI費用 ${fmt(r.frontier.aiCost)} vs ${fmt(r.harnessed.aiCost)} 円・導入コスト ${fmt(r.harnessed.harnessCost)} 円`,
     );
-    expect(r.harnessed.profitPerHumanHour).toBeGreaterThan(r.frontier.profitPerHumanHour);
+    expect(r.harnessed.profitPerPersonDay).toBeGreaterThan(r.frontier.profitPerPersonDay);
     // 最上位モデルは Harness なしの標準モデルよりは強い（Model にも意味がある）
-    expect(r.frontier.profitPerHumanHour).toBeGreaterThan(r.standard.profitPerHumanHour);
+    expect(r.frontier.profitPerPersonDay).toBeGreaterThan(r.standard.profitPerPersonDay);
   });
 
   it('Hook ＞ お願い：同じルールでも Hook にした方が手戻り率が低い（企画書14章）', () => {
@@ -107,7 +107,7 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
     );
     console.log(
       `[企画書14章] 手戻り率：Hook ${pct(r.hook.reworkRate)} vs お願い ${pct(r.request.reworkRate)}` +
-        `（参考：なし ${pct(r.none.reworkRate)}）/ Profit/Human Hour ${fmt(r.hook.profitPerHumanHour)} vs ${fmt(r.request.profitPerHumanHour)} 円/人時`,
+        `（参考：なし ${pct(r.none.reworkRate)}）/ Profit/Person-Day ${fmt(r.hook.profitPerPersonDay)} vs ${fmt(r.request.profitPerPersonDay)} 円/人日`,
     );
     expect(r.hook.reworkRate).toBeLessThan(r.request.reworkRate);
   });
@@ -143,11 +143,11 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
       ]),
     );
     const r = compare(candidates, SEEDS);
-    const profit = counts.map((n) => r[`n${n}`]?.profitPerHumanHour ?? 0);
+    const profit = counts.map((n) => r[`n${n}`]?.profitPerPersonDay ?? 0);
     console.log(
-      `[企画書15章] Subagent 数ごとの Profit/Human Hour：${counts
+      `[企画書15章] Subagent 数ごとの Profit/Person-Day：${counts
         .map((n, i) => `${n}体 ${fmt(profit[i] ?? 0)}`)
-        .join(' / ')} 円/人時` +
+        .join(' / ')} 円/人日` +
         `（手戻り率 ${counts.map((n) => pct(r[`n${n}`]?.reworkRate ?? 0)).join(' / ')}・` +
         `AI費用 ${counts.map((n) => fmt(r[`n${n}`]?.aiCost ?? 0)).join(' / ')} 円）`,
     );
@@ -173,9 +173,9 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
     );
     console.log(
       `[企画書16章] 事故率（AI の仕事1件あたり）：全部入り ${pct(r.all.accidentRate)} vs 必要最小限 ${pct(r.minimal.accidentRate)}` +
-        ` / Profit/Human Hour ${fmt(r.all.profitPerHumanHour)} vs ${fmt(r.minimal.profitPerHumanHour)} 円/人時`,
+        ` / Profit/Person-Day ${fmt(r.all.profitPerPersonDay)} vs ${fmt(r.minimal.profitPerPersonDay)} 円/人日`,
     );
     expect(r.all.accidentRate).toBeGreaterThan(r.minimal.accidentRate);
-    expect(r.minimal.profitPerHumanHour).toBeGreaterThan(r.all.profitPerHumanHour);
+    expect(r.minimal.profitPerPersonDay).toBeGreaterThan(r.all.profitPerPersonDay);
   });
 });

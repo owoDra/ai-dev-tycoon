@@ -4,13 +4,13 @@ import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
 import type { Notice } from '../notices';
 
-/** 短いお知らせの表示。画面上部の中央に小さく出し、押せないので下のワールドやボタンの操作を妨げない */
-export function NoticeHost(props: { notices: readonly Notice[]; compact: boolean }) {
+/** 短いお知らせの表示。お知らせの列に小さく出し、押せないので下のワールドやボタンの操作を妨げない */
+export function NoticeHost(props: { notices: readonly Notice[] }) {
   return (
     <div
       role="status"
       aria-label={ja.notices.region}
-      class={`pointer-events-none absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 ${props.compact ? 'top-28' : 'top-20'}`}
+      class="pointer-events-none flex w-full shrink-0 flex-col items-end gap-1.5"
     >
       <For each={props.notices}>{(n) => <NoticeChip notice={n} />}</For>
     </div>

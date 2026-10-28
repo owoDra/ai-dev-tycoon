@@ -1,16 +1,32 @@
-import { type Accessor, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  type JSX,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import { getCompanyTier } from '../../content/companyTiers';
 import { findWorker, getHarnessPart, getHuman, getModel, getProject, getTask } from '../../content/index';
-import { layoutFormFor, type UiLayout, uiLayout } from '../../content/look/layout';
+import {
+  type Rect,
+  type ScreenRegions,
+  screenRegions,
+  sheetHeightIn,
+  type UiLayout,
+  uiLayout,
+} from '../../content/look/layout';
 import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
 import { tierOf } from '../../core/company';
-import { companyRunning } from '../../core/funds';
 import { getIncidentDef } from '../../core/incidents';
 import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
 import { teamName } from '../../core/teams';
@@ -51,9 +67,17 @@ import { TutorialCoach } from './TutorialCoach';
 /** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
 const SHEET_OVERLAP = 3;
 
+/** 領域の矩形を、絶対配置の style にする */
+export const rectStyle = (r: Rect): JSX.CSSProperties => ({
+  left: `${r.x}px`,
+  top: `${r.y}px`,
+  width: `${r.width}px`,
+  height: `${r.height}px`,
+});
+
 /**
- * プレイ画面の UI（3D ワールドの上に重ねる）。D3「ゲームのドック」の構成で、
- * 下部のドック（HUD）・上のトースト（次に対応すべき問題）・下から出るシート（詳細と担当変更）・島のラベル・お知らせを置く。
+ * プレイ画面の UI（3D ワールドの上に重ねる）。D3「ゲームのドック」の構成で、画面を重ならない領域（content/look/layout.ts の screenRegions）に分け、
+ * 上の帯（会社の帯と操作の列）・お知らせの列（次に対応すべき問題・お知らせ・納品と用語のカード）・下部のドック（HUD）・下から出るシート（詳細と担当変更）・島のラベルを置く。
  * state は読むだけで、変更は store.dispatch（Command）で行う。選択は UI の state（Selection）。
  * チュートリアル中はコーチマークを重ね、「次に対応すべき問題」は解放されるまで出さない。
  * 案件を開いていない（projectId が null）ときはホーム：3D は会社のオフィスで、ドックは引き合いの入口と会社の状態だけを出す。
@@ -67,6 +91,12 @@ export function PlayScreen(props: {
   vm: Accessor<WorldViewModel | undefined>;
   world?: Accessor<World | undefined>;
   layout?: UiLayout;
+  /** 画面の領域（App がセーフエリアの内側の大きさから求める）。渡さなければウィンドウの大きさから求める */
+  regions?: Accessor<ScreenRegions>;
+  /** 上の帯の左に出すもの（会社の帯） */
+  strip?: JSX.Element;
+  /** お知らせの列の後ろに積むもの（納品と用語のカード） */
+  notices?: JSX.Element;
   onSettings?: () => void;
   /** 別の案件のタブへ切り替える（複数案件の同時進行） */
   onSwitch?: (projectId: string) => void;
@@ -77,11 +107,16 @@ export function PlayScreen(props: {
   const pid = () => props.projectId ?? '';
   const inProject = () => props.projectId !== null;
   const layout = () => props.layout ?? uiLayout;
-  const [view, setView] = createSignal({ width: window.innerWidth, height: window.innerHeight });
-  const onResize = () => setView({ width: window.innerWidth, height: window.innerHeight });
+  const [windowSize, setWindowSize] = createSignal({ width: window.innerWidth, height: window.innerHeight });
+  const onResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
   window.addEventListener('resize', onResize);
   onCleanup(() => window.removeEventListener('resize', onResize));
-  const form = createMemo(() => layoutFormFor(layout(), view().width));
+  const regions = createMemo(() => props.regions?.() ?? screenRegions(layout(), windowSize()));
+  const view = () => {
+    const r = regions();
+    return { width: r.top.width + 2 * r.top.x, height: r.dock.y + r.dock.height + r.form.dock.bottom };
+  };
+  const form = createMemo(() => ({ compact: regions().shape === 'phone', form: regions().form }));
 
   const [dockHeight, setDockHeight] = createSignal(0);
   const observeDock = (el: HTMLElement) => {
@@ -91,7 +126,7 @@ export function PlayScreen(props: {
     onCleanup(() => ro.disconnect());
   };
   const sheetBottom = () => dockHeight() + form().form.dock.bottom - SHEET_OVERLAP;
-  const sheetHeight = () => view().height * form().form.sheet.heightRatio;
+  const sheetHeight = () => sheetHeightIn(regions(), view().height);
 
   // 問題は中身が同じなら同じ配列を返し、トーストを毎フレーム作り直さない
   const problems = createMemo(() => (inProject() ? adviseProblems(props.store.state(), pid()) : []), [], {
@@ -398,9 +433,17 @@ export function PlayScreen(props: {
     if (entityId?.startsWith('island:')) lastIsland = entityId;
     props.selection.dispatch({ type: 'SelectEntity', entityId });
   };
-  /** シートとドックに隠れない範囲の中心へカメラを寄せる */
-  const focusCamera = (entityId: string) =>
-    props.world?.()?.focus(entityId, { x: 0, y: -(sheetHeight() + dockHeight()) / 2 }, layout().flow.focusZoom);
+  /**
+   * 3D の世界の領域のうち、シートに隠れない範囲の中心へカメラを寄せる。
+   * カメラは世界の領域の中心を基準にする（world/camera.ts の setFrame）ので、そこからのずれを渡す
+   */
+  const focusCamera = (entityId: string) => {
+    const w = regions().world;
+    const sheetTop = sheetBottom() > 0 ? view().height - sheetBottom() - sheetHeight() : w.y + w.height;
+    const visibleBottom = Math.max(w.y, Math.min(w.y + w.height, sheetTop));
+    const offsetY = (w.y + visibleBottom) / 2 - (w.y + w.height / 2);
+    props.world?.()?.focus(entityId, { x: 0, y: offsetY }, layout().flow.focusZoom);
+  };
 
   const close = () => {
     const was = selected();
@@ -495,11 +538,12 @@ export function PlayScreen(props: {
     </div>
   );
 
-  /** 日付と時刻・速度・メニュー（PC は右上、スマホはドックの中） */
-  const controls = () => (
+  /** 日付と時刻・速度・メニュー（上の帯の右。スマホでは時計と速度だけを右上に、メニューをドックに。layout の controls） */
+  const controls = (part: 'all' | 'clock' | 'menu') => (
     <PlayControls
       store={props.store}
-      compact={form().compact}
+      compact={form().form.controls !== 'labeled'}
+      part={part}
       onBoard={boardOn() ? openBoard : undefined}
       onTeam={teamOn() ? openTeam : undefined}
       teamWarning={usageWarning(props.store.state())}
@@ -520,21 +564,35 @@ export function PlayScreen(props: {
           onSelect={(id) => select(id)}
         />
       </Show>
-      <ProblemToasts
-        problems={shownProblems()}
-        layout={form().form.toast}
-        dismissible={layout().flow.toastDismissible}
-        onGo={goTo}
-        onLater={(p) => setDismissed((s) => new Set([...s, p.id]))}
-        onResolve={(p) => {
-          if (p.incident) {
-            props.store.dispatch({ type: 'ResolveIncident', incident: p.incident.id, workerId: p.incident.workerId });
-          }
-        }}
-        onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
-        belowStrip={companyRunning(props.store.state())}
-        belowControls={!form().compact}
-      />
+      <div
+        class="pointer-events-none absolute z-30 flex items-start justify-between gap-2"
+        style={rectStyle(regions().top)}
+        data-region="top"
+      >
+        <div class="flex min-w-0 flex-1">{props.strip}</div>
+        <div class="pointer-events-auto shrink-0">{controls(form().form.controls === 'dock' ? 'clock' : 'all')}</div>
+      </div>
+      <div
+        class="pointer-events-none absolute z-20 flex flex-col items-end gap-2 overflow-x-hidden overflow-y-auto"
+        style={rectStyle(regions().notices)}
+        data-region="notices"
+      >
+        <ProblemToasts
+          problems={shownProblems()}
+          layout={form().form.toast}
+          dismissible={layout().flow.toastDismissible}
+          onGo={goTo}
+          onLater={(p) => setDismissed((s) => new Set([...s, p.id]))}
+          onResolve={(p) => {
+            if (p.incident) {
+              props.store.dispatch({ type: 'ResolveIncident', incident: p.incident.id, workerId: p.incident.workerId });
+            }
+          }}
+          onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
+        />
+        <NoticeHost notices={notices.list()} />
+        {props.notices}
+      </div>
       <Show when={move()}>
         {(m) => (
           <BottleneckGuide
@@ -553,11 +611,10 @@ export function PlayScreen(props: {
               setMove(null);
               setCompare(false);
             }}
-            belowStrip={companyRunning(props.store.state())}
+            top={regions().world.y + 8}
           />
         )}
       </Show>
-      <NoticeHost notices={notices.list()} compact={form().compact} />
       <Presence when={detail()} enter={false} class="pointer-events-auto">
         {(d) => (
           <DetailSheet
@@ -572,6 +629,7 @@ export function PlayScreen(props: {
             fresh={fresh()}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             onClose={close}
             onAssign={assign}
             onHarness={harnessOn() ? openHarness : undefined}
@@ -607,6 +665,7 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             dispatch={(c) => props.store.dispatch(c)}
             toggleDoc={(docId) => toggleDoc(props.store.state(), pid(), v().workerId, docId)}
             onClose={() => setContextOpen(false)}
@@ -620,6 +679,7 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             forecast={(command) => harnessForecast(props.store.state(), pid(), v().workerId, command)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setHarnessOpen(false)}
@@ -648,6 +708,7 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             forecast={(command) => harnessForecast(props.store.state(), pid(), harnessWorker(), command)}
             readCode={(code) => importPreview(props.store.state(), code)}
             dispatch={(c) => props.store.dispatch(c)}
@@ -665,6 +726,7 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setTeamOpen(false)}
           />
@@ -677,13 +739,11 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
+            maxHeight={regions().sheet.height}
             onClose={() => setBoardOpen(false)}
           />
         )}
       </Presence>
-      <Show when={!form().compact}>
-        <div class="pointer-events-auto absolute top-2 right-2 z-20">{controls()}</div>
-      </Show>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -698,7 +758,7 @@ export function PlayScreen(props: {
           onSwitch={props.onSwitch}
           onBoard={boardOn() ? openBoard : undefined}
           onHome={props.onHome}
-          controls={form().compact ? controls() : undefined}
+          controls={form().form.controls === 'dock' ? controls('menu') : undefined}
         />
       </div>
       <TutorialCoach store={props.store} padding={layout().flow.coachPadding} />

@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
       // `--mode playtest` は D5 の通しプレイ用（プレイログを常に有効にした本番と同じゲーム）
       transformIndexHtml: (html) =>
         mode === 'explore'
-          ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D4 比較</title>')
+          ? html.replace(/<title>.*<\/title>/, '<title>タイクーン 画面構成の確認</title>')
           : mode === 'playtest'
             ? html.replace(/<title>.*<\/title>/, '<title>タイクーン D5 通しプレイ</title>')
             : html,

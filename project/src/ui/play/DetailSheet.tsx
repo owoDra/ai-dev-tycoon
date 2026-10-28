@@ -38,6 +38,8 @@ export function DetailSheet(props: {
   bottom: number;
   /** 画面の高さ（px） */
   viewHeight: number;
+  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
+  maxHeight?: number;
   onClose: () => void;
   onAssign: (taskId: string, mode: AssignModeId) => void;
   /** Harness Builder を開く（AI のキャラクターを選んだとき。解放前は渡さない） */
@@ -82,7 +84,7 @@ export function DetailSheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${props.viewHeight * props.layout.heightRatio}px`,
+        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
         // 出現の動き（motion）が transform を使うので、スワイプのずれは translate で別に持つ
         translate: `0 ${drag()}px`,
       }}

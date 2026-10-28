@@ -1,5 +1,5 @@
-import { createEffect, createSignal, lazy, Match, on, onCleanup, Show, Switch } from 'solid-js';
-import { uiLayout } from '../content/look/layout';
+import { createEffect, createMemo, createSignal, lazy, Match, on, onCleanup, Show, Switch } from 'solid-js';
+import { screenRegions, uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { tutorialScript } from '../content/tutorial';
 import { catchUp, dayEnd, runsUnattended } from '../core/away';
@@ -13,9 +13,9 @@ import { AudioHost } from '../ui/audio/AudioHost';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards } from '../ui/company/DeliveryCard';
 import { FxHost } from '../ui/fx/FxHost';
-import { PlayScreen } from '../ui/play/PlayScreen';
+import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
-import { TermCards } from '../ui/play/TermCards';
+import { createTermCards, TermCardList } from '../ui/play/TermCards';
 import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { BankruptScreen } from '../ui/screens/BankruptScreen';
@@ -23,6 +23,7 @@ import { FiscalScreen } from '../ui/screens/FiscalScreen';
 import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
 import { createSelection } from '../ui/selection';
+import { createSafeBox } from '../ui/viewport';
 import { WorldCanvas } from '../ui/WorldCanvas';
 import { type DeliveryView, deliveryView } from '../view/fiscal';
 import { type DaySummary, daySummary, type Recap, recapView } from '../view/session';
@@ -61,7 +62,13 @@ const AUTOSAVE_MS = 5000;
  * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
  * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
  */
-export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
+export function App(props: {
+  tweak: boolean;
+  log?: boolean;
+  perf?: boolean;
+  /** 開発用の確認ページ（src/dev/layout）：この状態の会社をプレイ画面で開く（projectId が null ならホーム）。保存はしない */
+  start?: { state: GameState; projectId: string | null };
+}) {
   const screens = createScreens();
   const selection = createSelection();
   const [game, setGame] = createSignal<GameStore>(createGameStore(createInitialState(IDLE_SEED)));
@@ -82,6 +89,19 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   let dayStart = game().state();
   const openSettings = () => setSettingsOpen(true);
   let director: FxDirector | undefined;
+  // 画面の領域（content/look/layout.ts）。セーフエリアの内側の大きさから求め、回転やブラウザのバーの出し入れに追従する
+  const [safeEl, setSafeEl] = createSignal<HTMLElement>();
+  const safe = createSafeBox(safeEl);
+  const regions = createMemo(() => screenRegions(uiLayout, safe()));
+  const terms = createTermCards(game, uiLayout.flow.termCardMs);
+  // カメラはプレイ中、3D の世界の領域（上の帯・お知らせの列・ドックを除いた範囲）に構図を合わせる。ほかの画面では画面全体
+  createEffect(() => {
+    const w = world()?.world;
+    if (!w) return;
+    const r = regions().world;
+    const s = safe();
+    w.setFrame(screens.screen().id === 'play' ? { ...r, x: r.x + s.x, y: r.y + s.y } : null);
+  });
 
   /** ワールドに映す案件（フロア）。ホームでは null（会社のオフィス）、タイトルと実務モードではチュートリアルの案件 */
   const worldProject = (): string | null => {
@@ -121,6 +141,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const closeDelivery = (projectId: string) => setDeliveries((cards) => cards.filter((c) => c.projectId !== projectId));
 
   const save = () => {
+    if (props.start) return;
     saveCompany(game().state());
     if (game().state().board === null) return;
     setSaved(true);
@@ -176,6 +197,13 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     useState(createInitialState(IDLE_SEED));
     screens.go({ type: 'ToTitle' });
   };
+
+  if (props.start) {
+    const { state, projectId } = props.start;
+    useState(state);
+    screens.go({ type: 'Open' });
+    if (projectId !== null) screens.go({ type: 'Switch', projectId });
+  }
 
   createEffect(
     on(game, (store) => {
@@ -271,7 +299,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   }
 
   return (
-    <main class="fixed inset-0 overflow-hidden bg-bg font-sans text-ink">
+    <main class="fixed inset-x-0 top-0 h-dvh overflow-hidden bg-bg font-sans text-ink">
       <WorldCanvas
         store={game()}
         projectId={worldProject()}
@@ -279,47 +307,85 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         selection={selection}
         onWorld={(w, vm) => setWorld({ world: w, vm })}
       />
-      <Switch>
-        <Match when={screens.screen().id === 'title'}>
-          <TitleScreen
-            onStart={newCampaign}
-            onContinue={saved() ? continueCampaign : undefined}
-            onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
-            onPractice={() => screens.go({ type: 'Practice' })}
-            onSettings={openSettings}
-            outdatedSave={outdated() && !saved()}
-          />
-        </Match>
-        <Match when={screens.screen().id === 'practice'}>
-          <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
-        </Match>
-        <Match when={screens.screen().id === 'play'}>
-          <PlayScreen
-            store={game()}
-            projectId={worldProject()}
-            selection={selection}
-            vm={() => world()?.vm()}
-            world={() => world()?.world}
-            onSettings={openSettings}
-            onSwitch={(projectId) => {
-              selection.dispatch({ type: 'SelectEntity', entityId: null });
-              screens.go({ type: 'Switch', projectId });
-            }}
-            onHome={() => {
-              selection.dispatch({ type: 'SelectEntity', entityId: null });
-              screens.go({ type: 'Home' });
-            }}
-          />
-        </Match>
-        <Match when={screens.screen().id === 'result'}>
-          <ResultScreen
-            store={game()}
-            projectId={worldProject() ?? ''}
-            onNext={() => screens.go({ type: 'Home' })}
-            onTitle={toTitle}
-          />
-        </Match>
-      </Switch>
+      {/* セーフエリア（ノッチやホームバー）の内側。画面の UI はこの中に置く */}
+      <div
+        ref={setSafeEl}
+        class="pointer-events-none absolute top-[env(safe-area-inset-top)] right-[env(safe-area-inset-right)] bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)]"
+        data-safe-area
+      >
+        <Switch>
+          <Match when={screens.screen().id === 'title'}>
+            <div class="pointer-events-auto contents">
+              <TitleScreen
+                onStart={newCampaign}
+                onContinue={saved() ? continueCampaign : undefined}
+                onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
+                onPractice={() => screens.go({ type: 'Practice' })}
+                onSettings={openSettings}
+                outdatedSave={outdated() && !saved()}
+              />
+            </div>
+          </Match>
+          <Match when={screens.screen().id === 'practice'}>
+            <div class="pointer-events-auto contents">
+              <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
+            </div>
+          </Match>
+          <Match when={screens.screen().id === 'play'}>
+            <PlayScreen
+              store={game()}
+              projectId={worldProject()}
+              selection={selection}
+              vm={() => world()?.vm()}
+              world={() => world()?.world}
+              regions={regions}
+              strip={<CompanyStrip store={game()} dense={regions().shape === 'phone'} />}
+              notices={
+                <>
+                  <DeliveryCards
+                    cards={deliveries()}
+                    onClose={closeDelivery}
+                    onReview={(projectId) => {
+                      closeDelivery(projectId);
+                      selection.dispatch({ type: 'SelectEntity', entityId: null });
+                      screens.go({ type: 'Review', projectId });
+                    }}
+                  />
+                  <TermCardList cards={terms.cards()} onClose={terms.close} />
+                </>
+              }
+              onSettings={openSettings}
+              onSwitch={(projectId) => {
+                selection.dispatch({ type: 'SelectEntity', entityId: null });
+                screens.go({ type: 'Switch', projectId });
+              }}
+              onHome={() => {
+                selection.dispatch({ type: 'SelectEntity', entityId: null });
+                screens.go({ type: 'Home' });
+              }}
+            />
+          </Match>
+          <Match when={screens.screen().id === 'result'}>
+            <div class="pointer-events-auto contents">
+              <ResultScreen
+                store={game()}
+                projectId={worldProject() ?? ''}
+                onNext={() => screens.go({ type: 'Home' })}
+                onTitle={toTitle}
+              />
+            </div>
+          </Match>
+        </Switch>
+        {/* プレイ画面の外（結果画面など）では、用語のカードを同じお知らせの列の位置に出す */}
+        <Show when={screens.screen().id !== 'play'}>
+          <div
+            class="pointer-events-none absolute z-30 flex flex-col items-end gap-2 overflow-y-auto"
+            style={rectStyle(regions().notices)}
+          >
+            <TermCardList cards={terms.cards()} onClose={terms.close} />
+          </div>
+        </Show>
+      </div>
       <FxHost
         store={game()}
         projectId={screens.screen().id === 'play' || screens.screen().id === 'result' ? worldProject() : null}
@@ -337,21 +403,6 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
-      <Show when={screens.screen().id === 'play'}>
-        {/* 左上の列：会社の帯と、その下に積む納品のカード */}
-        <div class="pointer-events-none absolute top-2 left-2 z-30 flex w-[min(20rem,calc(100%-1rem))] flex-col gap-2">
-          <CompanyStrip store={game()} />
-          <DeliveryCards
-            cards={deliveries()}
-            onClose={closeDelivery}
-            onReview={(projectId) => {
-              closeDelivery(projectId);
-              selection.dispatch({ type: 'SelectEntity', entityId: null });
-              screens.go({ type: 'Review', projectId });
-            }}
-          />
-        </div>
-      </Show>
       <Show when={dayCard() && fiscal() === null && !bankrupt() ? dayCard() : null}>
         {(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} />}
       </Show>
@@ -371,7 +422,6 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
           }}
         />
       </Show>
-      <TermCards store={game()} durationMs={uiLayout.flow.termCardMs} />
       <Show when={settingsOpen()}>
         <SettingsSheet
           onClose={() => setSettingsOpen(false)}

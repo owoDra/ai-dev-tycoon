@@ -48,6 +48,8 @@ export function HarnessSheet(props: {
   layout: SheetLayout;
   bottom: number;
   viewHeight: number;
+  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
+  maxHeight?: number;
   /** 選択肢の Command を確定した場合の予測 */
   forecast: (command: Command | null) => HarnessForecast;
   dispatch: (command: Command) => void;
@@ -88,7 +90,7 @@ export function HarnessSheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${props.viewHeight * props.layout.heightRatio}px`,
+        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
       }}
     >
       {props.tabs}

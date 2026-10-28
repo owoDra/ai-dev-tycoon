@@ -12,12 +12,25 @@ const CONTENT_HEIGHT = 1.6;
 /** ホイール1ノッチあたりのズームの効き */
 const WHEEL_ZOOM = 0.0015;
 
+/** カメラの構図を合わせる範囲（キャンバスの CSS ピクセル） */
+export interface FrameRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface CameraRig {
   readonly camera: OrthographicCamera;
   /** 島の配置が変わったときに、全体が収まる範囲とパンの制限を更新する */
   setLayout(layout: WorldLayout): void;
   setLook(look: WorldCameraLook): void;
   resize(width: number, height: number): void;
+  /**
+   * 3D の世界を見せる範囲（キャンバスの CSS ピクセル）。上の帯・お知らせの列・ドックを除いた範囲で、
+   * 案件全体をこの範囲に収め、注視点をこの範囲の中心に映す。null ならキャンバス全体
+   */
+  setFrame(frame: FrameRect | null): void;
   /** ホイール・ピンチによるズーム（factor > 1 で寄る） */
   zoomBy(factor: number): void;
   wheel(deltaY: number): void;
@@ -50,6 +63,11 @@ export function createCameraRig(
   let viewHeight = 10;
   let bounds = { minX: -5, maxX: 5, minZ: -5, maxZ: 5 };
   let height = 1;
+  let width = 1;
+  let frame: FrameRect | null = null;
+  /** 構図を合わせる範囲（小さすぎるときはキャンバス全体） */
+  const area = (): FrameRect =>
+    frame && frame.width >= 1 && frame.height >= 1 ? frame : { x: 0, y: 0, width, height };
   const zoom = motionValue(look.zoomInitial);
   const panX = motionValue(0);
   const panZ = motionValue(0);
@@ -83,6 +101,12 @@ export function createCameraRig(
     camera.top = viewHeight / 2;
     camera.bottom = -viewHeight / 2;
     camera.zoom = zoom.get();
+    // 注視点を、構図を合わせる範囲の中心に映す（ピクセルでずらすので、ズームしても範囲の中心のまま）
+    const a = area();
+    const dx = a.x + a.width / 2 - width / 2;
+    const dy = a.y + a.height / 2 - height / 2;
+    if (dx !== 0 || dy !== 0) camera.setViewOffset(width, height, -dx, -dy, width, height);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
   };
@@ -105,7 +129,9 @@ export function createCameraRig(
     }
     const w = Math.max(...xs) - Math.min(...xs);
     const h = Math.max(...ys) - Math.min(...ys);
-    viewHeight = Math.max(h, w / aspect) * FIT_PADDING;
+    // 範囲に収まる 1 ピクセルあたりの長さから、キャンバス全体の高さに換算する
+    const a = area();
+    viewHeight = Math.max(h / a.height, w / a.width) * height * FIT_PADDING;
     apply();
   };
 
@@ -167,9 +193,14 @@ export function createCameraRig(
       zoom.jump(targets.zoom);
       fitToLayout();
     },
-    resize(width, h) {
-      height = h;
-      aspect = width / Math.max(1, h);
+    resize(w, h) {
+      width = Math.max(1, w);
+      height = Math.max(1, h);
+      aspect = width / height;
+      fitToLayout();
+    },
+    setFrame(next) {
+      frame = next;
       fitToLayout();
     },
     zoomBy(factor) {

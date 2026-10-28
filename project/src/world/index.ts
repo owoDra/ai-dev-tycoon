@@ -19,7 +19,7 @@ import type { WorldLook } from '../content/look/world';
 import type { FxCue } from '../fx/director';
 import type { ActorView, PacketView, WorldViewModel } from '../view/world';
 import { type Actors, createActors } from './actors';
-import { createCameraRig } from './camera';
+import { createCameraRig, type FrameRect } from './camera';
 import { loadModelGeometries } from './geometry';
 import { createIncidentBugs, type IncidentBugs } from './incidents';
 import { BELT_TOP, createMarkerRing, createStage, DESK_OFFSET, DESK_TOP, PAD_HEIGHT, type Stage } from './islands';
@@ -57,6 +57,8 @@ export interface World {
   setSelected(entityId: string | null): void;
   /** 3D オブジェクトの頭上のキャンバス座標。DOM のラベルやポップアップを重ねるのに使う */
   project(entityId: string): ScreenPoint | null;
+  /** 3D の世界を見せる範囲（キャンバスの CSS ピクセル。CameraRig.setFrame） */
+  setFrame(frame: FrameRect | null): void;
   /** 島・キャラクター・パケットへカメラを寄せる（offset と zoom は CameraRig.focusOn と同じ） */
   focus(entityId: string, offset?: { x: number; y: number }, zoom?: number): void;
   /** 演出を再生する（fx/director が起動したもの）。ゲームの state には触れない */
@@ -441,6 +443,10 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
       const p = at.pos.clone();
       p.y += at.height;
       return toScreen(p, rig.camera, canvas.clientWidth, canvas.clientHeight);
+    },
+    setFrame(frame) {
+      rig.setFrame(frame);
+      invalidate();
     },
     focus(entityId, offset = { x: 0, y: 0 }, zoom) {
       const at = positionOf(entityId);

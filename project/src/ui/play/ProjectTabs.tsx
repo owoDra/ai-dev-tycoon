@@ -21,8 +21,13 @@ export function ProjectTabs(props: {
   home?: boolean;
 }) {
   return (
-    <div class={`flex min-w-0 items-center gap-1.5 ${props.compact ? 'basis-full overflow-x-auto' : ''}`}>
-      <div role="tablist" aria-label={t.tabs} class="flex min-w-0 items-center gap-1.5">
+    <div class={`flex min-w-0 flex-1 items-center gap-1.5 ${props.compact ? '' : 'min-w-40'}`} data-project-tabs>
+      {/* タブが入りきらなければ横にスクロールする（依頼のボタンは常に見せる） */}
+      <div
+        role="tablist"
+        aria-label={t.tabs}
+        class="flex min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:thin]"
+      >
         <Show when={props.home || props.onHome}>
           <button
             type="button"
@@ -45,7 +50,7 @@ export function ProjectTabs(props: {
               role="tab"
               aria-selected={tab.selected}
               data-project-tab={tab.projectId}
-              class={`flex h-11 min-w-0 shrink-0 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
+              class={`flex h-11 shrink-0 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
                 tab.selected ? 'bg-accent-200' : 'bg-sunken'
               }`}
               onClick={() => props.onSwitch(tab.projectId)}

@@ -24,6 +24,8 @@ export function BoardSheet(props: {
   layout: SheetLayout;
   bottom: number;
   viewHeight: number;
+  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
+  maxHeight?: number;
   onClose: () => void;
 }) {
   const view = createMemo(() => boardView(props.store.state()));
@@ -45,7 +47,7 @@ export function BoardSheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${props.viewHeight * props.layout.heightRatio}px`,
+        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
       }}
     >
       <div class="flex items-start justify-between gap-2">

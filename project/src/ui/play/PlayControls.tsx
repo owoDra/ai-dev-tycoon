@@ -15,8 +15,10 @@ const t = ja.hud;
 const phaseIcon: Record<DayPhase, IconName> = { work: 'day', lunch: 'clock', night: 'night' };
 
 /**
- * 右上の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・一時停止と速度・メニュー（案件ボード・社員と Seat・Harness・設定）。
- * PC では画面の右上に浮かせ、スマホ（compact）ではドックの最後に入れる。速度は解放（dock:speed）されるまで一時停止だけを出す。
+ * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・一時停止と速度・メニュー（案件ボード・社員と Seat・Harness・設定）。
+ * compact ではメニューをアイコンだけにし、速度を1つのボタンで順に切り替える。part で一部だけを出せる
+ * （スマホでは時計と一時停止・速度を右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
+ * 速度は解放（dock:speed）されるまで一時停止だけを出す。
  * 操作は Command（TogglePause / SetSpeed）と、渡されたシートを開く関数で行う（渡されなければそのボタンを出さない）。
  */
 export function PlayControls(props: {
@@ -28,68 +30,72 @@ export function PlayControls(props: {
   teamWarning?: boolean;
   onHarness?: () => void;
   onSettings?: () => void;
+  /** all: すべて / clock: 時計と一時停止・速度だけ / menu: メニューだけ（枠なし） */
+  part?: 'all' | 'clock' | 'menu';
 }) {
   const speedOn = () => isUnlocked(props.store.state(), 'dock:speed');
+  const part = () => props.part ?? 'all';
   return (
-    <div
-      class={`flex items-center gap-2 ${props.compact ? 'basis-full flex-wrap justify-between gap-y-2' : `${panel} px-2 py-1.5`}`}
-      data-play-controls
-    >
-      <ClockPill store={props.store} dense={props.compact} />
-      <Show when={speedOn()} fallback={<PauseButton store={props.store} />}>
-        <SpeedControl store={props.store} dense={props.compact} />
+    <div class={`flex items-center gap-2 ${part() === 'menu' ? '' : `${panel} px-2 py-1`}`} data-play-controls={part()}>
+      <Show when={part() !== 'menu'}>
+        <ClockPill store={props.store} dense={props.compact} />
+        <Show when={speedOn()} fallback={<PauseButton store={props.store} />}>
+          <SpeedControl store={props.store} dense={props.compact} />
+        </Show>
       </Show>
-      <nav aria-label={t.menu} class="flex items-center gap-1">
-        <Show when={props.onBoard}>
-          {(open) => (
-            <MenuButton
-              icon="board"
-              label={t.board}
-              compact={props.compact}
-              onClick={open()}
-              data={{ 'data-menu-board': '' }}
-            />
-          )}
-        </Show>
-        <Show when={props.onTeam}>
-          {(open) => (
-            <MenuButton
-              compact={props.compact}
-              icon="seat"
-              label={ja.team.open}
-              ariaLabel={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
-              warning={props.teamWarning}
-              onClick={open()}
-              data={{ 'data-team-open': '' }}
-            />
-          )}
-        </Show>
-        <Show when={props.onHarness}>
-          {(open) => (
-            <MenuButton
-              compact={props.compact}
-              icon="ai"
-              label={ja.harness.openShort}
-              ariaLabel={ja.harness.open}
-              onClick={open()}
-              data={{ 'data-harness-open': '' }}
-            />
-          )}
-        </Show>
-        <Show when={props.onSettings}>
-          {(open) => (
-            <button
-              type="button"
-              class="flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-surface"
-              aria-label={ja.settings.open}
-              title={ja.settings.open}
-              onClick={() => open()()}
-            >
-              <SettingsIcon />
-            </button>
-          )}
-        </Show>
-      </nav>
+      <Show when={part() !== 'clock'}>
+        <nav aria-label={t.menu} class="flex items-center gap-1">
+          <Show when={props.onBoard}>
+            {(open) => (
+              <MenuButton
+                icon="board"
+                label={t.board}
+                compact={props.compact}
+                onClick={open()}
+                data={{ 'data-menu-board': '' }}
+              />
+            )}
+          </Show>
+          <Show when={props.onTeam}>
+            {(open) => (
+              <MenuButton
+                compact={props.compact}
+                icon="seat"
+                label={ja.team.open}
+                ariaLabel={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
+                warning={props.teamWarning}
+                onClick={open()}
+                data={{ 'data-team-open': '' }}
+              />
+            )}
+          </Show>
+          <Show when={props.onHarness}>
+            {(open) => (
+              <MenuButton
+                compact={props.compact}
+                icon="ai"
+                label={ja.harness.openShort}
+                ariaLabel={ja.harness.open}
+                onClick={open()}
+                data={{ 'data-harness-open': '' }}
+              />
+            )}
+          </Show>
+          <Show when={props.onSettings}>
+            {(open) => (
+              <button
+                type="button"
+                class="flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-surface"
+                aria-label={ja.settings.open}
+                title={ja.settings.open}
+                onClick={() => open()()}
+              >
+                <SettingsIcon />
+              </button>
+            )}
+          </Show>
+        </nav>
+      </Show>
     </div>
   );
 }
@@ -107,7 +113,10 @@ function ClockPill(props: { store: GameStore; dense: boolean }) {
         <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-base'}`}>
           {t.today(calendarDay(clock()) + 1, hhmm(minuteOfDay(clock())))}
         </span>
-        <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted" data-phase-label>
+        <span
+          class={`truncate text-[11px] font-bold whitespace-nowrap text-ink-muted ${props.dense ? 'max-w-24' : ''}`}
+          data-phase-label
+        >
           {t.phase[phase()]}
           <Show when={skipping()}> · {t.skipping}</Show>
           <Show when={waiting()}> · {t.waiting}</Show>

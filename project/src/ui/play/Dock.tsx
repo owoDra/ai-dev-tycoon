@@ -1,5 +1,5 @@
 import { animate } from 'motion';
-import { createEffect, createMemo, For, type JSX, Match, onCleanup, Show, Switch } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, type JSX, Match, onCleanup, Show, Switch } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { getProject } from '../../content/index';
 import type { DockLayout, HudItemId } from '../../content/look/layout';
@@ -21,9 +21,14 @@ const t = ja.hud;
 /** Profit / Person-Day の増減チップを出す最小の変化（円/人日）。見込みの細かな揺れでは出さない */
 const PROFIT_CHIP_MIN = 100;
 
+/** スマホでドックの2段目（操作の段）に回す項目。押して使うボタンなので、状態の段には置かない */
+const actionItems: ReadonlySet<HudItemId> = new Set(['problems']);
+
 /**
  * 下部のドック（D3「ゲームのドック」）。いま見ている案件の状態だけを出す：先頭に案件名（見出しで、常時表示の項目には数えない）か案件のタブ、
- * 続けて dock.items の項目を並べる。ホーム（projectId が null）では案件の項目の代わりに、進行中の案件のタブ・引き合いの入口・結果待ちの数を出す。スマホ（compact）では画面幅いっぱいの2段にし、上部に出せない操作の列（controls）を最後に入れる。
+ * 続けて dock.items の項目を並べる。dock.details の項目は「詳細」のボタンで、ドックの上に開く。
+ * ホーム（projectId が null）では案件の項目の代わりに、進行中の案件のタブ・引き合いの入口・結果待ちの数を出す。
+ * スマホ（compact）では画面幅いっぱいの2段にする：1段目に案件名と状態（利益・納期）、2段目に問題・詳細と操作の列（controls。メニュー）。
  * 値は view/hud.ts から読む。解放の対象になっている項目（content/unlocks.ts の dockFeature）は、解放されるまで出さない。
  */
 export function Dock(props: {
@@ -43,7 +48,7 @@ export function Dock(props: {
   onBoard?: () => void;
   /** ホームへ戻る（タブの「オフィス」） */
   onHome?: () => void;
-  /** ドックの最後に入れる操作の列（スマホで、時計・速度・メニューを入れる） */
+  /** ドックの最後（スマホでは2段目）に入れる操作の列（スマホで、メニューを入れる） */
   controls?: JSX.Element;
   ref?: (el: HTMLElement) => void;
 }) {
@@ -52,23 +57,37 @@ export function Dock(props: {
     return tabs !== undefined && props.projectId !== null && (tabs.tabs.length > 1 || tabs.offers > 0) ? tabs : null;
   };
   const hud = createMemo(() => (props.projectId === null ? null : hudView(props.store.state(), props.projectId)));
-  const items = createMemo(() =>
-    props.layout.items.filter((id) => {
-      const feature = dockFeature[id];
-      return feature === undefined || isUnlocked(props.store.state(), feature);
-    }),
+  const unlocked = (id: HudItemId) => {
+    const feature = dockFeature[id];
+    return feature === undefined || isUnlocked(props.store.state(), feature);
+  };
+  const items = createMemo(() => props.layout.items.filter(unlocked));
+  const details = createMemo(() => props.layout.details.filter(unlocked));
+  const [detailsOpen, setDetailsOpen] = createSignal(false);
+  const hudItems = (ids: readonly HudItemId[], dense: boolean) => (
+    <Show when={hud() && props.projectId ? { h: hud() as HudView, projectId: props.projectId } : null}>
+      {(v) => (
+        <For each={ids}>
+          {(id) => (
+            <div data-hud-item={id} class="flex min-w-0 shrink-0 items-center">
+              <HudItem
+                id={id}
+                hud={v().h}
+                store={props.store}
+                dense={dense}
+                problemCount={props.problemCount}
+                onProblems={props.onProblems}
+                projectId={v().projectId}
+                onContext={props.onContext}
+              />
+            </div>
+          )}
+        </For>
+      )}
+    </Show>
   );
-  return (
-    <nav
-      ref={props.ref}
-      aria-label={t.dock}
-      class={`${panel} absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center ${
-        props.compact
-          ? 'w-full max-w-full flex-wrap justify-between gap-x-3 gap-y-2 rounded-b-none px-3 pt-2 pb-3'
-          : 'gap-5 px-5 py-2.5'
-      }`}
-      style={{ bottom: `${props.layout.bottom}px` }}
-    >
+  const heading = (
+    <>
       <Show when={showTabs()}>
         {(tabs) => (
           <ProjectTabs
@@ -92,34 +111,81 @@ export function Dock(props: {
       <Show when={props.layout.projectName && !showTabs() && props.projectId}>
         {(projectId) => (
           <h1
-            class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
+            class={`flex min-w-0 flex-1 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'text-sm' : 'max-w-60 text-base'}`}
           >
             <Icon name="project" class={props.compact ? 'text-lg' : 'text-2xl'} />
             <span class="truncate">{getProject(projectId()).name}</span>
           </h1>
         )}
       </Show>
-      <Show when={hud() && props.projectId ? { h: hud() as HudView, projectId: props.projectId } : null}>
-        {(v) => (
-          <For each={items()}>
-            {(id) => (
-              <div data-hud-item={id} class="flex min-w-0 items-center">
-                <HudItem
-                  id={id}
-                  hud={v().h}
-                  store={props.store}
-                  dense={props.compact}
-                  problemCount={props.problemCount}
-                  onProblems={props.onProblems}
-                  projectId={v().projectId}
-                  onContext={props.onContext}
-                />
-              </div>
-            )}
-          </For>
-        )}
+    </>
+  );
+  const detailsButton = () => (
+    <Show when={props.projectId !== null && details().length > 0}>
+      <button
+        type="button"
+        data-hud-details
+        aria-expanded={detailsOpen()}
+        class={`flex h-11 shrink-0 items-center gap-1 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
+          detailsOpen() ? 'bg-accent-200' : 'bg-surface'
+        }`}
+        onClick={() => setDetailsOpen((o) => !o)}
+      >
+        <Icon name="eval" class="text-lg" />
+        {t.details}
+      </button>
+    </Show>
+  );
+  return (
+    <nav
+      ref={props.ref}
+      aria-label={t.dock}
+      class={`${panel} absolute left-1/2 flex max-w-[calc(100%-1rem)] -translate-x-1/2 ${
+        props.compact
+          ? 'w-full max-w-full flex-col gap-1.5 rounded-b-none px-2.5 pt-1.5 pb-2'
+          : `items-center px-4 py-2 ${props.layout.dense ? 'gap-3' : 'gap-4'}`
+      }`}
+      style={{ bottom: `${props.layout.bottom}px` }}
+      data-dock={props.compact ? 'rows' : 'row'}
+    >
+      <Show when={detailsOpen() && details().length > 0 && props.projectId !== null}>
+        <section
+          class={`${panel} absolute bottom-full left-0 mb-2 flex max-w-full flex-wrap items-center gap-4 px-4 py-2.5`}
+          aria-label={t.details}
+          data-hud-details-panel
+        >
+          {hudItems(details(), false)}
+        </section>
       </Show>
-      {props.controls}
+      <Show
+        when={props.compact}
+        fallback={
+          <>
+            {heading}
+            {hudItems(items(), props.layout.dense)}
+            {detailsButton()}
+            {props.controls}
+          </>
+        }
+      >
+        <div class="flex h-11 min-w-0 items-center gap-3" data-dock-row="status">
+          {heading}
+          {hudItems(
+            items().filter((id) => !actionItems.has(id)),
+            true,
+          )}
+        </div>
+        <div class="flex h-11 min-w-0 items-center justify-between gap-2" data-dock-row="actions">
+          <div class="flex items-center gap-2">
+            {hudItems(
+              items().filter((id) => actionItems.has(id)),
+              true,
+            )}
+            {detailsButton()}
+          </div>
+          {props.controls}
+        </div>
+      </Show>
     </nav>
   );
 }
@@ -142,12 +208,14 @@ function HomeItems(props: {
         when={props.tabs && props.tabs.tabs.length > 0 ? props.tabs : null}
         fallback={
           <h1
-            class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
+            class={`flex min-w-0 flex-1 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'text-sm' : 'text-base'}`}
             data-home
           >
             <Icon name="human" class={props.compact ? 'text-lg' : 'text-2xl'} />
             <span class="truncate">{b.home}</span>
-            <span class="text-[11px] font-bold text-ink-muted">{b.homeLead}</span>
+            <Show when={!props.compact}>
+              <span class="text-[11px] font-bold text-ink-muted">{b.homeLead}</span>
+            </Show>
           </h1>
         }
       >
@@ -374,27 +442,48 @@ function SpendItem(props: { hud: HudView; dense: boolean }) {
   const ratio = () => (props.hud.revenue > 0 ? Math.min(1, props.hud.spent / props.hud.revenue) : 0);
   const loss = () => props.hud.projectedProfit < 0;
   return (
-    <div class="flex items-center gap-2" data-spend>
-      <Icon name={loss() ? 'warning' : 'money'} class={props.dense ? 'text-xl' : 'text-2xl'} />
-      <div class="flex flex-col gap-0.5 leading-tight">
-        <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">{t.spend}</span>
-        <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-lg'}`}>
-          {t.spendValue(yen(props.hud.spent), yen(props.hud.revenue))}
-        </span>
-        <Meter
-          ratio={ratio()}
-          label={t.spendMeter(yen(props.hud.spent), yen(props.hud.revenue))}
-          color={loss() ? 'bg-danger-400' : 'bg-success-400'}
-          class={props.dense ? 'w-24' : 'w-36'}
-        />
-        <span
-          class="text-[11px] font-bold whitespace-nowrap tabular-nums"
-          classList={{ 'text-danger-ink': loss(), 'text-ink-muted': !loss() }}
-          data-profit-outlook
-        >
-          {t.profitOutlook(props.hud.projected, yen(props.hud.projectedProfit))}
-        </span>
+    <Show
+      when={!props.dense}
+      fallback={
+        <div class="flex items-center gap-1.5" data-spend>
+          <Icon name={loss() ? 'warning' : 'money'} class="text-xl" />
+          <div class="flex flex-col leading-tight">
+            <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">
+              {t.profitLabel(props.hud.projected)}
+            </span>
+            <span
+              class="font-heading text-sm whitespace-nowrap tabular-nums"
+              classList={{ 'text-danger-ink': loss() }}
+              data-profit-outlook
+            >
+              {yen(props.hud.projectedProfit)}
+            </span>
+          </div>
+        </div>
+      }
+    >
+      <div class="flex items-center gap-2" data-spend>
+        <Icon name={loss() ? 'warning' : 'money'} class={props.dense ? 'text-xl' : 'text-2xl'} />
+        <div class="flex flex-col gap-0.5 leading-tight">
+          <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">{t.spend}</span>
+          <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-lg'}`}>
+            {t.spendValue(yen(props.hud.spent), yen(props.hud.revenue))}
+          </span>
+          <Meter
+            ratio={ratio()}
+            label={t.spendMeter(yen(props.hud.spent), yen(props.hud.revenue))}
+            color={loss() ? 'bg-danger-400' : 'bg-success-400'}
+            class={props.dense ? 'w-24' : 'w-36'}
+          />
+          <span
+            class="text-[11px] font-bold whitespace-nowrap tabular-nums"
+            classList={{ 'text-danger-ink': loss(), 'text-ink-muted': !loss() }}
+            data-profit-outlook
+          >
+            {t.profitOutlook(props.hud.projected, yen(props.hud.projectedProfit))}
+          </span>
+        </div>
       </div>
-    </div>
+    </Show>
   );
 }

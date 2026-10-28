@@ -26,6 +26,8 @@ export function LibrarySheet(props: {
   layout: SheetLayout;
   bottom: number;
   viewHeight: number;
+  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
+  maxHeight?: number;
   forecast: (command: Command) => HarnessForecast;
   readCode: (code: string) => ImportView;
   dispatch: (command: Command) => void;
@@ -56,7 +58,7 @@ export function LibrarySheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${props.viewHeight * props.layout.heightRatio}px`,
+        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
       }}
     >
       {props.tabs}

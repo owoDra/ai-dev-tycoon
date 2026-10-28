@@ -9,7 +9,7 @@ import { panel, primaryButton, smallButton } from '../parts';
 const t = ja.advice;
 
 /**
- * 「次に対応すべき問題」のトースト（D3：上に積み重ねる。PC は右上、スマホは上端に1件）。
+ * 「次に対応すべき問題」のトースト（D3：お知らせの列の先頭に積み重ねる。PC は右端の列、スマホは上の帯の下に1件）。
  * 問題 → 原因 → 次の行動 の3段で見せ、「見に行く」で該当する島を選んでカメラを寄せる。
  * 「あとで」で閉じたものは、ドックの問題ボタンで出し直す。
  */
@@ -23,22 +23,12 @@ export function ProblemToasts(props: {
   onResolve: (advice: Advice) => void;
   /** 事件の「Context を見る」「Harness を見る」 */
   onView: (sheet: 'context' | 'harness') => void;
-  /** 左上に会社の帯（ui/company/CompanyStrip.tsx）が出ている。スマホ幅では、その下に出す */
-  belowStrip?: boolean;
-  /** 右上に操作の列（ui/play/PlayControls.tsx）が出ている。PC では、その下に出す */
-  belowControls?: boolean;
 }) {
   return (
     <section
       aria-label={t.title}
-      class={`pointer-events-none absolute flex flex-col gap-2 ${props.layout.width === null ? 'inset-x-2' : 'right-3 max-w-[calc(100%-1.5rem)]'}`}
-      classList={{
-        'top-2': props.layout.width !== null ? !props.belowControls : !props.belowStrip,
-        'top-20':
-          (props.layout.width !== null && props.belowControls === true) ||
-          (props.layout.width === null && props.belowStrip === true),
-      }}
-      style={{ width: props.layout.width === null ? undefined : `${props.layout.width}px` }}
+      class="pointer-events-none flex w-full shrink-0 flex-col gap-2"
+      style={{ 'max-width': props.layout.width === null ? undefined : `${props.layout.width}px` }}
     >
       <Index each={props.problems.slice(0, props.layout.max)}>
         {(p) => (

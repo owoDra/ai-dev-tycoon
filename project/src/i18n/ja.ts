@@ -699,6 +699,8 @@ export const ja = {
     spendValue: (spent: string, revenue: string) => `${spent} / ${revenue}`,
     spendMeter: (spent: string, revenue: string) => `受注額 ${revenue} のうち ${spent} を使った`,
     profitOutlook: (projected: boolean, yen: string) => `${projected ? '見込み利益' : '利益'} ${yen}`,
+    profitLabel: (projected: boolean) => (projected ? '見込み利益' : '利益'),
+    details: '詳細',
     clock: '日付と時刻',
     phase: { work: '勤務中', lunch: '昼休み', night: '退勤後' },
     phaseHint: {

@@ -9,7 +9,7 @@ import { panel, smallButton } from '../parts';
 const t = ja.delivery;
 
 /**
- * 納品のカード。案件を納品するたびに会社の帯の下へ積み、全画面に切り替えずに成果を知らせる（操作を止めない）。
+ * 納品のカード。案件を納品するたびにお知らせの列へ積み、全画面に切り替えずに成果を知らせる（操作を止めない）。
  * 「振り返りを見る」で、その案件の結果画面（振り返りの4段構成）を開ける
  */
 export function DeliveryCards(props: {
@@ -18,10 +18,7 @@ export function DeliveryCards(props: {
   onClose: (projectId: string) => void;
 }) {
   return (
-    <div
-      class="pointer-events-none absolute top-2 right-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col gap-2"
-      aria-live="polite"
-    >
+    <div class="pointer-events-none flex w-full shrink-0 flex-col items-end gap-2" aria-live="polite">
       <For each={props.cards}>{(c) => <Card card={c} onReview={props.onReview} onClose={props.onClose} />}</For>
     </div>
   );
@@ -34,7 +31,7 @@ function Card(props: { card: DeliveryView; onReview: (id: string) => void; onClo
   return (
     <section
       ref={el}
-      class={`${panel} pointer-events-auto flex flex-col gap-1 p-3 text-sm`}
+      class={`${panel} pointer-events-auto flex w-full max-w-72 flex-col gap-1 p-3 text-sm`}
       data-delivery={c().projectId}
     >
       <p class="flex items-center gap-1 font-heading">

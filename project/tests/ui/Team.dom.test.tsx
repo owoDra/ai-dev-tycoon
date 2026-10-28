@@ -11,6 +11,7 @@ import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
+import { boardView } from '../../src/view/board';
 import { worldView } from '../../src/view/world';
 import { findTalents } from '../helpers/talent';
 
@@ -168,9 +169,12 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
   });
 
   it('引き合いの締切は HUD の時計と同じ「N日目 HH:MM」で出る', () => {
-    const { q } = mount(offeredCompany(), null);
+    const state = offeredCompany();
+    const { q } = mount(state, null);
     q<HTMLButtonElement>('[data-board-open]')?.click();
-    expect(q('[data-closes]')?.textContent).toBe(ja.board.closes(1, '17:00'));
+    // 先頭は締切の近い引き合い（締切の日の計算は tests/unit/board.test.ts で確かめる）
+    const first = boardView(state).inquiries[0];
+    expect(q('[data-closes]')?.textContent).toBe(ja.board.closes(first?.closes.day ?? 0, '17:00'));
   });
 
   it('見積をすべて出して結果を待つだけになると、結果待ちの数と早送りの印が出る', () => {

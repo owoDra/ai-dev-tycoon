@@ -3,8 +3,10 @@ import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import {
   bidAmount,
+  bidDeadlineDays,
   closeInquiries,
   type DeadlineStep,
+  deadlineOffered,
   deliveryRating,
   estimatePersonDays,
   type PriceStep,
@@ -164,7 +166,14 @@ describe('勝率の表示と実際の判定', () => {
       { type: 'BidWon', projectId: id, amount: bid.amount },
       ...others.map((projectId) => ({ type: 'InquiryPassed', projectId })),
     ]);
-    expect(next.board?.results[0]).toMatchObject({ projectId: id, won: true, amount: bid.amount });
+    // 見送った引き合いも、結果の履歴に残る
+    expect(next.board?.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ projectId: id, outcome: 'won', amount: bid.amount }),
+        ...others.map((projectId) => expect.objectContaining({ projectId, outcome: 'passed', amount: 0 })),
+      ]),
+    );
+    expect(next.board?.results).toHaveLength(1 + others.length);
     expect(next.board?.inquiries).toEqual([]);
   });
 
@@ -253,5 +262,35 @@ describe('評判', () => {
     expect(score?.revenue).toBe(s.projects[projectId]?.revenue);
     expect(changed).toMatchObject({ type: 'ReputationChanged', reputation: s.reputation });
     expect(s.reputation).not.toBe(before);
+  });
+});
+
+describe('納期の選択肢（core/bidding.ts の bidDeadlineDays）', () => {
+  it('短縮は標準より1日以上短く、余裕は1日以上長い。標準が1日の案件には短縮を出さず、出しても受け付けない', () => {
+    for (const standard of [1, 2, 3, 5, 8, 13]) {
+      const long = bidDeadlineDays(standard, 'long');
+      expect(bidDeadlineDays(standard, 'standard')).toBe(standard);
+      expect(long).toBeGreaterThanOrEqual(standard + 1);
+      expect(deadlineOffered(standard, 'standard')).toBe(true);
+      expect(deadlineOffered(standard, 'long')).toBe(true);
+      if (standard === 1) {
+        expect(deadlineOffered(standard, 'short')).toBe(false);
+      } else {
+        expect(deadlineOffered(standard, 'short')).toBe(true);
+        const short = bidDeadlineDays(standard, 'short');
+        expect(short).toBeLessThanOrEqual(standard - 1);
+        expect(short).toBeGreaterThanOrEqual(1);
+      }
+    }
+    // 標準の納期が1日の引き合いに短縮で見積を出しても、state は変わらない
+    let found: { s: GameState; id: string } | null = null;
+    for (let n = 0; n < 30 && !found; n++) {
+      const s = company(`short-${n}`);
+      const id = openInquiries(s).find((i) => getProject(i).deadlineDays === 1);
+      if (id) found = { s, id };
+    }
+    if (!found) throw new Error('標準の納期が1日の引き合いが見つからない');
+    const cmd: Command = { type: 'SubmitBid', projectId: found.id, price: 'base', deadline: 'short' };
+    expect(reduce(found.s, cmd).state).toBe(found.s);
   });
 });

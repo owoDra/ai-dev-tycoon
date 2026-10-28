@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -87,6 +87,17 @@ export const MIGRATIONS: readonly Migration[] = [
           )
         : state.library;
       return { ...state, harnesses, ownedParts, library };
+    },
+  },
+  // v15 → v16：コンペの結果を受注・失注・見送りの3つで持つ（Phase 28）。それまでの結果は受注か失注
+  {
+    from: 15,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.board) || !Array.isArray(state.board.results)) return state;
+      const results = state.board.results.map((r) =>
+        isRecord(r) && 'won' in r ? (({ won, ...rest }) => ({ ...rest, outcome: won ? 'won' : 'lost' }))(r) : r,
+      );
+      return { ...state, board: { ...state.board, results } };
     },
   },
 ];

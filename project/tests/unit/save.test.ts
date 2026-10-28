@@ -94,11 +94,27 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(15);
+    expect(SAVE_VERSION).toBe(16);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
     expect(s.ownedParts).toEqual(['mcpGit', 'mcpFilesystem', 'permAcceptEdits', 'permAuto']);
     expect(s.library[0]?.parts).toEqual(['mcpBrowser', 'permAuto']);
+  });
+});
+
+describe('コンペの結果の見送り（core/serialize.ts の v15 → v16）', () => {
+  it('旧形式の結果の won を、受注・失注の outcome に読み替える', () => {
+    const state = createInitialState('v15', { board: true });
+    const results = [
+      { projectId: 'p~1~S', won: true, amount: 1, winChance: 0.5, at: 0 },
+      { projectId: 'p~2~S', won: false, amount: 2, winChance: 0.2, at: 0 },
+    ];
+    const old = { saveVersion: 15, state: { ...state, board: { day: 0, inquiries: [], results } } };
+    const s = deserialize(JSON.stringify(old));
+    expect(s.board?.results).toEqual([
+      { projectId: 'p~1~S', outcome: 'won', amount: 1, winChance: 0.5, at: 0 },
+      { projectId: 'p~2~S', outcome: 'lost', amount: 2, winChance: 0.2, at: 0 },
+    ]);
   });
 });

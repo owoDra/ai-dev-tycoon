@@ -2,10 +2,12 @@ import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import type { ClientFocus, IndustryId, ProjectSize } from '../content/types';
 import {
+  type BidOutcome,
   type BidRun,
   baseAmount,
   bidDeadlineDays,
   type DeadlineStep,
+  deadlineOffered,
   deadlineSteps,
   estimatePersonDays,
   type PriceStep,
@@ -17,6 +19,7 @@ import { activeProjects, openInquiries, pendingBids } from '../core/board';
 import { calendarDay, minuteOfDay } from '../core/clock';
 import { scoreProject } from '../core/scoring';
 import type { GameState } from '../core/state';
+import { stalledProjects } from '../core/step';
 import { hhmm } from './hud';
 import { projectTeamBadge } from './teams';
 
@@ -31,6 +34,8 @@ export interface ProjectTabView {
   readonly selected: boolean;
   /** 案件のチームと管理者の札（チームが直轄だけなら null） */
   readonly team: string | null;
+  /** 担当が決まっていない Task で止まっている（core/step.ts の stalledProjects。時間も止まる） */
+  readonly stalled: boolean;
 }
 
 export interface ProjectTabsView {
@@ -49,6 +54,7 @@ const doneRatio = (state: GameState, projectId: string) => {
 /** プレイ中のタブ。進行中の案件（と、いま開いている案件）を始めた順に並べる。ホーム（current が null）では進行中の案件だけ */
 export function projectTabs(state: GameState, current: string | null): ProjectTabsView {
   const ids = activeProjects(state);
+  const stalled = stalledProjects(state);
   if (current !== null && !ids.includes(current) && state.projects[current]) ids.push(current);
   return {
     tabs: ids.map((projectId, i) => ({
@@ -58,6 +64,7 @@ export function projectTabs(state: GameState, current: string | null): ProjectTa
       progress: doneRatio(state, projectId),
       selected: projectId === current,
       team: projectTeamBadge(state, projectId),
+      stalled: stalled.includes(projectId),
     })),
     offers: openInquiries(state).length,
     pending: pendingBids(state).length,
@@ -106,7 +113,7 @@ export interface InquiryView {
 export interface BidResultView {
   readonly projectId: string;
   readonly name: string;
-  readonly won: boolean;
+  readonly outcome: BidOutcome;
   readonly amount: number;
   readonly winChance: number;
 }
@@ -138,9 +145,11 @@ export function deliveredProjects(state: GameState): BoardProjectView[] {
     });
 }
 
-/** 案件ボード：引き合い（届いた順）と最近のコンペの結果。進行中の案件はドックのタブ、納品した案件は社員と Seat のシートで見る */
+/** 案件ボード：引き合い（締切の近い順）と最近のコンペの結果。進行中の案件はドックのタブ、納品した案件は社員と Seat のシートで見る */
 export function boardView(state: GameState): BoardView {
-  const inquiries = (state.board?.inquiries ?? []).flatMap((i): InquiryView[] => {
+  // 締切の近い順（規模で応募の期間が違うので、届いた順とは限らない）
+  const open = [...(state.board?.inquiries ?? [])].sort((a, b) => a.closesAt - b.closesAt);
+  const inquiries = open.flatMap((i): InquiryView[] => {
     const def = getProject(i.projectId);
     const brief = def.brief;
     if (!brief) return [];
@@ -170,7 +179,7 @@ export function boardView(state: GameState): BoardView {
     results: (state.board?.results ?? []).map((r) => ({
       projectId: r.projectId,
       name: getProject(r.projectId).name,
-      won: r.won,
+      outcome: r.outcome,
       amount: r.amount,
       winChance: r.winChance,
     })),
@@ -188,13 +197,20 @@ export const priceOptions: readonly BidOptionView<PriceStep>[] = priceSteps.map(
   id,
   ratio: balance.bid.prices[id],
 }));
-/** 納期の選択肢。days は標準の納期から、その選択肢で提案する納期（営業日）を返す */
-export const deadlineOptions: readonly (BidOptionView<DeadlineStep> & { days: (standard: number) => number })[] =
-  deadlineSteps.map((id) => ({
-    id,
-    ratio: balance.bid.deadlines[id],
-    days: (standard: number) => bidDeadlineDays(standard, id),
-  }));
+/** 納期の選択肢 */
+export interface DeadlineOptionView extends BidOptionView<DeadlineStep> {
+  /** 標準の納期から、この選択肢で提案する納期（営業日） */
+  readonly days: (standard: number) => number;
+  /** 標準の納期がこの長さの案件に出せるか（標準1日の案件に短縮は出さない） */
+  readonly offered: (standard: number) => boolean;
+}
+
+export const deadlineOptions: readonly DeadlineOptionView[] = deadlineSteps.map((id) => ({
+  id,
+  ratio: balance.bid.deadlines[id],
+  days: (standard: number) => bidDeadlineDays(standard, id),
+  offered: (standard: number) => deadlineOffered(standard, id),
+}));
 
 /** 見積の Before / After。Before は出した見積（まだなら基準の価格・標準の納期）、After は選んでいる見積 */
 export interface BidPreview {

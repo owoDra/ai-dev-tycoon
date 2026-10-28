@@ -2,8 +2,10 @@ import { balance } from '../content/balance';
 import { activeProjects, pendingBids } from './board';
 import { businessDay } from './clock';
 import type { Transition } from './commands';
+import type { GameEvent } from './events';
+import { isBankrupt } from './funds';
 import type { GameState } from './state';
-import { step, toGameMinutes } from './step';
+import { awaitingAssignment, step, toGameMinutes } from './step';
 
 /*
  * 隙間時間に少しずつ遊ぶための区切り（営業日の終わり）と、閉じている間の進行。
@@ -33,14 +35,36 @@ export function awayMinutes(state: GameState, awaySeconds: number): number {
 
 /**
  * 閉じていた間の進行を適用する。一時停止していても進め、一時停止の状態は元に戻す。
- * 営業日の終わりまで進めるときは、端数の持ち越しを捨ててちょうど境目で止める
+ * 営業日の終わりまで進めるときは、端数の持ち越しを捨ててちょうど境目で止める。
+ * 担当待ちの案件ができたとき（core/step.ts の awaitingAssignment）と、見積を出していない引き合いの締切が近づいたとき（awayLimit）は、
+ * そこで止める（プレイヤーのいない間に、納期だけが減ったり引き合いを見送ったりしない）
  */
 export function catchUp(state: GameState, awaySeconds: number): Transition {
   const minutes = awayMinutes(state, awaySeconds);
   if (minutes <= 0) return { state, events: [] };
   const end = dayEnd(state.clock);
   const toEnd = minutes >= end - state.clock - state.carryMinutes;
-  const from = { ...state, paused: false, carryMinutes: toEnd ? 0 : state.carryMinutes };
-  const { state: next, events } = step(from, toEnd ? end - state.clock : minutes);
-  return { state: { ...next, paused: state.paused }, events };
+  const limit = awayLimit(state);
+  const tick = balance.time.tickMinutes;
+  let s: GameState = { ...state, paused: false, carryMinutes: toEnd ? 0 : state.carryMinutes };
+  let left = toEnd ? end - state.clock : minutes;
+  const events: GameEvent[] = [];
+  // 1ステップずつ進め、プレイヤーの判断が要る状態になったらそこで止める（step は分割しても結果が同じ）
+  while (left > 0 && s.clock < limit && !awaitingAssignment(s) && !isBankrupt(s)) {
+    const dt = Math.min(left, tick);
+    const r = step(s, dt);
+    s = r.state;
+    events.push(...r.events);
+    left -= dt;
+  }
+  return { state: { ...s, paused: state.paused }, events };
+}
+
+/**
+ * 閉じている間の進行で越えない時刻。見積を出していない引き合いは、締切まで balance.board.minOpenMinutes を残して止める
+ * （戻ったプレイヤーが見積を出せるように）。なければ制限しない
+ */
+export function awayLimit(state: GameState): number {
+  const closes = (state.board?.inquiries ?? []).filter((i) => i.bid === null).map((i) => i.closesAt);
+  return Math.min(Number.POSITIVE_INFINITY, ...closes.map((c) => c - balance.board.minOpenMinutes));
 }

@@ -4,6 +4,7 @@ import { founders } from '../../src/content/staff';
 import {
   activeProjects,
   canStartProject,
+  closeDaysOf,
   closingTime,
   inquiriesOn,
   openInquiries,
@@ -130,11 +131,17 @@ describe('案件ボードの進行（core/board.ts）', () => {
       events.push(...r.events);
     }
     expect(events.filter((e) => e.type === 'InquiriesPosted')).toHaveLength(5);
-    // 締切は届いた営業日の夕方なので、残っているのは今日（5日目の朝）届いた分だけ
-    expect(s.board?.inquiries.map((i) => i.postedDay)).toEqual([5, 5]);
+    // 残っているのは、応募の期間（規模ごとの営業日数）の中にあるものだけ
+    const longest = Math.max(...Object.values(balance.board.closeDays));
+    const remaining = s.board?.inquiries ?? [];
+    expect(remaining.length).toBeGreaterThan(0);
+    for (const i of remaining) {
+      expect(i.closesAt).toBeGreaterThan(s.clock);
+      expect(i.postedDay).toBeGreaterThan(5 - longest);
+    }
     expect(events.some((e) => e.type === 'BidWon' || e.type === 'BidLost')).toBe(false);
-    // 1〜4日目に届いた分（と最初の日の分）は、締切で「見送った」と知らせる
-    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(2 * 5);
+    // それより前に届いた分（最初の日の分を含む6日分）は、締切で「見送った」と知らせる
+    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(2 * 6 - remaining.length);
   });
 
   it('作った Harness（会社の資産）は次の案件へ持ち越し、導入コストを二度払わない', () => {
@@ -182,15 +189,30 @@ describe('案件ボードの進行（core/board.ts）', () => {
   });
 });
 
-describe('見積の当日確定（core/board.ts・core/step.ts）', () => {
-  it('締切は届いた営業日の夕方（balance.board.closeAt）で、HUD の時計と同じ「N日目 HH:MM」で読める', () => {
+describe('見積の締切（core/board.ts・core/step.ts）', () => {
+  it('締切は、届いた営業日から数えて規模ごとの営業日目の夕方（balance.board.closeAt）で、HUD の時計と同じ「N日目 HH:MM」で読める', () => {
     const s = afterTutorial().state;
-    const inquiry = s.board?.inquiries[0];
-    if (!inquiry) throw new Error('引き合いがない');
-    expect(minuteOfDay(inquiry.closesAt)).toBe(balance.board.closeAt);
-    expect(calendarDay(inquiry.closesAt)).toBe(calendarDay(s.clock));
-    expect(boardView(s).inquiries[0]?.closes).toEqual({ day: 1, time: hhmm(balance.board.closeAt) });
+    expect(s.board?.inquiries.length).toBeGreaterThan(0);
+    for (const inquiry of s.board?.inquiries ?? []) {
+      const days = closeDaysOf(inquiry.projectId);
+      expect(minuteOfDay(inquiry.closesAt)).toBe(balance.board.closeAt);
+      expect(calendarDay(inquiry.closesAt)).toBe(calendarDay(s.clock) + days - 1);
+      const view = boardView(s).inquiries.find((i) => i.projectId === inquiry.projectId);
+      expect(view?.closes).toEqual({ day: days, time: hhmm(balance.board.closeAt) });
+    }
     expect(hhmm(balance.board.closeAt)).toBe('17:00');
+  });
+
+  it('応募の期間は規模が大きいほど長く、どれも翌営業日以降まで残る（毎朝ボードを見なくても見積を出せる）', () => {
+    const { S, M, L, XL } = balance.board.closeDays;
+    expect(S).toBeGreaterThanOrEqual(2);
+    expect(M).toBeGreaterThanOrEqual(S);
+    expect(L).toBeGreaterThanOrEqual(M);
+    expect(XL).toBeGreaterThanOrEqual(L);
+    const closeOffset = balance.board.closeAt - balance.time.origin;
+    expect(closingTime(0, 3)).toBe(closeOffset + 2 * DAY);
+    // 夕方に届いたら、1営業日遅らせたところから数える
+    expect(closingTime(DAY - 1, 2)).toBe(closeOffset + 2 * DAY);
   });
 
   it('締切までの残りが短い時刻に届いたら（夕方にチュートリアルを終えたなど）、次の営業日の夕方を締切にする', () => {
@@ -236,15 +258,19 @@ describe('見積の当日確定（core/board.ts・core/step.ts）', () => {
     expect(waitingOnBids(s)).toBe(false);
   });
 
-  it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消える', () => {
+  it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消え、結果の履歴に「見送り」として残る', () => {
     const s = { ...afterTutorial().state, paused: false };
     const ids = openInquiries(s);
-    const closesAt = s.board?.inquiries[0]?.closesAt ?? 0;
-    const { state, events } = step(s, closesAt - s.clock);
-    expect(events.filter((e) => e.type === 'InquiryPassed')).toEqual(
-      ids.map((projectId) => ({ type: 'InquiryPassed', projectId })),
-    );
-    expect(state.board?.inquiries).toEqual([]);
-    expect(state.board?.results).toEqual([]);
+    const last = Math.max(...(s.board?.inquiries ?? []).map((i) => i.closesAt));
+    const { state, events } = step(s, last - s.clock);
+    expect(
+      events
+        .filter((e) => e.type === 'InquiryPassed')
+        .map((e) => e.projectId)
+        .sort(),
+    ).toEqual([...ids].sort());
+    expect(state.board?.inquiries.map((i) => i.projectId)).toEqual(expect.not.arrayContaining(ids));
+    const passed = (state.board?.results ?? []).filter((r) => ids.includes(r.projectId));
+    expect(passed.map((r) => r.outcome)).toEqual(ids.map(() => 'passed'));
   });
 });

@@ -135,11 +135,16 @@ function assignDirect(state: GameState, strategy: LongStrategy): GameState {
   return s;
 }
 
+/**
+ * 見積を出す。抱える仕事は、進行中の案件と、結果待ちの見積を勝率で重み付けした数（受注の見込み）で数える
+ * （引き合いの締切が数営業日あるので、結果待ちの見積を数えないと抱えすぎる）
+ */
 function bid(state: GameState, strategy: LongStrategy): GameState {
   let s = state;
   const staff = Object.keys(s.team).length;
+  const expected = (st: GameState) => (st.board?.inquiries ?? []).reduce((sum, i) => sum + (i.bid?.winChance ?? 0), 0);
   for (const projectId of openInquiries(s)) {
-    if (activeProjects(s).length > staff * strategy.loadCap) break;
+    if (activeProjects(s).length + expected(s) > staff * strategy.loadCap) break;
     s = apply(s, { type: 'SubmitBid', projectId, price: strategy.price, deadline: 'standard' });
   }
   return s;

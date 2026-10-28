@@ -65,7 +65,10 @@ describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
     const before = campaignInProgress('recap', 1);
     const { state: after, events } = catchUp(before, 24 * 60 * 60);
     const recap = recapView(before, after, events);
-    expect(recap.awayMinutes).toBe(DAY);
+    // 閉じている間の進行は、担当が未定の Task で案件が止まったところで止まる（営業日の終わりまでは進まない）
+    expect(recap.awayMinutes).toBe(after.clock - before.clock);
+    expect(recap.awayMinutes).toBeGreaterThan(0);
+    expect(recap.awayMinutes).toBeLessThan(DAY);
     expect(recap.tasksDone).toBe(events.filter((e) => e.type === 'TaskCompleted').length);
     expect(recap.tasksDone).toBeGreaterThan(0);
     expect(recap.next[0]).toEqual({ kind: 'assign', count: 1 });

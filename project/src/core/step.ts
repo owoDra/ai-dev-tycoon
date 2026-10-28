@@ -27,22 +27,31 @@ export function idleHours(state: GameState): boolean {
 }
 
 /**
- * 進行中の案件はあるのに、どの Task も動いていない（担当が決まっていない）。プレイヤーが担当を決めるまで時間を進めない。
- * 管理者に任せた案件があれば、管理者が次のステップで担当を決めるので止めない。案件がなければ（見積の結果待ちなど）止めない
+ * 進められない案件（どの Task も動いておらず、次に始まる Task もない）。担当が決まっていない Task で止まっている。
+ * 管理者に任せた案件は、管理者が次のステップで担当を決めるので含めない
+ */
+export function stalledProjects(state: GameState): string[] {
+  return Object.values(state.projects)
+    .filter((p) => p.completedAt === null && !projectDelegated(state, p.projectId))
+    .filter((p) =>
+      getProject(p.projectId).tasks.every((task) => {
+        const run = p.tasks[task.id];
+        if (run?.status === 'running') return false;
+        // 担当が決まっていて前の Task が終わっていれば、次のステップで始まる
+        const ready = run?.status === 'waiting' && run.assignment !== null;
+        return !(ready && task.deps.every((d) => p.tasks[d]?.status === 'done'));
+      }),
+    )
+    .map((p) => p.projectId);
+}
+
+/**
+ * 担当待ち。進められない案件が1つでもあれば、プレイヤーが担当を決めるまで時間を進めない
+ * （ほかの案件が動いている間に、受注したばかりの案件や止まった案件の納期だけが減らないようにする）。
+ * 案件がなければ（見積の結果待ちなど）止めない
  */
 export function awaitingAssignment(state: GameState): boolean {
-  const active = Object.values(state.projects).filter((p) => p.completedAt === null);
-  if (active.length === 0) return false;
-  if (active.some((p) => projectDelegated(state, p.projectId))) return false;
-  return active.every((p) =>
-    getProject(p.projectId).tasks.every((task) => {
-      const run = p.tasks[task.id];
-      if (run?.status === 'running') return false;
-      // 担当が決まっていて前の Task が終わっていれば、次のステップで始まる
-      const ready = run?.status === 'waiting' && run.assignment !== null;
-      return !(ready && task.deps.every((d) => p.tasks[d]?.status === 'done'));
-    }),
-  );
+  return stalledProjects(state).length > 0;
 }
 
 /**

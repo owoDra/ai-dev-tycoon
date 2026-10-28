@@ -44,10 +44,13 @@ export interface InquiryRun {
   readonly bid: BidRun | null;
 }
 
-/** コンペの結果 */
+/** コンペの結果。won：受注 / lost：失注 / passed：見積を出さずに締切を迎えた（見送り） */
+export type BidOutcome = 'won' | 'lost' | 'passed';
+
+/** コンペの結果。見送りは金額と勝率が 0 */
 export interface BidResult {
   readonly projectId: string;
-  readonly won: boolean;
+  readonly outcome: BidOutcome;
   readonly amount: number;
   readonly winChance: number;
   readonly at: number;
@@ -71,10 +74,21 @@ export function bidAmount(def: ProjectDef, price: PriceStep): number {
   return roundTo(baseAmount(def) * balance.bid.prices[price], balance.bid.amountStep);
 }
 
-/** 標準の納期（営業日）から、提案する納期（営業日）。1日以上 */
+/**
+ * 標準の納期（営業日）から、提案する納期（営業日）。倍率を掛けて丸め、短縮は標準より1日以上短く、余裕は1日以上長くする
+ * （短い案件で、丸めると3つとも同じ日数になるのを防ぐ）。1日以上
+ */
 export function bidDeadlineDays(standard: number, deadline: DeadlineStep): number {
-  return Math.max(1, Math.round(standard * balance.bid.deadlines[deadline]));
+  const ratio = balance.bid.deadlines[deadline];
+  const scaled = Math.round(standard * ratio);
+  if (ratio < 1) return Math.max(1, Math.min(scaled, standard - 1));
+  if (ratio > 1) return Math.max(scaled, standard + 1);
+  return standard;
 }
+
+/** その納期の選択肢を出せるか。標準の納期が1日の案件は、それより短くできないので短縮を出さない */
+export const deadlineOffered = (standard: number, deadline: DeadlineStep) =>
+  balance.bid.deadlines[deadline] >= 1 || standard > 1;
 
 /** 提案する納期（営業日） */
 export const bidDeadline = (def: ProjectDef, deadline: DeadlineStep) => bidDeadlineDays(def.deadlineDays, deadline);
@@ -174,10 +188,11 @@ export function bidBlock(state: GameState, projectId: string): 'notOpen' | 'tuto
   return inquiry && inquiry.closesAt > state.clock ? null : 'notOpen';
 }
 
-/** 見積を出す（締切までは出し直せる）。出せなければ state をそのまま返す */
+/** 見積を出す（締切までは出し直せる）。出せなければ（出せない納期の選択肢を含む）state をそのまま返す */
 export function submitBid(state: GameState, projectId: string, price: PriceStep, deadline: DeadlineStep): GameState {
   const board = state.board;
   if (!board || bidBlock(state, projectId) !== null) return state;
+  if (!deadlineOffered(getProject(projectId).deadlineDays, deadline)) return state;
   const bid = quoteBid(state, projectId, price, deadline);
   const inquiries = board.inquiries.map((i) => (i.projectId === projectId ? { ...i, bid } : i));
   return { ...state, board: { ...board, inquiries } };
@@ -185,7 +200,7 @@ export function submitBid(state: GameState, projectId: string, price: PriceStep,
 
 /**
  * 締切を迎えた引き合いの結果を出す。見積を出していれば、出したときの勝率で勝敗を決め（乱数は random から1つ引く）、
- * 受注したら見積額と提案した納期で案件を始める。見積を出していない引き合いは見送ったことにして消す（InquiryPassed で知らせる）
+ * 受注したら見積額と提案した納期で案件を始める。見積を出していない引き合いは見送ったことにして消し、結果の履歴に残す（InquiryPassed で知らせる）
  */
 export function closeInquiries(state: GameState, random: () => number, emit: (e: GameEvent) => void): GameState {
   const board = state.board;
@@ -198,11 +213,18 @@ export function closeInquiries(state: GameState, random: () => number, emit: (e:
     const bid = inquiry.bid;
     if (!bid) {
       emit({ type: 'InquiryPassed', projectId: inquiry.projectId });
+      results.unshift({ projectId: inquiry.projectId, outcome: 'passed', amount: 0, winChance: 0, at: state.clock });
       continue;
     }
     const won = random() < bid.winChance;
-    const result = { projectId: inquiry.projectId, won, amount: bid.amount, winChance: bid.winChance, at: state.clock };
-    results.unshift(result);
+    const outcome = won ? 'won' : 'lost';
+    results.unshift({
+      projectId: inquiry.projectId,
+      outcome,
+      amount: bid.amount,
+      winChance: bid.winChance,
+      at: state.clock,
+    });
     if (won) {
       const terms = { revenue: bid.amount, deadlineDays: bid.deadlineDays };
       projects = { ...projects, [inquiry.projectId]: createProjectRun(inquiry.projectId, state.clock, terms) };

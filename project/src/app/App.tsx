@@ -79,6 +79,8 @@ export function App(props: {
   const [lookId, setLookId] = createSignal<WorldLookId>(defaultWorldLookId);
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  /** 案件ボードを開いているか（見積を考えている間は時間を止める） */
+  const [boardOpen, setBoardOpen] = createSignal(false);
   const [dayCard, setDayCard] = createSignal<DaySummary | null>(null);
   const [recap, setRecap] = createSignal<Recap | null>(null);
   /** 出している決算の期（null なら出していない）と、あらすじの後に出す決算 */
@@ -213,10 +215,11 @@ export function App(props: {
           store,
           undefined,
           () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null),
-          // 結果（振り返り）・決算・倒産・区切りとあらすじのカード・設定を見ている間は、ゲーム内の時間を止める
+          // 結果（振り返り）・決算・倒産・区切りとあらすじのカード・設定・案件ボードを見ている間は、ゲーム内の時間を止める
           () =>
             screens.screen().id === 'result' ||
             settingsOpen() ||
+            boardOpen() ||
             fiscal() !== null ||
             bankrupt() ||
             dayCard() !== null ||
@@ -356,6 +359,7 @@ export function App(props: {
                 </>
               }
               onSettings={openSettings}
+              onBoardOpen={setBoardOpen}
               onSwitch={(projectId) => {
                 selection.dispatch({ type: 'SelectEntity', entityId: null });
                 screens.go({ type: 'Switch', projectId });

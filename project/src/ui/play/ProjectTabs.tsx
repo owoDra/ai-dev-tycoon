@@ -51,6 +51,8 @@ export function ProjectTabs(props: {
   const [officeClipped, setOfficeClipped] = createSignal(false);
   const officeInMenu = () => officeOn() && (!officeInline() || officeClipped());
   const restCount = () => menuTabs().length + (officeInMenu() ? 1 : 0);
+  /** 一覧に回したタブに、担当待ちの案件がある（「ほか N 件」に警告のアイコンを出す） */
+  const restStalled = () => menuTabs().some((tab) => tab.stalled);
   /** 今のタブと「+N」を1つの切り替えボタンにするか */
   const merged = () => !limit().office && limit().others === 0;
   let list: HTMLDivElement | undefined;
@@ -130,8 +132,21 @@ export function ProjectTabs(props: {
         <Icon name="project" class="shrink-0 text-lg" />
       </Show>
       <span class={`min-w-0 truncate ${inMenu ? '' : props.compact ? 'max-w-28' : 'max-w-40'}`}>{tab.name}</span>
-      <Show when={!props.compact || inMenu}>
-        <span class="shrink-0 text-[11px] text-ink-muted tabular-nums">{ja.score.percent(tab.progress)}</span>
+      <Show
+        when={tab.stalled}
+        fallback={
+          <Show when={!props.compact || inMenu}>
+            <span class="shrink-0 text-[11px] text-ink-muted tabular-nums">{ja.score.percent(tab.progress)}</span>
+          </Show>
+        }
+      >
+        {/* 担当待ちの案件は、進み具合の代わりに警告のアイコンと札を出す（狭い形ではアイコンだけにして、名前は読み上げで補う） */}
+        <span class="flex shrink-0 items-center gap-0.5 text-[11px]" data-tab-stalled title={t.stalled}>
+          <Icon name="warning" class="text-sm" />
+          <Show when={!props.compact || inMenu} fallback={<span class="sr-only">{t.stalled}</span>}>
+            {t.stalled}
+          </Show>
+        </span>
       </Show>
       <Show when={tab.team}>
         {(team) => (
@@ -168,13 +183,13 @@ export function ProjectTabs(props: {
                 type="button"
                 data-more-tabs
                 aria-expanded={menu()}
-                aria-label={t.moreTabs(restCount())}
+                aria-label={restStalled() ? t.stalledInside(t.moreTabs(restCount())) : t.moreTabs(restCount())}
                 class={`flex h-11 shrink-0 items-center gap-1 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
                   menu() ? 'bg-accent-200' : 'bg-surface'
                 }`}
                 onClick={() => setMenu((o) => !o)}
               >
-                <Icon name="project" class="text-lg" />
+                <Icon name={restStalled() ? 'warning' : 'project'} class="text-lg" />
                 {t.moreTabs(restCount())}
               </button>
             </Show>
@@ -207,6 +222,9 @@ export function ProjectTabs(props: {
                 <span class="min-w-0 truncate">{tab().name}</span>
               </>
             )}
+          </Show>
+          <Show when={restStalled()}>
+            <Icon name="warning" class="shrink-0 text-sm" />
           </Show>
           <Show when={restCount() > 0}>
             <span class="shrink-0 rounded-full border-2 border-line bg-surface px-1.5 text-[11px] tabular-nums">

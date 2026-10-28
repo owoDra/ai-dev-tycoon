@@ -12,6 +12,7 @@ import { ghostButton, Meter, panel, primaryButton } from '../parts';
 
 const t = ja.board;
 const focusIcon = { price: 'money', quality: 'qa', deadline: 'clock' } as const;
+const outcomeIcon = { won: 'trophy', lost: 'failure', passed: 'clock' } as const;
 
 /**
  * 案件ボードのシート（ホームとプレイの上に、ほかのシートと同じ場所に開く）。営業日ごとに届く引き合いに見積（価格と納期）を出し、
@@ -84,13 +85,15 @@ export function BoardSheet(props: {
           <ul class="flex flex-col gap-1 text-sm">
             <Keyed each={view().results} by={(r) => r.projectId}>
               {(r) => (
-                <li class="flex items-center gap-2" data-bid-result={r.won ? 'won' : 'lost'}>
-                  <Icon name={r.won ? 'trophy' : 'failure'} class="shrink-0 text-lg" />
-                  <span class="font-bold">{r.won ? t.wonLabel : t.lostLabel}</span>
+                <li class="flex items-center gap-2" data-bid-result={r.outcome}>
+                  <Icon name={outcomeIcon[r.outcome]} class="shrink-0 text-lg" />
+                  <span class="font-bold">{t.outcomeLabel[r.outcome]}</span>
                   <span class="min-w-0 flex-1 truncate">{r.name}</span>
-                  <span class="text-xs text-ink-muted tabular-nums">
-                    {t.amount(r.amount)}・{t.winChance} {ja.score.percent(r.winChance)}
-                  </span>
+                  <Show when={r.outcome !== 'passed'}>
+                    <span class="text-xs text-ink-muted tabular-nums">
+                      {t.amount(r.amount)}・{t.winChance} {ja.score.percent(r.winChance)}
+                    </span>
+                  </Show>
                 </li>
               )}
             </Keyed>
@@ -152,7 +155,7 @@ function InquiryCard(props: { store: GameStore; inquiry: InquiryView }) {
         </For>
       </Choice>
       <Choice label={t.deadline}>
-        <For each={deadlineOptions}>
+        <For each={deadlineOptions.filter((o) => o.offered(i().deadlineDays))}>
           {(o) => (
             <Option selected={deadline() === o.id} onClick={() => setDeadline(o.id)} data={{ 'data-deadline': o.id }}>
               {t.deadlineOption[o.id]} {t.days(o.days(i().deadlineDays))}

@@ -303,10 +303,15 @@ export const balance = {
    */
   board: {
     /**
-     * 応募の締切の時刻（0:00 からの分）。引き合いは届いた営業日のこの時刻に締め切り、結果が出る（当日に確定する）。
-     * 締切まで minOpenMinutes 未満で届いたとき（チュートリアルを夕方に終えたときなど）は、次の営業日のこの時刻にする
+     * 応募の締切の時刻（0:00 からの分）。引き合いは、届いた営業日から数えて closeDays 営業日目のこの時刻に締め切り、結果が出る。
+     * 届いた営業日の締切まで minOpenMinutes 未満で届いたとき（チュートリアルを夕方に終えたときなど）は、1営業日遅らせる
      */
     closeAt: 1020,
+    /**
+     * 規模ごとの応募の期間（届いた営業日を1日目とする営業日数）。毎朝ボードを見なくても、翌日に見積を出せる。
+     * 大きい案件ほど長く、見積を考える時間をとれる
+     */
+    closeDays: { S: 2, M: 2, L: 3, XL: 3 },
     /** 届いてから締切までに少なくとも残す時間（ゲーム内の分） */
     minOpenMinutes: 120,
     /** 案件ボードに残す最近のコンペの結果の数 */
@@ -385,7 +390,7 @@ export const balance = {
         officeDaily: 10_000,
       },
       small: {
-        requires: { profit: 40_000_000, reputation: 65, delivered: 40 },
+        requires: { profit: 60_000_000, reputation: 65, delivered: 40 },
         maxStaff: 8,
         maxAiWorkers: 3,
         maxTeams: 2,

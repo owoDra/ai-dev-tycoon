@@ -12,7 +12,7 @@ import {
 } from '../../src/core/clock';
 import { reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { awaitingAssignment, idleHours, playSpeed, step } from '../../src/core/step';
+import { awaitingAssignment, idleHours, playSpeed, stalledProjects, step } from '../../src/core/step';
 
 const DAY = balance.time.minutesPerDay;
 const w = balance.time.workday;
@@ -122,5 +122,31 @@ describe('担当待ち（どの案件も進められない間は時間を止め�
       workerId: Object.keys(started.team)[0] ?? '',
     }).state;
     expect(awaitingAssignment(later)).toBe(true);
+  });
+
+  it('ほかの案件が動いていても、進められない案件（受注したばかりで担当が未定など）が1つあれば止める', () => {
+    const started = reduce(createInitialState('wait'), { type: 'StartProject', projectId: P }).state;
+    const running = reduce(started, {
+      type: 'AssignTask',
+      projectId: P,
+      taskId: 'hearing',
+      mode: 'human',
+      workerId: Object.keys(started.team)[0] ?? '',
+    }).state;
+    expect(awaitingAssignment(running)).toBe(false);
+    const both = reduce(running, { type: 'StartProject', projectId: 'tutorialLp' }).state;
+    expect(Object.keys(both.projects)).toEqual([P, 'tutorialLp']);
+    expect(stalledProjects(both)).toEqual(['tutorialLp']);
+    expect(awaitingAssignment(both)).toBe(true);
+    // 担当を決めて動き出せば解ける
+    const resumed = reduce(both, {
+      type: 'AssignTask',
+      projectId: 'tutorialLp',
+      taskId: 'wireframe',
+      mode: 'ai',
+      workerId: 'agent',
+    }).state;
+    expect(stalledProjects(resumed)).toEqual([]);
+    expect(awaitingAssignment(resumed)).toBe(false);
   });
 });

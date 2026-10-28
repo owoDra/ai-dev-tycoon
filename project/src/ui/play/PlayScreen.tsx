@@ -5,6 +5,7 @@ import {
   createSignal,
   For,
   type JSX,
+  on,
   onCleanup,
   onMount,
   Show,
@@ -64,6 +65,7 @@ import { ProblemToasts } from './ProblemToasts';
 import { SaveWorkflowForm } from './SaveWorkflowForm';
 import { TeamSheet } from './TeamSheet';
 import { TutorialCoach } from './TutorialCoach';
+import { UnlockCard } from './UnlockCard';
 
 /** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
 const SHEET_OVERLAP = 3;
@@ -99,6 +101,8 @@ export function PlayScreen(props: {
   /** お知らせの列の後ろに積むもの（納品と用語のカード） */
   notices?: JSX.Element;
   onSettings?: () => void;
+  /** 案件ボードの開閉を知らせる（App は開いている間、ゲーム内の時間を止める） */
+  onBoardOpen?: (open: boolean) => void;
   /** 別の案件のタブへ切り替える（複数案件の同時進行） */
   onSwitch?: (projectId: string) => void;
   /** ホームへ戻る（ドックのタブの「オフィス」） */
@@ -147,6 +151,10 @@ export function PlayScreen(props: {
   });
 
   const notices = createNotices(() => form().form.notice);
+  /** 「新しくできること」のカードの項目（閉じるまで残し、新しい解放は同じカードに足す） */
+  const [unlocks, setUnlocks] = createSignal<readonly string[]>([]);
+  const addUnlocks = (messages: readonly string[]) =>
+    setUnlocks((l) => [...l, ...messages.filter((m, i) => !l.includes(m) && messages.indexOf(m) === i)]);
   onCleanup(
     props.store.onEvents((events) => {
       for (const e of events) {
@@ -235,8 +243,7 @@ export function PlayScreen(props: {
           const state = props.store.state();
           const notes = promotionNotes(state, e.from);
           notices.push({ text: ja.company.promoted(getCompanyTier(e.tier).name), icon: 'trophy', tone: 'success' });
-          for (const note of notes)
-            notices.push({ text: `${ja.unlocks.badge} ${note}`, icon: 'success', tone: 'success' });
+          addUnlocks(notes);
         }
         if (e.type === 'CompanyRanked') {
           notices.push({
@@ -321,7 +328,12 @@ export function PlayScreen(props: {
         }
         if (e.type === 'FeatureUnlocked') {
           const message = unlockDefs.find((u) => u.feature === e.feature)?.message ?? 'basic';
-          notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
+          // チュートリアルの間はコーチが説明するので短いお知らせに、その後は「新しくできること」のカードにまとめる
+          if (props.store.state().tutorial) {
+            notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
+          } else {
+            addUnlocks([ja.unlocks[message]]);
+          }
           setFresh((s) => new Set([...s, e.feature]));
         }
       }
@@ -348,6 +360,17 @@ export function PlayScreen(props: {
     setMove(next);
   });
   const rows = createMemo(() => (move() && compare() && inProject() ? stageRows(props.store.state(), pid()) : []));
+  const closeMove = () => {
+    setMove(null);
+    setCompare(false);
+  };
+  // 案内は開いている案件のもの。案件を切り替えた・ホームへ戻った・その案件を納品したら消す（古い工程を指したまま残さない）
+  createEffect(on(() => props.projectId, closeMove, { defer: true }));
+  onCleanup(
+    props.store.onEvents((events) => {
+      if (events.some((e) => e.type === 'ProjectCompleted' && e.projectId === props.projectId)) closeMove();
+    }),
+  );
 
   // Context と Harness Builder のシート。詳細のシートと同じ場所に出すので、どれか1つだけを開く
   const [contextOpen, setContextOpen] = createSignal(false);
@@ -403,6 +426,8 @@ export function PlayScreen(props: {
     closeSheets();
     setBoardOpen(true);
   };
+  createEffect(() => props.onBoardOpen?.(boardOpen() && boardOn()));
+  onCleanup(() => props.onBoardOpen?.(false));
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
@@ -575,7 +600,7 @@ export function PlayScreen(props: {
         <div class="flex min-w-0 flex-1">{props.strip}</div>
         <div class="pointer-events-auto shrink-0">{controls(form().form.controls === 'dock' ? 'clock' : 'all')}</div>
       </div>
-      {/* お知らせの列：大事な順（問題 → 納品 → 用語 → 短いお知らせ）に並べ、入りきらない分は出さない（ui/fitColumn.ts） */}
+      {/* お知らせの列：大事な順（問題 → 納品 → 用語 → 新しくできること → 短いお知らせ）に並べ、入りきらない分は出さない（ui/fitColumn.ts） */}
       <div
         ref={fitColumn}
         class="pointer-events-none absolute z-20 flex flex-col items-end gap-2 overflow-hidden"
@@ -595,8 +620,11 @@ export function PlayScreen(props: {
           }}
           onView={(sheet) => (sheet === 'harness' && harnessOn() ? openHarness() : openContext())}
         />
-        <NoticeHost notices={notices.list()} />
         {props.notices}
+        <Show when={unlocks().length > 0}>
+          <UnlockCard messages={unlocks()} onClose={() => setUnlocks([])} />
+        </Show>
+        <NoticeHost notices={notices.list()} />
       </div>
       <Show when={move()}>
         {(m) => (
@@ -612,10 +640,7 @@ export function PlayScreen(props: {
               select(entityId);
               focusCamera(entityId);
             }}
-            onClose={() => {
-              setMove(null);
-              setCompare(false);
-            }}
+            onClose={closeMove}
             top={regions().world.y + 8}
           />
         )}

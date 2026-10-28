@@ -371,8 +371,10 @@ export const ja = {
     offers: (n: number) => `新しい引き合い ${n}件`,
     moreTabs: (n: number) => `ほか ${n}件`,
     moreTabsShort: (n: number) => `+${n}`,
+    stalled: '担当待ち',
+    stalledInside: (label: string) => `${label}（担当待ちの案件あり）`,
     board: '案件ボード',
-    lead: '引き合いに見積を出し、コンペに勝つと受注できる。売上は見積額になる',
+    lead: '引き合いに見積を出し、コンペに勝つと受注できる。売上は見積額になる。ボードを開いている間は時間が止まる',
     inquiries: '引き合い（コンペ）',
     results: '最近のコンペの結果',
     close: '閉じる',
@@ -415,8 +417,7 @@ export const ja = {
     submitted: (p: string) => `提出済み・勝率 ${p}・締切に結果が出る`,
     proposal: '提案力',
     proposalParts: { reputation: '評判', track: '同業種の実績', ai: 'AI 体制' },
-    wonLabel: '受注',
-    lostLabel: '失注',
+    outcomeLabel: { won: '受注', lost: '失注', passed: '見送り' },
     outdatedSave:
       '以前のバージョン（案件を順に受注するキャンペーンや、1日が勤務時間だけだった時計）のセーブデータは読み込めません。はじめから始めてください',
   },
@@ -748,6 +749,7 @@ export const ja = {
     unassignedReady: '前の仕事が終わり、止まっている',
     unassignedLater: 'このままだと前の仕事が終わっても止まる',
     unassignedAction: '担当を決めよう',
+    unassignedActionMore: (n: number) => `担当を決めよう（ほかに ${n}件 未定）`,
   },
   detail: {
     close: '閉じる',
@@ -1401,6 +1403,8 @@ export const ja = {
   /** 機能の解放（content/unlocks.ts の message） */
   unlocks: {
     badge: 'NEW',
+    cardTitle: '新しくできること',
+    close: '閉じる',
     basic: '担当を選べるようになった',
     speed: '早送りできるようになった',
     utilization: '人間と AI の稼働が見えるようになった',

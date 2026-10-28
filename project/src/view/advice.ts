@@ -36,7 +36,7 @@ type Candidate = { readonly advice: Advice; readonly minutes: number };
  * 1. ボトルネック：まだ終わっていない Task の工程のリードタイムと、人間の待ち行列の待ち時間のうち最大のもの。
  *    ワールドで赤いリングを出すのと同じ強さ（look.threshold × look.fullMinutes 分）以上のときだけ出す。
  *    終わった Task のリードタイムは、もう打つ手がないので対象にしない
- * 2. 担当が決まっていない Task。前の Task が終わってすぐ始められるもの（止まっている）を先にする
+ * 2. 担当が決まっていない Task。1件にまとめ、前の Task が終わってすぐ始められるもの（止まっている）を見せて残りの数を添える
  */
 export function adviseProblems(
   state: GameState,
@@ -73,16 +73,18 @@ export function adviseProblems(
     .filter((r) => r.status === 'unassigned')
     .map((row) => ({ row, ready: (def.tasks.find((d) => d.id === row.id)?.deps ?? []).every((d) => finished.has(d)) }))
     .sort((a, b) => Number(b.ready) - Number(a.ready));
-  for (const { row, ready } of unassigned) {
+  // 担当が未定の Task は1件にまとめ、いちばん急ぐもの（止まっているもの）を見せて残りの数を添える
+  const [first, ...rest] = unassigned;
+  if (first) {
     out.push({
-      id: `unassigned:${row.id}`,
+      id: `unassigned:${first.row.id}`,
       kind: 'unassigned',
-      severity: ready ? 'danger' : 'warning',
+      severity: first.ready ? 'danger' : 'warning',
       icon: 'warning',
-      entityId: islandId(row.id),
-      problem: t.unassigned(row.name),
-      cause: ready ? t.unassignedReady : t.unassignedLater,
-      action: t.unassignedAction,
+      entityId: islandId(first.row.id),
+      problem: t.unassigned(first.row.name),
+      cause: first.ready ? t.unassignedReady : t.unassignedLater,
+      action: rest.length > 0 ? t.unassignedActionMore(rest.length) : t.unassignedAction,
     });
   }
   return out;

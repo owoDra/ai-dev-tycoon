@@ -5,7 +5,7 @@ import { getProject } from '../../content/index';
 import type { DockLayout, DockTabsLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
 import { waitingOnBids } from '../../core/step';
-import { isUnlocked } from '../../core/unlocks';
+import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
 import type { ProjectTabsView } from '../../view/board';
@@ -13,7 +13,7 @@ import { contextView } from '../../view/context';
 import { type HudView, hudView, paceText, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
-import { Meter, panel } from '../parts';
+import { Meter, NewBadge, panel } from '../parts';
 import { contextStatusIcon } from './ContextSheet';
 import { ProjectTabs } from './ProjectTabs';
 
@@ -339,18 +339,22 @@ const badgeBg = { good: 'bg-surface', cluttered: 'bg-warning-200', overflow: 'bg
 
 function ContextBadge(props: { store: GameStore; projectId: string; onOpen?: () => void }) {
   const view = createMemo(() => contextView(props.store.state(), props.projectId));
+  const fresh = () => freshMenus(props.store.state()).has('context');
   return (
     <Show when={view()}>
       {(v) => (
         <button
           type="button"
           data-context-badge={v().status}
-          class={`flex min-h-6 items-center gap-1 rounded-full border-2 border-line px-1.5 text-[11px] font-bold whitespace-nowrap ${badgeBg[v().status]}`}
-          aria-label={ja.context.open(ja.context.status[v().status])}
+          class={`relative flex min-h-6 items-center gap-1 rounded-full border-2 border-line px-1.5 text-[11px] font-bold whitespace-nowrap ${badgeBg[v().status]}`}
+          aria-label={`${ja.context.open(ja.context.status[v().status])}${fresh() ? `（${ja.unlocks.badge}）` : ''}`}
           onClick={() => props.onOpen?.()}
         >
           <Icon name={contextStatusIcon[v().status]} />
           {ja.context.status[v().status]}
+          <Show when={fresh()}>
+            <NewBadge class="absolute -top-3 -right-2" />
+          </Show>
         </button>
       )}
     </Show>

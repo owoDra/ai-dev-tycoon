@@ -4,11 +4,11 @@ import type { IconName } from '../../assets/icons';
 import { balance } from '../../content/balance';
 import { calendarDay, type DayPhase, dayPhase, minuteOfDay } from '../../core/clock';
 import { awaitingAssignment, idleHours } from '../../core/step';
-import { isUnlocked } from '../../core/unlocks';
+import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { hhmm } from '../../view/hud';
 import { Icon } from '../Icon';
-import { PlayPauseIcon, panel, SettingsIcon } from '../parts';
+import { NewBadge, PlayPauseIcon, panel, SettingsIcon } from '../parts';
 
 const t = ja.hud;
 
@@ -35,6 +35,8 @@ export function PlayControls(props: {
 }) {
   const speedOn = () => isUnlocked(props.store.state(), 'dock:speed');
   const part = () => props.part ?? 'all';
+  /** 解放したがまだ開いていない機能のあるメニュー（「NEW」の印） */
+  const fresh = createMemo(() => freshMenus(props.store.state()));
   return (
     <div class={`flex items-center gap-2 ${part() === 'menu' ? '' : `${panel} px-2 py-1`}`} data-play-controls={part()}>
       <Show when={part() !== 'menu'}>
@@ -64,6 +66,7 @@ export function PlayControls(props: {
                 label={ja.team.open}
                 ariaLabel={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
                 warning={props.teamWarning}
+                fresh={fresh().has('team')}
                 onClick={open()}
                 data={{ 'data-team-open': '' }}
               />
@@ -76,6 +79,7 @@ export function PlayControls(props: {
                 icon="ai"
                 label={ja.harness.openShort}
                 ariaLabel={ja.harness.open}
+                fresh={fresh().has('harness') || fresh().has('library')}
                 onClick={open()}
                 data={{ 'data-harness-open': '' }}
               />
@@ -191,6 +195,8 @@ function MenuButton(props: {
   compact?: boolean;
   ariaLabel?: string;
   warning?: boolean;
+  /** 解放したがまだ開いていない（「NEW」の印を右上に出す） */
+  fresh?: boolean;
   onClick: () => void;
   data?: Record<string, string>;
 }): JSX.Element {
@@ -201,13 +207,16 @@ function MenuButton(props: {
       class={`relative flex h-11 flex-col items-center justify-center rounded-md border-[3px] border-line px-1 ${
         props.compact ? 'w-11' : 'min-w-12'
       } ${props.warning ? 'bg-danger-200' : 'bg-surface'}`}
-      aria-label={props.ariaLabel ?? props.label}
+      aria-label={`${props.ariaLabel ?? props.label}${props.fresh ? `（${ja.unlocks.badge}）` : ''}`}
       title={props.label}
       onClick={() => props.onClick()}
     >
       <Icon name={props.icon} class={props.compact ? 'text-2xl' : 'text-lg'} />
       <Show when={!props.compact}>
         <span class="text-[10px] leading-none font-bold whitespace-nowrap">{props.label}</span>
+      </Show>
+      <Show when={props.fresh && !props.warning}>
+        <NewBadge class="absolute -top-2.5 -right-2" />
       </Show>
       <Show when={props.warning}>
         <span class="absolute -top-2 -right-2 flex" data-team-warning>

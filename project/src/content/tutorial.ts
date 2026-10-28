@@ -14,7 +14,7 @@ export const tutorialScript: TutorialScript = {
   seed: 'tutorial',
   // 最初の AI は成功させて速さを見せ、2つ目でミスさせる。レビューと自動テストでは、それぞれが失敗を見つける場面を必ず見せる
   forcedAiOutcomes: { wireframe: true, coding: false, form: false, responsive: false },
-  alwaysAllowed: ['SetSpeed', 'TogglePause', 'StartProject', 'SkipTutorial'],
+  alwaysAllowed: ['SetSpeed', 'TogglePause', 'SeeFeatures', 'StartProject', 'SkipTutorial'],
   steps: [
     {
       id: 'choose',

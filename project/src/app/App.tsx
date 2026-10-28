@@ -14,6 +14,7 @@ import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards } from '../ui/company/DeliveryCard';
 import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
+import { createHoldTimers } from '../ui/holdTimers';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
@@ -27,11 +28,12 @@ import { createSelection } from '../ui/selection';
 import { createSafeBox } from '../ui/viewport';
 import { WorldCanvas } from '../ui/WorldCanvas';
 import { type DeliveryView, deliveryView } from '../view/fiscal';
-import { type DaySummary, daySummary, type Recap, recapView } from '../view/session';
+import { daySummary, recapView } from '../view/session';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
+import { createMilestones } from './milestones';
 import { markTutorialDone, progress } from './progress';
 import { clearCompany, hasOutdatedSave, loadCompany, loadSavedAt, saveCompany } from './save';
 import { afterDelivery, createScreens } from './screens';
@@ -81,12 +83,9 @@ export function App(props: {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   /** 案件ボードを開いているか（見積を考えている間は時間を止める） */
   const [boardOpen, setBoardOpen] = createSignal(false);
-  const [dayCard, setDayCard] = createSignal<DaySummary | null>(null);
-  const [recap, setRecap] = createSignal<Recap | null>(null);
-  /** 出している決算の期（null なら出していない）と、あらすじの後に出す決算 */
-  const [fiscal, setFiscal] = createSignal<number | null>(null);
-  let pendingFiscal: number | null = null;
-  const [bankrupt, setBankrupt] = createSignal(false);
+  /** 区切りとあらすじのカード・決算・倒産（設定を開いている間は、カードを Space で閉じない） */
+  const milestones = createMilestones(game, settingsOpen);
+  const { dayCard, recap, fiscal, bankrupt, resume } = milestones;
   const [deliveries, setDeliveries] = createSignal<readonly DeliveryView[]>([]);
   /** 今の営業日が始まったときの state（その日の成果の比較に使う） */
   let dayStart = game().state();
@@ -96,7 +95,17 @@ export function App(props: {
   const [safeEl, setSafeEl] = createSignal<HTMLElement>();
   const safe = createSafeBox(safeEl);
   const regions = createMemo(() => screenRegions(uiLayout, safe()));
-  const terms = createTermCards(game, uiLayout.flow.termCardMs);
+  /**
+   * 時間を止める画面（決算・倒産・区切りとあらすじのカード・設定）を開いているか。開いている間はプレイ画面のキー操作を効かせない
+   */
+  const modal = () => settingsOpen() || milestones.open();
+  /**
+   * ゲーム内の時間を止めているか（時間を止める画面・結果（振り返り）・案件ボード）。
+   * ゲームループのほか、お知らせ・納品と用語のカードの消えるまでの時間もこの間は数えない
+   */
+  const held = () => modal() || screens.screen().id === 'result' || boardOpen();
+  const later = createHoldTimers(held);
+  const terms = createTermCards(game, uiLayout.flow.termCardMs, held);
   // カメラはプレイ中、3D の世界の領域（上の帯・お知らせの列・ドックを除いた範囲）に構図を合わせる。ほかの画面では画面全体
   createEffect(() => {
     const w = world()?.world;
@@ -115,11 +124,7 @@ export function App(props: {
 
   const useState = (state: GameState) => {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
-    setDayCard(null);
-    setRecap(null);
-    setFiscal(null);
-    pendingFiscal = null;
-    setBankrupt(isBankrupt(state));
+    milestones.reset(isBankrupt(state));
     setDeliveries([]);
     dayStart = state;
     setGame(createGameStore(state));
@@ -127,19 +132,6 @@ export function App(props: {
 
   /** 営業日の終わりで区切るか（設定・会社の進行中の案件か結果待ちの見積・プレイ画面（ホームを含む）） */
   const breaksAtDayEnd = () => settings().dayBreak && screens.screen().id === 'play' && runsUnattended(game().state());
-
-  /** 区切りやあらすじのカード・決算を閉じて再開する。閉じている間に締めた決算があれば、あらすじの後に出す */
-  const resume = () => {
-    setDayCard(null);
-    setRecap(null);
-    if (pendingFiscal !== null) {
-      setFiscal(pendingFiscal);
-      pendingFiscal = null;
-      return;
-    }
-    setFiscal(null);
-    if (game().state().paused) game().dispatch({ type: 'TogglePause' });
-  };
 
   const closeDelivery = (projectId: string) => setDeliveries((cards) => cards.filter((c) => c.projectId !== projectId));
 
@@ -188,9 +180,8 @@ export function App(props: {
     const { state: after, events } = catchUp(state, awaySeconds);
     const withRecap = after.tutorial === null && !isBankrupt(after);
     useState({ ...after, paused: withRecap || after.paused });
-    if (withRecap) setRecap(recapView(state, after, events));
-    const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
-    if (closed !== undefined) pendingFiscal = closed;
+    const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1) ?? null;
+    if (withRecap) milestones.showRecap(recapView(state, after, events), closed);
     screens.go({ type: 'Open' });
     save();
   };
@@ -216,14 +207,7 @@ export function App(props: {
           undefined,
           () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null),
           // 結果（振り返り）・決算・倒産・区切りとあらすじのカード・設定・案件ボードを見ている間は、ゲーム内の時間を止める
-          () =>
-            screens.screen().id === 'result' ||
-            settingsOpen() ||
-            boardOpen() ||
-            fiscal() !== null ||
-            bankrupt() ||
-            dayCard() !== null ||
-            recap() !== null,
+          held,
         ),
       );
       // 営業日の終わり：一時停止して、その日の成果を出す（区切らない設定でも、成果の起点は進める）
@@ -234,7 +218,7 @@ export function App(props: {
         if (now <= day) return;
         day = now;
         if (breaksAtDayEnd()) {
-          setDayCard(daySummary(dayStart, state));
+          milestones.showDay(daySummary(dayStart, state));
           if (!state.paused) store.dispatch({ type: 'TogglePause' });
           save();
         }
@@ -247,11 +231,6 @@ export function App(props: {
       onCleanup(
         store.onEvents((events) => {
           if (events.some((e) => e.type === 'TutorialEnded')) markTutorialDone();
-          // HUD などから再開したら、区切りとあらすじのカードを閉じる
-          if (events.some((e) => e.type === 'PauseToggled' && !e.paused)) {
-            setDayCard(null);
-            setRecap(null);
-          }
           if (events.some((e) => e.type === 'SeatChanged' || e.type === 'BidWon' || e.type === 'BidSubmitted')) save();
           // ホームで受注したら、その案件のフロアへ移る（担当を決めるまで時間は進まないので、すぐ見せる）
           const won = events.flatMap((e) => (e.type === 'BidWon' ? [e.projectId] : [])).at(0);
@@ -262,15 +241,12 @@ export function App(props: {
           // 期の終わり：一時停止して決算を出す（その日の区切りのカードの代わり）
           const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
           if (closed !== undefined && store.state().board) {
-            setDayCard(null);
-            setFiscal(closed);
+            milestones.showFiscal(closed);
             if (!store.state().paused) store.dispatch({ type: 'TogglePause' });
             save();
           }
           if (events.some((e) => e.type === 'CompanyBankrupt')) {
-            setDayCard(null);
-            setFiscal(null);
-            setBankrupt(true);
+            milestones.showBankrupt();
             save();
           }
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
@@ -283,7 +259,7 @@ export function App(props: {
               return card ? [card] : [];
             });
             setDeliveries((prev) => [...prev, ...cards].slice(-uiLayout.flow.deliveryCards));
-            for (const c of cards) setTimeout(() => closeDelivery(c.projectId), uiLayout.flow.deliveryCardMs);
+            for (const c of cards) later(() => closeDelivery(c.projectId), uiLayout.flow.deliveryCardMs);
           }
           // 進行中の案件が残っていれば、そのフロアへ移って続ける。会社で最後の案件を納品したらホームへ
           // （単発のプレイは、これまでどおり結果画面へ）
@@ -358,6 +334,7 @@ export function App(props: {
                   <TermCardList cards={terms.cards()} onClose={terms.close} />
                 </>
               }
+              held={held}
               onSettings={openSettings}
               onBoardOpen={setBoardOpen}
               onSwitch={(projectId) => {

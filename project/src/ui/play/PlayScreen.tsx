@@ -25,13 +25,13 @@ import {
 import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
-import { modeFeature, unlockDefs } from '../../content/unlocks';
+import { type MenuSpot, menuFeatures, modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
 import { tierOf } from '../../core/company';
 import { getIncidentDef } from '../../core/incidents';
 import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
 import { teamName } from '../../core/teams';
-import { isUnlocked } from '../../core/unlocks';
+import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
 import { deliveredProjects, projectTabs } from '../../view/board';
@@ -50,6 +50,7 @@ import { Icon } from '../Icon';
 import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
+import { NewBadge } from '../parts';
 import type { Selection } from '../selection';
 import { BoardSheet } from './BoardSheet';
 import { BottleneckGuide } from './BottleneckGuide';
@@ -100,6 +101,11 @@ export function PlayScreen(props: {
   strip?: JSX.Element;
   /** お知らせの列の後ろに積むもの（納品と用語のカード） */
   notices?: JSX.Element;
+  /**
+   * 時間を止める画面（決算・あらすじ・設定など。App が1か所で判定する）を見ているか。この間はお知らせの消えるまでの時間を数えず、
+   * 自分の案件ボードのほかは、キー操作を効かせない
+   */
+  held?: Accessor<boolean>;
   onSettings?: () => void;
   /** 案件ボードの開閉を知らせる（App は開いている間、ゲーム内の時間を止める） */
   onBoardOpen?: (open: boolean) => void;
@@ -140,8 +146,14 @@ export function PlayScreen(props: {
   const [dismissed, setDismissed] = createSignal<ReadonlySet<string>>(new Set());
   const problemsOn = () => isUnlocked(props.store.state(), 'problems');
   const shownProblems = () => (problemsOn() ? problems().filter((p) => !dismissed().has(p.id)) : []);
-  /** 解放されたばかりで、まだ使っていない機能（担当カードの「NEW」バッジ） */
-  const [fresh, setFresh] = createSignal<ReadonlySet<FeatureId>>(new Set());
+  /** 解放したが、まだ使っていない機能（担当カードの「NEW」の印。セーブに残る） */
+  const fresh = createMemo<ReadonlySet<FeatureId>>(() => new Set(props.store.state().fresh));
+  /** メニューの入口を開いたら、その入口の「NEW」の印を外す */
+  const see = (spot: MenuSpot) => {
+    if (freshMenus(props.store.state()).has(spot)) {
+      props.store.dispatch({ type: 'SeeFeatures', features: menuFeatures[spot] });
+    }
+  };
   // 問題のトーストが新しく出たら警告音を添える（トーストのアイコンと文言が本体で、音は補助）
   let heard = new Set<string>();
   createEffect(() => {
@@ -150,7 +162,7 @@ export function PlayScreen(props: {
     heard = ids;
   });
 
-  const notices = createNotices(() => form().form.notice);
+  const notices = createNotices(() => form().form.notice, props.held);
   /** 「新しくできること」のカードの項目（閉じるまで残し、新しい解放は同じカードに足す） */
   const [unlocks, setUnlocks] = createSignal<readonly string[]>([]);
   const addUnlocks = (messages: readonly string[]) =>
@@ -334,7 +346,6 @@ export function PlayScreen(props: {
           } else {
             addUnlocks([ja.unlocks[message]]);
           }
-          setFresh((s) => new Set([...s, e.feature]));
         }
       }
     }),
@@ -387,6 +398,7 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     closeSheets();
     setContextOpen(true);
+    see('context');
   };
   // Workflow Library（企画書25章）。Task の詳細から開くと、その Task に適用できる
   const [libraryOpen, setLibraryOpen] = createSignal(false);
@@ -403,6 +415,7 @@ export function PlayScreen(props: {
     closeSheets();
     setLibraryTask(taskId);
     setLibraryOpen(true);
+    see('library');
   };
   const [harnessOpen, setHarnessOpen] = createSignal(false);
   // 社員と Seat の画面（企画書6章）
@@ -417,6 +430,7 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     closeSheets();
     setTeamOpen(true);
+    see('team');
   };
   // 案件ボード（ホームとプレイの上に開くシート）。チュートリアルの間は開かない
   const [boardOpen, setBoardOpen] = createSignal(false);
@@ -443,6 +457,7 @@ export function PlayScreen(props: {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     closeSheets();
     setHarnessOpen(true);
+    see('harness');
   };
   createEffect(() => {
     if (props.selection.selected() !== null) closeSheets();
@@ -492,7 +507,6 @@ export function PlayScreen(props: {
   };
 
   const assign = (taskId: string, mode: AssignModeId) => {
-    setFresh((s) => new Set([...s].filter((f) => f !== modeFeature(mode))));
     props.store.dispatch({
       type: 'AssignTask',
       projectId: pid(),
@@ -522,6 +536,8 @@ export function PlayScreen(props: {
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 時間を止める画面（決算・あらすじなど）の裏では、島の選択やシートの開閉を動かさない
+      if (props.held?.() && !(boardOpen() && boardOn())) return;
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
@@ -562,6 +578,9 @@ export function PlayScreen(props: {
           >
             <Icon name={id === 'harness' ? 'ai' : 'workflow'} />
             {id === 'harness' ? ja.harness.title : ja.library.title}
+            <Show when={id === 'library' && current !== 'library' && freshMenus(props.store.state()).has('library')}>
+              <NewBadge />
+            </Show>
           </button>
         )}
       </For>

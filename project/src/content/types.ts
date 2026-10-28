@@ -344,7 +344,7 @@ export interface TutorialScript {
   /** AI の作業の成否をシナリオで決める（true: 成功 / false: 失敗）。載っていない Task は通常どおり確率で決まる */
   readonly forcedAiOutcomes: Readonly<Record<string, boolean>>;
   /** ステップに関係なく、いつでも受け付ける Command */
-  readonly alwaysAllowed: readonly ('SetSpeed' | 'TogglePause' | 'StartProject' | 'SkipTutorial')[];
+  readonly alwaysAllowed: readonly ('SetSpeed' | 'TogglePause' | 'SeeFeatures' | 'StartProject' | 'SkipTutorial')[];
   readonly steps: readonly TutorialStepDef[];
   /** この条件を満たしたらチュートリアルを終える */
   readonly completeWhen: Condition;

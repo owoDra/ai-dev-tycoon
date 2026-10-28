@@ -9,7 +9,7 @@ import { ja } from '../../i18n/ja';
 import { forecastAssign } from '../../view/forecast';
 import { defaultWorkerFor, type TaskRowView } from '../../view/project';
 import { Icon } from '../Icon';
-import { modeIcon, primaryButton } from '../parts';
+import { modeIcon, NewBadge, primaryButton } from '../parts';
 import { ForecastPreview } from './ForecastPreview';
 
 const t = ja.assign;
@@ -146,12 +146,7 @@ export function AssignCards(props: {
               <span class="font-heading text-sm leading-tight text-balance">{m.name}</span>
               <span class="text-[11px] leading-snug text-ink-muted">{t.hints[m.id]}</span>
               <Show when={props.fresh?.has(modeFeature(m.id)) && props.row.mode !== m.id}>
-                <span
-                  data-new-badge
-                  class="absolute -top-2.5 -right-1.5 rounded-full border-2 border-line bg-danger-500 px-1.5 font-heading text-[10px] text-ink"
-                >
-                  {ja.unlocks.badge}
-                </span>
+                <NewBadge class="absolute -top-2.5 -right-1.5" />
               </Show>
               <Show when={props.row.mode === m.id}>
                 <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full border-2 border-line bg-surface px-1.5 text-[10px] font-bold whitespace-nowrap">

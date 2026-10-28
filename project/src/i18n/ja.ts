@@ -1650,6 +1650,7 @@ export const ja = {
     day: '昼',
     night: '夜',
     board: '案件ボード',
+    sparkle: '新しい',
   },
   world: {
     label: 'オフィスの2.5Dビュー',

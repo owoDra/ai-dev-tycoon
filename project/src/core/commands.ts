@@ -31,12 +31,14 @@ import {
   setManager,
 } from './teams';
 import { isAllowed } from './tutorial';
-import { isUnlocked } from './unlocks';
+import { isUnlocked, seeFeatures } from './unlocks';
 
 /** プレイヤー操作。状態を変える唯一の入口 */
 export type Command =
   | { readonly type: 'SetSpeed'; readonly speed: GameSpeed }
   | { readonly type: 'TogglePause' }
+  /** 解放した機能を見た（メニューの入口を開いた）ことにして、「NEW」の印を外す */
+  | { readonly type: 'SeeFeatures'; readonly features: readonly FeatureId[] }
   /**
    * 案件を始める。案件ボードのある会社では、チュートリアルの案件だけ（ほかの案件はコンペで受注する）。進行中の案件と同時に進められる
    */
@@ -157,6 +159,8 @@ function apply(state: GameState, command: Command): Transition {
       const paused = !state.paused;
       return { state: { ...state, paused }, events: [{ type: 'PauseToggled', paused }] };
     }
+    case 'SeeFeatures':
+      return { state: seeFeatures(state, command.features), events: [] };
     case 'StartProject': {
       const def = findProject(command.projectId);
       if (!def || !canStartProject(state, def.id)) return unchanged(state);
@@ -192,7 +196,11 @@ function apply(state: GameState, command: Command): Transition {
       const assignment = { mode: mode.id, workerId: worker.id };
       const assigned = updateTask(state, command.projectId, command.taskId, (r) => ({ ...r, assignment }));
       return {
-        state: command.by === 'manager' ? assigned : notePlayerAssigned(assigned, command.projectId),
+        // プレイヤーがその任せ方を使ったら、担当カードの「NEW」の印を外す
+        state:
+          command.by === 'manager'
+            ? assigned
+            : seeFeatures(notePlayerAssigned(assigned, command.projectId), [modeFeature(mode.id)]),
         events: [],
       };
     }
@@ -323,7 +331,10 @@ function apply(state: GameState, command: Command): Transition {
         next = updateTask(next, projectId, taskId, (r) => ({ ...r, assignment: { mode: 'agentWorkflow', workerId } }));
       }
       next = notePlayerAssigned(next, projectId, taskIds.length);
-      return { state: next, events: [{ type: 'WorkflowAssigned', projectId, taskIds }] };
+      return {
+        state: seeFeatures(next, [modeFeature('agentWorkflow')]),
+        events: [{ type: 'WorkflowAssigned', projectId, taskIds }],
+      };
     }
     case 'SaveLibraryWorkflow': {
       if (!isUnlocked(state, 'harness')) return unchanged(state);

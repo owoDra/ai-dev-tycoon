@@ -224,3 +224,32 @@ export const dockFeature: Partial<Record<HudItemId, FeatureId>> = {
 
 /** すべての機能（解放の定義の順） */
 export const allFeatures: readonly FeatureId[] = unlockDefs.map((u) => u.feature);
+
+/** 「NEW」の印を出すメニューの入口 */
+export type MenuSpot = 'harness' | 'library' | 'team' | 'context';
+
+/**
+ * メニューの入口ごとに、解放したら「NEW」の印を出す機能（その入口を開いたら消す）。
+ * Workflow Library は Agent Workflow と一緒に開くので、その担当カードと印を共有する（どちらかを使えば消える）。
+ * 担当モードの機能（mode:*）は、担当カードに印を出す（その任せ方で担当を決めたら消す）
+ */
+export const menuFeatures: Readonly<Record<MenuSpot, readonly FeatureId[]>> = {
+  harness: [
+    'harness',
+    'harness:hook',
+    'harness:tool',
+    'harness:permission',
+    'harness:eval',
+    'harness:subagent',
+    'harness:mod',
+    'harness:routine',
+    'context:router',
+  ],
+  library: ['mode:agentWorkflow'],
+  team: ['team', 'hire'],
+  context: ['context', 'context:pick', 'session', 'session:artifacts'],
+};
+
+/** 解放したときに「NEW」の印を付ける機能か（担当カードかメニューの入口に出す場所がある） */
+export const hasNewBadge = (feature: FeatureId): boolean =>
+  feature.startsWith('mode:') || Object.values(menuFeatures).some((fs) => fs.includes(feature));

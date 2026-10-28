@@ -1,8 +1,10 @@
 import type { JSX } from 'solid-js';
 import type { IconName } from '../assets/icons';
 import type { AssignModeId } from '../content/types';
+import { ja } from '../i18n/ja';
 import type { TaskStatusView } from '../view/project';
 import type { EntityKind } from '../view/world';
+import { Icon } from './Icon';
 
 /** 共通の見た目（D1 キャンディポップ：太い輪郭と押し込める影） */
 export const panel = 'rounded-lg border-[3px] border-line bg-surface text-ink shadow-pop';
@@ -91,5 +93,21 @@ export function Meter(props: { ratio: number; label: string; color: string; clas
       </span>
       <span class="sr-only">{props.label}</span>
     </>
+  );
+}
+
+/**
+ * 解放したがまだ開いていない・使っていない機能の印（「NEW」）。色だけに頼らず、アイコンとラベルで示す。
+ * 置き場所（ボタンの角など）は class で渡す
+ */
+export function NewBadge(props: { class?: string }) {
+  return (
+    <span
+      data-new-badge
+      class={`pointer-events-none flex items-center gap-0.5 rounded-full border-2 border-line bg-danger-500 px-1 font-heading text-[10px] leading-none text-ink ${props.class ?? ''}`}
+    >
+      <Icon name="sparkle" tone="mono" class="text-[10px]" />
+      {ja.unlocks.badge}
+    </span>
   );
 }

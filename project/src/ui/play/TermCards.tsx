@@ -3,6 +3,7 @@ import type { GameStore } from '../../app/store';
 import type { TermId } from '../../content/types';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
+import { createHoldTimers } from '../holdTimers';
 import { Icon } from '../Icon';
 import { panel, smallButton } from '../parts';
 
@@ -10,26 +11,19 @@ import { panel, smallButton } from '../parts';
  * 用語のカード（企画書34章「体験 → 用語」）。core が TermRevealed を出したら
  * 「この仕組みの名前」として名前と平易な説明を短く出し、durationMs 後（または閉じるボタン）で消す。
  * 結果画面へ切り替わっても読み終えられるよう、出しているカードは App が createTermCards で持ち、
- * プレイ画面ではお知らせの列に、ほかの画面では同じ場所に TermCardList で並べる。
+ * プレイ画面ではお知らせの列に、ほかの画面では同じ場所に TermCardList で並べる。held（時間を止める画面を見ている）の間は消えるまでの時間を数えない。
  */
-export function createTermCards(store: Accessor<GameStore>, durationMs: number) {
+export function createTermCards(store: Accessor<GameStore>, durationMs: number, held?: Accessor<boolean>) {
   const [cards, setCards] = createSignal<readonly TermId[]>([]);
-  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const later = createHoldTimers(held);
   const close = (id: TermId) => setCards((l) => l.filter((x) => x !== id));
-  onCleanup(() => {
-    for (const t of timers) clearTimeout(t);
-  });
   createEffect(() =>
     onCleanup(
       store().onEvents((events) => {
         for (const e of events) {
           if (e.type !== 'TermRevealed') continue;
           setCards((l) => [...l.filter((x) => x !== e.term), e.term]);
-          const timer = setTimeout(() => {
-            timers.delete(timer);
-            close(e.term);
-          }, durationMs);
-          timers.add(timer);
+          later(() => close(e.term), durationMs);
         }
       }),
     ),

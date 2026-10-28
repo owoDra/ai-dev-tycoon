@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -102,6 +102,8 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // v16 → v17：チュートリアルの後の解放を1営業日に1つずつにする（Phase 29）。まだ解放していないことにする
   { from: 16, migrate: (state) => (isRecord(state) ? { ...state, unlockDay: null } : state) },
+  // v17 → v18：解放したがまだ開いていない機能の「NEW」の印（Phase 31）。それまでの解放は見たことにする
+  { from: 17, migrate: (state) => (isRecord(state) ? { ...state, fresh: [] } : state) },
 ];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
@@ -164,6 +166,7 @@ function isGameState(v: unknown): v is GameState {
     (v.bottleneck === null || isRecord(v.bottleneck)) &&
     Array.isArray(v.pendingEvents) &&
     Array.isArray(v.unlocked) &&
+    Array.isArray(v.fresh) &&
     Array.isArray(v.revealed) &&
     (v.tutorial === null || isRecord(v.tutorial)) &&
     isRecord(v.sessions) &&

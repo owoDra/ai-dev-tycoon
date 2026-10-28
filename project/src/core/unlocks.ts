@@ -1,6 +1,6 @@
 import { glossary } from '../content/glossary';
 import type { FeatureId, TermId } from '../content/types';
-import { unlockDefs } from '../content/unlocks';
+import { hasNewBadge, type MenuSpot, menuFeatures, unlockDefs } from '../content/unlocks';
 import { businessDay } from './clock';
 import { holds } from './conditions';
 import type { GameEvent } from './events';
@@ -9,6 +9,23 @@ import type { GameState } from './state';
 /** 機能が解放済みか。UI はこれだけを見て表示・非表示を切り替える */
 export function isUnlocked(state: GameState, feature: FeatureId): boolean {
   return state.unlocked.includes(feature);
+}
+
+/** 解放したが、まだ開いていない・使っていない機能か（「NEW」の印を出す） */
+export function isFresh(state: GameState, feature: FeatureId): boolean {
+  return state.fresh.includes(feature);
+}
+
+/** 機能を見た（入口を開いた・使った）ことにして、「NEW」の印を外す。変わらなければ同じ state を返す */
+export function seeFeatures(state: GameState, features: readonly FeatureId[]): GameState {
+  if (!state.fresh.some((f) => features.includes(f))) return state;
+  return { ...state, fresh: state.fresh.filter((f) => !features.includes(f)) };
+}
+
+/** 「NEW」の印を出すメニューの入口（その入口の機能に、まだ開いていないものがある） */
+export function freshMenus(state: GameState): ReadonlySet<MenuSpot> {
+  const spots = Object.keys(menuFeatures) as MenuSpot[];
+  return new Set(spots.filter((spot) => menuFeatures[spot].some((f) => state.fresh.includes(f))));
 }
 
 /** 用語の名前を明かし済みか */
@@ -27,6 +44,7 @@ export function applyUnlocks(state: GameState, emit: (e: GameEvent) => void): Ga
   const today = businessDay(state.clock);
   let unlocked = state.unlocked;
   let unlockDay = state.unlockDay;
+  let fresh = state.fresh;
   /** 今日渡した解放の条件（同じ条件のものは今日まとめて渡す） */
   const todays = new Set<string>();
   for (let changed = true; changed; ) {
@@ -41,6 +59,7 @@ export function applyUnlocks(state: GameState, emit: (e: GameEvent) => void): Ga
         unlockDay = today;
       }
       unlocked = [...unlocked, u.feature];
+      if (hasNewBadge(u.feature)) fresh = [...fresh, u.feature];
       emit({ type: 'FeatureUnlocked', feature: u.feature });
       changed = true;
     }
@@ -52,5 +71,5 @@ export function applyUnlocks(state: GameState, emit: (e: GameEvent) => void): Ga
     emit({ type: 'TermRevealed', term: term.id });
   }
   if (unlocked === state.unlocked && revealed === state.revealed) return state;
-  return { ...state, unlocked, unlockDay, revealed };
+  return { ...state, unlocked, unlockDay, fresh, revealed };
 }

@@ -153,6 +153,7 @@ view/     ── state → ViewModel のセレクタ（純粋・テスト可能�
 | 28 | [phase-28-board-time-notices.md](phase-28-board-time-notices.md) | 引き合いの締切を延ばす・ボード中は停止・閉じている間と担当待ち・通知の整理 | 27 |
 | 29 | [phase-29-unlock-ladder.md](phase-29-unlock-ladder.md) | 機能の段階的な解放（解放のはしご・1営業日に1つ） | 28 |
 | 30 | [phase-30-economy.md](phase-30-economy.md) | 経済の見直し（粗利・値下げの代償・昇格・評判） | 29 |
+| 31 | [phase-31-modal-and-badges.md](phase-31-modal-and-badges.md) | 節目の画面の間の通知とキー操作・メニューの NEW の印 | 30 |
 
 ## 7. `/goal` の使い方
 

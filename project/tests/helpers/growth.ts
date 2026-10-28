@@ -20,10 +20,12 @@ import {
   teamProjects,
   workingStaff,
 } from '../../src/core/teams';
+import { FITTED } from './fitted';
 
 /*
  * 会社を育てる戦略 Bot（画面なし）。チュートリアルなしで始めた会社で、届いた引き合いすべてに基準の価格で見積を出し、
  * 直轄チームの案件は smart の担当（AI 適性の高い Task は AI → 人間レビュー、残りは得意で手の空いている人）で進める。
+ * AI Worker には Harness（Skill・Hook・Eval と必要な Tool・権限）を付ける（素の AI は割に合わない。balance.harness.bare）。
  * 進行中の案件が人数に比べて多ければ採用し、AI Worker を増やせるなら増やす。
  * 管理者を置ける規模になったら、チームを作って社員の半分と AI Worker を移し、管理者（manager）に任せる。
  * 新しく受注した案件は、仕事の少ない方のチームに割り当てる。
@@ -87,6 +89,16 @@ function hireIfNeeded(state: GameState): GameState {
   return best ? apply(state, { type: 'Hire', staffId: best }) : state;
 }
 
+/** AI Worker に Harness の部品を付ける（付いていない部品だけ） */
+function equipAgents(state: GameState): GameState {
+  let s = state;
+  for (const workerId of s.agents) {
+    const parts = s.harnesses[workerId]?.parts ?? [];
+    for (const partId of FITTED) if (!parts.includes(partId)) s = apply(s, { type: 'EquipPart', workerId, partId });
+  }
+  return s;
+}
+
 /** 管理者を置けるようになったらチームを作り、手の空いた社員の半分と AI Worker を移して管理者に任せる */
 function organize(state: GameState, manager: ManagerRun['kind']): GameState {
   let s = state;
@@ -141,6 +153,7 @@ export function growCompany(seed: string, days: number, manager: ManagerRun['kin
     }
     s = hireIfNeeded(s);
     s = organize(s, manager);
+    s = equipAgents(s);
     s = distribute(s);
     s = assignDirect(s);
     const r = step(s, CHUNK);

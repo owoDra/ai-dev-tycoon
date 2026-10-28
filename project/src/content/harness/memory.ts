@@ -22,12 +22,17 @@ interface RuleCard {
  * 「去年の仕様メモ」はどの仕事にも役立たず、CLAUDE.md に書けば Noise になるだけ（渡さないのが正解）
  */
 const cards: readonly RuleCard[] = [
-  { key: 'overview', size: 3, kinds: ALL, modifiers: { success: 0.02, humanTime: 0.85 } },
-  { key: 'coding', size: 6, kinds: ['code', 'test'], modifiers: { success: 0.05, humanTime: 0.95 } },
-  { key: 'design', size: 5, kinds: ['design', 'content'], modifiers: { success: 0.05, humanTime: 0.95 } },
-  { key: 'testing', size: 4, kinds: ['test'], modifiers: { success: 0.05 } },
-  { key: 'release', size: 4, kinds: ['release'], modifiers: { success: 0.06, humanTime: 0.9 } },
-  { key: 'learnings', size: 4, kinds: ['planning', 'research'], modifiers: { success: 0.04, humanTime: 0.9 } },
+  { key: 'overview', size: 3, kinds: ALL, modifiers: { success: 0.02, humanTime: 0.85, guard: 0.1 } },
+  { key: 'coding', size: 6, kinds: ['code', 'test'], modifiers: { success: 0.05, humanTime: 0.95, guard: 0.3 } },
+  { key: 'design', size: 5, kinds: ['design', 'content'], modifiers: { success: 0.05, humanTime: 0.95, guard: 0.3 } },
+  { key: 'testing', size: 4, kinds: ['test'], modifiers: { success: 0.05, guard: 0.3 } },
+  { key: 'release', size: 4, kinds: ['release'], modifiers: { success: 0.06, humanTime: 0.9, guard: 0.3 } },
+  {
+    key: 'learnings',
+    size: 4,
+    kinds: ['planning', 'research'],
+    modifiers: { success: 0.04, humanTime: 0.9, guard: 0.2 },
+  },
   { key: 'oldSpec', size: 6, kinds: [], modifiers: {} },
 ];
 

@@ -4,14 +4,17 @@ import { getHarnessPart, getTask } from '../../src/content/index';
 import type { Command } from '../../src/core/commands';
 import { reduce } from '../../src/core/commands';
 import { getSession } from '../../src/core/context';
-import { evalLoop } from '../../src/core/formulas';
+import { evalLoop, reviewCatch } from '../../src/core/formulas';
 import {
+  bareness,
   combineModifiers,
   equippedParts,
   harnessModel,
   harnessModifiers,
   harnessOf,
+  harnessSuccess,
   NEUTRAL,
+  reviewBlind,
 } from '../../src/core/harness';
 import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
@@ -228,5 +231,42 @@ describe('Harness がシミュレーションに与える影響', () => {
     const skilled = play(['skillReport']);
     expect(plain?.interventions).toBeGreaterThanOrEqual(2);
     expect(skilled?.humanMinutes ?? 0).toBeLessThan(plain?.humanMinutes ?? 0);
+  });
+});
+
+describe('素の AI の弱さ（balance.harness.bare）', () => {
+  const { successLoss, reviewBlind: blindMax } = balance.harness.bare;
+  const review = { actor: 'human', phase: 'review', effortShare: 0.25 } as const;
+
+  it('部品がなければ成功確率の successLoss の割合を失い、レビューは reviewBlind の割合だけ見逃す', () => {
+    expect(bareness(NEUTRAL)).toBe(1);
+    expect(harnessSuccess(0.8, NEUTRAL)).toBeCloseTo(0.8 * (1 - successLoss));
+    expect(reviewBlind(NEUTRAL)).toBeCloseTo(blindMax);
+    expect(reviewCatch(code, review, reviewBlind(NEUTRAL))).toBeCloseTo(1 - blindMax);
+  });
+
+  it('guard は足し合わせて 1 で頭打ちになり、1 に届けば素の AI の弱さは消える', () => {
+    const half = combineModifiers([{ mods: { guard: 0.5 } }]);
+    expect(harnessSuccess(0.8, half)).toBeCloseTo(0.8 * (1 - successLoss / 2));
+    expect(reviewBlind(half)).toBeCloseTo(blindMax / 2);
+    const full = combineModifiers([{ mods: { guard: 0.6 } }, { mods: { guard: 0.6 } }]);
+    expect(full.guard).toBe(1);
+    expect(harnessSuccess(0.8, full)).toBe(0.8);
+    expect(reviewCatch(code, review, reviewBlind(full))).toBe(1);
+  });
+
+  it('型にはめる部品（Skill・Hook・Eval）だけが guard を持ち、MCP・権限モード・Subagent は持たない', () => {
+    for (const id of ['skillFrontend', 'hookUnitTest', 'requestUnitTest', 'evalUnitTest']) {
+      expect(getHarnessPart(id).modifiers.guard ?? 0, id).toBeGreaterThan(0);
+    }
+    for (const id of ['mcpFilesystem', 'permAcceptEdits', 'subCode', 'contextRouter']) {
+      expect(getHarnessPart(id).modifiers.guard ?? 0, id).toBe(0);
+    }
+  });
+
+  it('Task に効く部品の guard だけが届く（企画の Task にコード用の Skill は効かない）', () => {
+    const s = withParts(['skillFrontend']);
+    expect(harnessModifiers(s, AGENT, code).guard).toBeGreaterThan(0);
+    expect(harnessModifiers(s, AGENT, planning).guard).toBe(0);
   });
 });

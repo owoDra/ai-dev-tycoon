@@ -119,16 +119,20 @@ describe('Task の進行', () => {
     expect(done(split)).toBe(withLunch(90 + 120 + 150));
   });
 
-  it('レビューがあれば失敗は発見されて手戻りになり、品質は落ちない', () => {
+  // 素の AI（Harness なし）の成果物はそれらしく見えるので、レビューでも一部を見逃す（balance.harness.bare.reviewBlind）
+  it('レビューで発見された失敗は手戻りになり品質は落ちない。見逃した失敗だけが品質を下げる', () => {
+    let reworks = 0;
     for (let i = 0; i < 10; i++) {
       const { events, state } = playProject(P, strategies.aiWithReview(P), `review-${i}`);
-      const failed = ofType(events, 'TaskFailed').length;
-      expect(ofType(events, 'ReworkDetected')).toHaveLength(failed);
-      for (const t of Object.values(state.projects[P]?.tasks ?? {})) {
-        expect(t.quality).toBe(1);
-        expect(t.reworks).toBe(t.failures);
+      const tasks = Object.values(state.projects[P]?.tasks ?? {});
+      expect(ofType(events, 'ReworkDetected')).toHaveLength(tasks.reduce((sum, t) => sum + t.reworks, 0));
+      for (const t of tasks) {
+        expect(t.reworks + (t.escaped ? 1 : 0)).toBe(t.failures);
+        expect(t.quality === 1).toBe(!t.escaped);
+        reworks += t.reworks;
       }
     }
+    expect(reworks).toBeGreaterThan(0);
   });
 
   it('レビューがなければ失敗は見逃され、その Task の品質が下がる', () => {

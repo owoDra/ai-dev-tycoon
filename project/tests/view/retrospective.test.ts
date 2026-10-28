@@ -15,11 +15,14 @@ const EVAL_PLAY: PlayConfig = {
   mode: 'aiThenHumanReview',
   parts: ['evalAcceptance', 'mcpFilesystem', 'skillReport'],
 };
-/** すべての資料を渡したまま（不要な資料を大量に渡す）、Harness は Eval だけ */
+/**
+ * すべての資料を渡したまま（不要な資料を大量に渡す）、Harness は Eval と Skill だけ。
+ * 素の AI の弱さ（balance.harness.bare）が残ると見逃した失敗の手戻りが最大の無駄になるので、Task に効く Eval と Skill で抑えておく
+ */
 const CLUTTERED_PLAY: PlayConfig = {
   projectId: 'paymentFix',
   mode: 'aiThenHumanReview',
-  parts: ['evalUnitTest'],
+  parts: ['evalUnitTest', 'evalAcceptance', 'skillReport', 'skillPrReview'],
   feed: { mode: 'all' },
 };
 const SEEDS = ['retro-1', 'retro-2', 'retro-3'];
@@ -63,7 +66,10 @@ describe('振り返りのカード', () => {
   });
 
   it('必要な資料だけを渡せば、Context は最大の無駄にならない', () => {
-    const { retro } = retroOf({ ...CLUTTERED_PLAY, feed: { mode: 'router' } }, 'retro-1');
+    // Harness がほぼ完璧で Context 以外の無駄がない構成だと、履歴の小さな残りでも最大の無駄に選ばれるので、
+    // 見逃しの手戻りが少し残る構成（Report の Skill なし）で比べる
+    const parts = ['evalUnitTest', 'evalAcceptance', 'skillPrReview'];
+    const { retro } = retroOf({ ...CLUTTERED_PLAY, parts, feed: { mode: 'router' } }, 'retro-1');
     expect(retro.waste.factor).not.toBe('context');
   });
 

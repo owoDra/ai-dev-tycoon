@@ -36,6 +36,14 @@ export function forcedAiOutcome(state: GameState, projectId: string, taskId: str
 }
 
 /**
+ * チュートリアルの台本で AI の成否を決めている Task か。台本の Task では素の AI の弱さ（balance.harness.bare）を入れず、
+ * レビュー・自動テストの発見と修復をモードの本来の姿で見せる。素の AI の弱さは、チュートリアルの後に Harness と一緒に知る
+ */
+export function isScriptedTask(state: GameState, projectId: string, taskId: string): boolean {
+  return forcedAiOutcome(state, projectId, taskId) !== null;
+}
+
+/**
  * チュートリアルを進める。次のステップの when を満たしていれば進め（一度に複数進むこともある）、
  * completeWhen を満たしたら終える。
  */

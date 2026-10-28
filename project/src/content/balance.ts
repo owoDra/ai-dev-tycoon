@@ -156,6 +156,7 @@ export const balance = {
       aiCost: { op: 'mul', min: 0.5, max: 5 },
       risk: { op: 'add', min: 0, max: 0.6 },
       evalCatch: { op: 'any', min: 0, max: 0.95 },
+      guard: { op: 'add', min: 0, max: 1 },
     },
     /**
      * 同じカテゴリの部品の組ごとにかかる補正（n 個付けると n(n−1)/2 組）。数の2乗で増える調整コスト。
@@ -186,6 +187,13 @@ export const balance = {
     maxRepairLoops: 3,
     /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる。人件費と同じく作業時間の縮尺を掛けた額 */
     accidentCost: 300_000,
+    /**
+     * Harness なしの素の AI の弱さ。部品の guard（型にはめる度合い）が届かない分 bareness = 1 − guard に比例して効く。
+     * ルールも手順も検査もない AI は、それらしく見えるが要件を外した成果物を出す（successLoss：成功確率を失う割合）。
+     * それらしく見えるので、人間がレビューしても AI が自分でテストしても失敗を見逃しやすい（reviewBlind：確認の工程の検出率を下げる割合）。
+     * 「ただ AI を使うだけ」では人間だけより割に合わず、Skill・ルール・Eval を組んで初めて AI が儲かる
+     */
+    bare: { successLoss: 0.8, reviewBlind: 0.75 },
   },
   /** Autonomy（企画書23章）。人間が介入せずに AI が処理を続けた時間 */
   autonomy: {
@@ -399,7 +407,7 @@ export const balance = {
         officeDaily: 10_000,
       },
       small: {
-        requires: { profit: 80_000_000, reputation: 65, delivered: 60 },
+        requires: { profit: 150_000_000, reputation: 65, delivered: 60 },
         maxStaff: 8,
         maxAiWorkers: 3,
         maxTeams: 2,

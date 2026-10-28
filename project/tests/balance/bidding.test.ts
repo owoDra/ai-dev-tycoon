@@ -9,11 +9,13 @@ import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { teamMembers } from '../../src/core/team';
 import { seeds } from '../helpers/compare';
+import { equipCommands } from '../helpers/fitted';
 
 /**
  * コンペの設計意図：「常に最安値」も「常に高値」も最適にならない。
  * チュートリアルなしで始めた会社（創業メンバー2人と AI Worker）で、届いた引き合いすべてに同じ価格の見積を出し続け、
  * 受注した案件は smart の担当（AI 適性の高い Task は AI → 人間レビュー、残りは手の空いている人）で進める。
+ * 素の AI は割に合わない（tests/balance/bare-ai.test.ts）ので、AI Worker には標準的な Harness を付けておく。
  * 安すぎると利幅が薄く、取りすぎた案件が遅れて評判が下がる。高すぎると受注できず、待機中の給与だけがかかる。
  * 会社の Profit / Person-Day を seed で平均した期待値で比べる。
  */
@@ -45,6 +47,8 @@ function assignAll(state: GameState): GameState {
 
 function play(price: PriceStep, seed: string) {
   let s = createInitialState(seed, { board: true, tutorial: false });
+  s = { ...s, unlocked: [...new Set([...s.unlocked, 'harness' as const])] };
+  for (const c of equipCommands('agent')) s = reduce(s, c).state;
   s = reduce({ ...s, paused: true }, { type: 'TogglePause' }).state;
   let won = 0;
   let late = 0;

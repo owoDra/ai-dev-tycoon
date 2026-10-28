@@ -494,6 +494,11 @@ export interface HarnessModifiers {
   readonly risk: number;
   /** AI の作業の直後に自動の検証が失敗を見つける確率（any）。見つけた失敗は AI が直して再び検証する */
   readonly evalCatch: number;
+  /**
+   * AI の仕事を型にはめる度合い（add、0〜1）。ルール（Hook・お願い）・Skill・Eval のように、AI の出力を決まった手順と検査に
+   * 通す部品が持つ。1 に届かない分（1 − guard）だけ「Harness なしの素の AI」の弱さが残る（balance.harness.bare）
+   */
+  readonly guard: number;
 }
 
 export type HarnessModifierKey = keyof HarnessModifiers;

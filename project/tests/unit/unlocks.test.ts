@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getAssignMode } from '../../src/content/assignModes';
 import { glossary } from '../../src/content/glossary';
-import { getModel, getTask } from '../../src/content/index';
+import { getHarnessPart, getModel, getTask } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { FeatureId } from '../../src/content/types';
 import { allFeatures, basicFeatures, menuSpotOf, unlockDefs } from '../../src/content/unlocks';
@@ -89,6 +89,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
 });
 
 describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
+  const SKILL = 'skillReport';
   const assignEval: Command = {
     type: 'AssignTask',
     projectId: P,
@@ -97,10 +98,14 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
     workerId: 'agent',
   };
 
-  /** 自動テストの直前に失敗を仕込み、Task が終わるまで進める */
+  /**
+   * 自動テストの直前に失敗を仕込み、Task が終わるまで進める。モードの流れを確かめるので、AI Worker には Task に効く Skill を付けて
+   * 素の AI の弱さ（balance.harness.bare）を和らげておく（人間の時間は Skill の補正込みで確かめる）
+   */
   function runWithPlantedDefect(seed: string) {
     // 人間の時間を工程の作業量どおりに確かめるので、速度がちょうど平均の2人で進める
     let s = reduce(started(createInitialState(seed, { team: AVERAGE_TEAM })), assignEval).state;
+    s = reduce(s, { type: 'EquipPart', workerId: 'agent', partId: SKILL }).state;
     const events: GameEvent[] = [];
     for (let i = 0; i < 600 && s.projects[P]?.tasks.hearing?.status !== 'done'; i++) {
       const run = s.projects[P]?.tasks.hearing;
@@ -129,7 +134,8 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
     // 人間の時間は指示出しと最後の確認だけ（工程ごとに固定ステップ幅へ切り上がる分を許す）
     const task = getTask(P, 'hearing');
     const humanSteps = getAssignMode('aiThenEval').steps.filter((x) => x.actor === 'human');
-    const planned = humanSteps.reduce((sum, x) => sum + task.effort * x.effortShare, 0);
+    const humanTime = getHarnessPart(SKILL).modifiers.humanTime ?? 1;
+    const planned = humanSteps.reduce((sum, x) => sum + task.effort * x.effortShare * humanTime, 0);
     expect(run?.humanMinutes).toBeGreaterThanOrEqual(planned);
     expect(run?.humanMinutes).toBeLessThanOrEqual(planned + humanSteps.length);
     expect(run?.aiMinutes).toBeGreaterThan(repairMinutes(task, getModel('standard')) - 1);

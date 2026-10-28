@@ -39,11 +39,14 @@ function stepParts(step: PracticeStepInput): HarnessPartDef[] {
   return step.parts.flatMap((id) => content.harnessParts.filter((p) => p.id === id));
 }
 
-/** 工程の AI の作業の条件。ゲームの AI Worker と同じく、お願いの部品は守られる確率で薄めた見込みにする */
+/**
+ * 工程の AI の作業の条件。ゲームの AI Worker と同じく、お願いの部品は守られる確率で薄めた見込みにする。
+ * 素の AI の弱さ（balance.harness.bare）はゲームの難しさとして誇張した値なので、実際の業務の試算には入れない
+ */
 export function stepSetup(step: PracticeStepInput, task: TaskDef): AiSetup {
   const parts = stepParts(step);
   const mods = partsModifiers(parts, task, { expected: true });
-  return harnessSetup(mods, partsModel(getModel(step.modelId), parts, mods));
+  return harnessSetup(mods, partsModel(getModel(step.modelId), parts, mods), false);
 }
 
 /**

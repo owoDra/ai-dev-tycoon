@@ -11,6 +11,7 @@ import {
 } from './contextWork';
 import {
   aiCost,
+  escapedFixMinutes,
   escapedQuality,
   evalLoop,
   type HumanTimeItem,
@@ -19,9 +20,18 @@ import {
   stepMinutes,
   successProbability,
 } from './formulas';
-import { evalMinutes, harnessModel, harnessModifiers, harnessSuccess, harnessToolMiss, NEUTRAL } from './harness';
+import {
+  evalMinutes,
+  harnessModel,
+  harnessModifiers,
+  harnessSuccess,
+  harnessToolMiss,
+  NEUTRAL,
+  reviewBlind,
+} from './harness';
 import type { GameState } from './state';
 import { mid } from './talent';
+import { isScriptedTask } from './tutorial';
 import { MINUTES_PER_HOUR } from './units';
 
 /*
@@ -69,17 +79,25 @@ export interface AiSetup {
   readonly time: ContextWorkTime;
   /** AI の費用の倍率（Context の使用率） */
   readonly costFactor: number;
+  /** 確認の工程が素の AI の成果物の失敗を見逃す割合（core/harness.ts の reviewBlind） */
+  readonly reviewBlind: number;
 }
 
-/** Context のない AI の作業の条件。Harness の補正だけを入れる */
-export function harnessSetup(mods: HarnessModifiers, model: ModelDef): AiSetup {
+/**
+ * Context のない AI の作業の条件。Harness の補正だけを入れる。
+ * bare を false にすると、素の AI の弱さ（balance.harness.bare）を入れない。素の AI の弱さはゲームの難しさとして誇張した値なので、
+ * 実際の業務の試算（実務モード。core/practice.ts）では入れない
+ */
+export function harnessSetup(mods: HarnessModifiers, model: ModelDef, bare = true): AiSetup {
   const safe = 1 - mods.risk;
+  const effective = bare ? mods : { ...mods, guard: 1 };
   return {
     mods,
     model,
-    aiSuccess: (p) => harnessSuccess(p, mods) * safe,
+    aiSuccess: (p) => harnessSuccess(p, effective) * safe,
     time: { factor: 1, toolMissChance: harnessToolMiss(mods), extraMinutes: 0 },
     costFactor: 1,
+    reviewBlind: reviewBlind(effective),
   };
 }
 
@@ -97,7 +115,9 @@ export function expectTask(
 ): TaskExpectation {
   const isAi = findWorker(workerId)?.kind === 'ai';
   const aiId = isAi ? workerId : (state.agents[0] ?? '');
-  const mods: HarnessModifiers = isAi ? harnessModifiers(state, workerId, task, { expected: true }) : NEUTRAL;
+  const equipped = isAi ? harnessModifiers(state, workerId, task, { expected: true }) : NEUTRAL;
+  // チュートリアルの台本の Task は、シミュレーションと同じく素の AI の弱さを入れない（core/taskFlow.ts）
+  const mods: HarnessModifiers = isScriptedTask(state, projectId, task.id) ? { ...equipped, guard: 1 } : equipped;
   const model: ModelDef = harnessModel(state, aiId, mods);
   const safe = 1 - mods.risk;
   const context = aiWorkTime(state, workerId, projectId, task, model);
@@ -114,13 +134,14 @@ export function expectTask(
         ? context
         : { ...context, toolMissChance: 1 - (1 - context.toolMissChance) * (1 - harnessMiss) },
     costFactor: aiCostFactor(state, workerId, projectId, task.id),
+    reviewBlind: reviewBlind(mods),
   });
 }
 
 /** Task をモードで処理したときの見込み（AI の作業の条件を渡す） */
 export function expectWithSetup(task: TaskDef, mode: AssignModeDef, skill: number, setup: AiSetup): TaskExpectation {
   const { mods, model, aiSuccess, time } = setup;
-  const outcome = modeOutcome(task, mode, skill, model, aiSuccess, mods);
+  const outcome = modeOutcome(task, mode, skill, model, aiSuccess, { ...mods, reviewBlind: setup.reviewBlind });
   let { verify, repair } = outcome.aiReview;
   let work = 0;
   let aiWorks = 0;
@@ -148,6 +169,10 @@ export function expectWithSetup(task: TaskDef, mode: AssignModeDef, skill: numbe
 
 /** AI Worker の、案件の仕事の見込み（Harness Builder の Before → After） */
 export interface WorkerExpectation {
+  /**
+   * 人間の時間（分）。指示出し・確認・手戻りに、見逃した失敗を納品後に直す時間の見込みを足す（スコアと同じ数え方。core/scoring.ts）。
+   * レビューが素の AI の失敗を見逃すと手戻りは減るが、その分は納品後の修正として戻ってくる
+   */
   readonly humanMinutes: number;
   readonly aiCost: number;
   /** 品質の期待値（作業量による加重平均） */
@@ -178,7 +203,7 @@ export function expectWorker(state: GameState, projectId: string, workerId: stri
     if (assignment && assignment.workerId !== workerId) continue;
     const mode = getAssignMode(assignment?.mode ?? ASSUMED_MODE);
     const e = expectTask(state, projectId, task, mode, workerId, skill);
-    humanMinutes += e.humanMinutes;
+    humanMinutes += e.humanMinutes + e.pEscape * escapedFixMinutes(task);
     cost += e.aiCost;
     autonomy += e.aiMinutes;
     qualitySum += (1 - e.pEscape * (1 - escapedQuality(task))) * task.effort;

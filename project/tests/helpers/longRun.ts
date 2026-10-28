@@ -1,7 +1,7 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import type { AssignModeId } from '../../src/content/types';
-import type { PriceStep } from '../../src/core/bidding';
+import { type PriceStep, quoteBid } from '../../src/core/bidding';
 import { activeProjects, openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
@@ -21,6 +21,7 @@ import {
   workingStaff,
 } from '../../src/core/teams';
 import { tierLabel as viewTierLabel } from '../../src/view/fiscal';
+import { FITTED } from './fitted';
 
 /*
  * 長く遊ぶ戦略 Bot（画面なし）。チュートリアルなしで始めた会社を、方針（LongStrategy）に従って何年も経営する。
@@ -32,20 +33,6 @@ const DAY = balance.time.minutesPerDay;
 const CHUNK = 30;
 /** smart が AI に任せる AI 適性の下限（tests/helpers/strategies.ts の smart と同じ） */
 const SMART_APTITUDE = 0.6;
-/** Harness に投資する Bot が AI Worker に付ける部品（tests/balance/harness.test.ts の FITTED と同じ考え方） */
-const FITTED = [
-  'skillFrontend',
-  'skillReport',
-  'skillPrReview',
-  'hookFormatter',
-  'hookUnitTest',
-  'evalUnitTest',
-  'evalAcceptance',
-  'mcpFilesystem',
-  'mcpGit',
-  'mdOverview',
-  'permAcceptEdits',
-];
 
 export interface LongStrategy {
   readonly name: string;
@@ -143,12 +130,16 @@ function assignDirect(state: GameState, strategy: LongStrategy): GameState {
   return s;
 }
 
-/** 見積を出す（結果はその場で出る）。進行中の案件が人数に比べて多ければ出さない */
+/**
+ * 見積を出す（結果はその場で出る）。抱える仕事は、進行中の案件に、この見積の勝率（受注の見込み）を足して数え、
+ * 人数に比べて多くなりすぎるなら出さない
+ */
 function bid(state: GameState, strategy: LongStrategy): GameState {
   let s = state;
   const staff = Object.keys(s.team).length;
   for (const projectId of openInquiries(s)) {
-    if (activeProjects(s).length > staff * strategy.loadCap) break;
+    const chance = quoteBid(s, projectId, strategy.price, 'standard').winChance;
+    if (activeProjects(s).length + chance > staff * strategy.loadCap) break;
     s = apply(s, { type: 'SubmitBid', projectId, price: strategy.price, deadline: 'standard' });
   }
   return s;

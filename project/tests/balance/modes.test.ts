@@ -1,23 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { assignModes } from '../../src/content/assignModes';
 import { balance } from '../../src/content/balance';
-import { content, getModel, getProject, humans } from '../../src/content/index';
+import { content, getHarnessPart, getModel, getProject, humans } from '../../src/content/index';
 import type { AssignModeId, ProjectDef, TaskDef } from '../../src/content/types';
 import { expectWithSetup, harnessSetup } from '../../src/core/expectation';
 import { escapedDefectCost, escapedFixMinutes, laborCost } from '../../src/core/formulas';
-import { NEUTRAL } from '../../src/core/harness';
+import { partsModel, partsModifiers } from '../../src/core/harness';
 import { generatedProjectId } from '../../src/core/projectGen';
 import { seeds } from '../helpers/compare';
+import { FITTED } from '../helpers/fitted';
 import { representativeProjects } from '../helpers/generated';
 
 /**
  * 担当モードに支配的なものがないこと（企画書5章「AI を適切な仕事へ配置する」）。
- * Harness なし・標準モデル・熟練度 1 で、Task ごとに各モードの見込みの損得を比べる。
+ * 標準的な Harness（tests/helpers/fitted.ts の FITTED）・標準モデル・熟練度 1 で、Task ごとに各モードの見込みの損得を比べる。
  * 人間の時間は社員の平均の売値で換算する（その人日を別の案件に売れたはずの額）。
  * 「AI → 自動テスト → 確認」は、機械で確かめられる仕事（コード・テスト）では強いが、
  * 判断が中心の仕事（企画・設計・文章）ではすり抜けが多く、人間レビューの方が良い。
  */
 const model = getModel('standard');
+/** 素の AI はどのモードでも人間だけに負ける（tests/balance/bare-ai.test.ts）ので、標準的な Harness を付けた AI Worker でモードを比べる */
+const parts = FITTED.map(getHarnessPart);
 /**
  * 人間のゲーム内の1人日の値（円）。社員の平均の売値に、作業時間の縮尺（ゲーム内の1人日は請求の何人日分か）を掛ける
  * （見逃しの損害と同じく、縮めた時間を請求の時間に戻して換算する）
@@ -28,7 +31,8 @@ const dailyRate = (humans.reduce((sum, h) => sum + h.dailyRate, 0) / humans.leng
 function expectedLoss(task: TaskDef, mode: AssignModeId): number {
   const def = assignModes.find((m) => m.id === mode);
   if (!def) throw new Error(`未定義の担当モード: ${mode}`);
-  const e = expectWithSetup(task, def, 1, harnessSetup(NEUTRAL, model));
+  const mods = partsModifiers(parts, task, { expected: true });
+  const e = expectWithSetup(task, def, 1, harnessSetup(mods, partsModel(model, parts, mods)));
   const human = e.humanMinutes + e.pEscape * escapedFixMinutes(task);
   return laborCost(human, dailyRate) + e.aiCost + e.accidentCost + e.pEscape * escapedDefectCost(task);
 }

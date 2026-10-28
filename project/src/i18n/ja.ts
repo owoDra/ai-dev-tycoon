@@ -1177,6 +1177,7 @@ export const ja = {
       aiCost: 'AIコスト',
       risk: '事故率',
       evalCatch: '検証で見つける率',
+      guard: '型にはめる度合い',
     },
     appliesTo: '効く仕事',
     burden: '付けるだけでかかる負担',
@@ -1417,7 +1418,8 @@ export const ja = {
     contextRouter: '「Context Router」で資料を自動で選べるようになった',
     session: '新しい Session で始め直せるようになった',
     artifacts: '成果物に作業状態を残せるようになった',
-    harness: 'Harness Builder で AI Worker を組み立てられるようになった',
+    harness:
+      'Harness Builder で AI Worker を組み立てられるようになった（Harness なしの AI はミスが多く、レビューでも見逃しやすい）',
     harnessHook: '「お願い」と「Hook」を選べるようになった',
     harnessTool: 'AI に MCP・コネクタを渡せるようになった',
     harnessPermission: 'AI の権限モードを決められるようになった',

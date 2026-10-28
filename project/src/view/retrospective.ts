@@ -1,5 +1,6 @@
 import { balance } from '../content/balance';
 import { getHarnessPart, getModel, getProject } from '../content/index';
+import type { TaskDef } from '../content/types';
 import {
   addImpact,
   applySetup,
@@ -13,9 +14,9 @@ import {
   ZERO_IMPACT,
 } from '../core/attribution';
 import { stageTimes } from '../core/bottleneck';
-import { dailyCost, personDays } from '../core/formulas';
+import { dailyCost, escapedDefectCost, escapedFixMinutes, personDays } from '../core/formulas';
 import type { ProjectScore } from '../core/scoring';
-import type { GameState } from '../core/state';
+import type { GameState, TaskRun } from '../core/state';
 import { teamMembers } from '../core/team';
 import { MINUTES_PER_HOUR } from '../core/units';
 import { ja } from '../i18n/ja';
@@ -61,6 +62,14 @@ export function factorName(ref: FactorRef): string {
   return ja.retro.context;
 }
 
+/** 再シミュレーションした Task の人間時間。見逃した失敗は納品後に直す時間を足す（寄与の見込みと同じ数え方。core/attribution.ts） */
+const runHumanMinutes = (r: TaskRun | undefined, task: TaskDef) =>
+  (r?.humanMinutes ?? 0) + (r?.escaped ? escapedFixMinutes(task) : 0);
+
+/** 再シミュレーションした Task の費用。見逃した失敗の損害を足す */
+const runCost = (r: TaskRun | undefined, task: TaskDef) =>
+  (r?.aiCost ?? 0) + (r?.escaped ? escapedDefectCost(task) : 0);
+
 /** 「それが無かった場合」の再シミュレーションの1件（1つの要素 × 1つの Task）。結果画面で少しずつ実行する */
 export interface CounterfactualJob {
   readonly key: string;
@@ -104,8 +113,8 @@ export function counterfactualJobs(
             const a = simulateTaskAlone(withIt, projectId, task.id, mode, workerId, seed);
             const b = simulateTaskAlone(without, projectId, task.id, mode, workerId, seed);
             const diff: Impact = {
-              humanMinutes: (a?.humanMinutes ?? 0) - (b?.humanMinutes ?? 0),
-              cost: (a?.aiCost ?? 0) - (b?.aiCost ?? 0),
+              humanMinutes: runHumanMinutes(a, task) - runHumanMinutes(b, task),
+              cost: runCost(a, task) - runCost(b, task),
               quality: effortSum > 0 ? (((a?.quality ?? 0) - (b?.quality ?? 0)) * task.effort) / effortSum : 0,
             };
             sum = addImpact(sum, diff, 1 / n);

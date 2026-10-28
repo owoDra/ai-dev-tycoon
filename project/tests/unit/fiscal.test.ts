@@ -118,8 +118,8 @@ describe('決算（core/fiscal.ts）', () => {
 
 describe('累計の記録（core/archive.ts）', () => {
   it('納品から keepDays 営業日たった案件を記録に移しても、会社のスコア・解放の条件・コンペの実績は変わらない', () => {
-    // 引き合いが当日に締め切られるようになり（Phase 24）、14日では手元の納品済みが3件にとどまるので 18日育てる
-    const { state } = growCompany('archive', 18);
+    // 引き合いが当日に締め切られるようになり（Phase 24）、手元の納品済みが4件以上になるまで 24日育てる
+    const { state } = growCompany('archive', 24);
     const all = Object.values(state.projects)
       .filter((p) => p.completedAt !== null)
       .map((p) => p.projectId);

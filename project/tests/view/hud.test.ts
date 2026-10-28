@@ -19,7 +19,7 @@ describe('hudView', () => {
     expect(hud?.projected).toBe(true);
   });
 
-  it('見込みは担当で動く：実装を AI に任せてレビューすると、全部人間のときより上がる', () => {
+  it('見込みは担当で動く：Harness を付けた AI に実装を任せてレビューすると全部人間のときより上がり、素の AI では下がる', () => {
     const s = reduce(createInitialState('hud'), { type: 'StartProject', projectId: P }).state;
     const allHuman = hudView(s, P)?.profitPerPersonDay ?? 0;
     const withAi = reduce(s, {
@@ -29,8 +29,13 @@ describe('hudView', () => {
       mode: 'aiThenHumanReview',
       workerId: 'agent',
     }).state;
+    const harnessed = ['skillFrontend', 'hookLinter', 'hookUnitTest'].reduce(
+      (state, partId) => reduce(state, { type: 'EquipPart', workerId: 'agent', partId }).state,
+      withAi,
+    );
     expect(allHuman).toBeGreaterThan(0);
-    expect(hudView(withAi, P)?.profitPerPersonDay ?? 0).toBeGreaterThan(allHuman);
+    expect(hudView(harnessed, P)?.profitPerPersonDay ?? 0).toBeGreaterThan(allHuman);
+    expect(hudView(withAi, P)?.profitPerPersonDay ?? 0).toBeLessThan(allHuman);
   });
 
   it('納品前は売上を入れた見込みを出し、納品後は確定値になる', () => {
@@ -57,9 +62,12 @@ describe('hudView', () => {
 
 describe('見込みと Context（決済画面の修正）', () => {
   const PF = 'paymentFix';
+  // 素の AI は成功確率が下限に張り付いて Context の影響が見えないので、Task に効く Skill とルールを付けておく
   const assigned = () => {
     let s = reduce(createInitialState('hud-ctx'), { type: 'StartProject', projectId: PF }).state;
     for (const c of strategies.aiWithReview(PF)(s)) s = reduce(s, c).state;
+    for (const partId of ['skillFrontend', 'skillReport', 'skillPrReview', 'hookLinter', 'hookUnitTest'])
+      s = reduce(s, { type: 'EquipPart', workerId: 'agent', partId }).state;
     return s;
   };
   const projected = (s: ReturnType<typeof assigned>) => hudView(s, PF)?.profitPerPersonDay ?? 0;

@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { findBottleneck } from '../../src/core/bottleneck';
 import { compare, seeds } from '../helpers/compare';
+import { equipCommands } from '../helpers/fitted';
 import { playProject, type Strategy, type StrategyName, strategies } from '../helpers/strategies';
 
 /** 企画書の設計意図（4〜5章・20章・22章）を、複数 seed の戦略シミュレーションで確かめる */
 const P = 'ecRenewal';
 const SEEDS = seeds(20);
 const scoreOf = (name: StrategyName) => (seed: string) => playProject(P, strategies[name](P), seed).score;
+/** 標準的な Harness（tests/helpers/fitted.ts）を付けてから、戦略どおりに担当を決める */
+const harnessedScoreOf = (name: StrategyName) => (seed: string) =>
+  playProject(P, (state) => [...equipCommands('agent'), ...strategies[name](P)(state)], seed).score;
 
 /** 人間だけの配置から、実装だけを AI → 人間レビューに変えた戦略 */
 const implementationByAi: Strategy = (state) =>
@@ -19,8 +23,9 @@ const implementationByAi: Strategy = (state) =>
     );
 
 describe('バランスの基本（ECサイトリニューアル）', () => {
-  it('AI 適性の高い Task だけ AI に任せる smart は、allHuman より Profit / Person-Day が高い（企画書22章）', () => {
-    const r = compare({ smart: scoreOf('smart'), allHuman: scoreOf('allHuman') }, SEEDS);
+  // 素の AI（Harness なし）は割に合わない（balance.harness.bare）ので、smart は Harness を付けて初めて人間だけに勝つ
+  it('Harness を付けて AI 適性の高い Task だけ AI に任せる smart は、allHuman より Profit / Person-Day が高い（企画書22章）', () => {
+    const r = compare({ smart: harnessedScoreOf('smart'), allHuman: scoreOf('allHuman') }, SEEDS);
     expect(r.smart.profitPerPersonDay).toBeGreaterThan(r.allHuman.profitPerPersonDay);
     expect(r.smart.humanMinutes).toBeLessThan(r.allHuman.humanMinutes);
   });

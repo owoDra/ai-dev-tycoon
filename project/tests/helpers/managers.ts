@@ -6,10 +6,12 @@ import { type ProjectScore, scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState, type ManagerRun } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { talentId } from '../../src/core/talent';
+import { EARLY, equipCommands } from './fitted';
 
 /*
  * 管理者の比較（画面なし）。管理者を置ける規模の会社で、平均的な能力の社員 WORKERS 人と AI Worker のチームを作り、
  * 案件1件をチームに割り当てて管理者に任せ、納品まで進める。人間 PM はチームの社員がもう1人増え、その人が PM になる。
+ * AI Worker には Skill と Hook の Harness（tests/helpers/fitted.ts の EARLY）を付けておく（素の AI はどちらの管理者でも割に合わない）。
  */
 
 /** チームの作業をする社員の数 */
@@ -33,6 +35,7 @@ export function playManaged(projectId: string, kind: ManagerRun['kind'], seed: s
   s = must(s, { type: 'CreateTeam' });
   const teamId = s.teams[0]?.id ?? '';
   for (const id of [...staff, 'agent']) s = must(s, { type: 'MoveMember', workerId: id, teamId });
+  for (const c of equipCommands('agent', EARLY)) s = must(s, c);
   s = must(s, { type: 'StartProject', projectId });
   s = must(s, { type: 'MoveProject', projectId, teamId });
   const manager: ManagerRun = kind === 'human' ? { kind, staffId: pm } : { kind };

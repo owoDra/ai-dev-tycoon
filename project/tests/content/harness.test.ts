@@ -18,6 +18,7 @@ const RANGE: Readonly<Record<HarnessModifierKey, readonly [number, number]>> = {
   aiCost: [0.8, 1.5],
   risk: [-0.2, 0.2],
   evalCatch: [0, 0.8],
+  guard: [0, 0.8],
 };
 
 describe('Harness 部品（content/harness）', () => {

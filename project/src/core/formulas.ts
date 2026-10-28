@@ -125,9 +125,14 @@ export function autoTestCatch(task: TaskDef): number {
   return task.kind ? byKind[task.kind] : autoTestCatchDefault;
 }
 
-/** review の工程が、残っている失敗を見つける確率（ModeStep.catchRate） */
-export function reviewCatch(task: TaskDef, step: ModeStep): number {
-  return step.catchRate ?? (step.actor === 'ai' ? autoTestCatch(task) : 1);
+/**
+ * review の工程が、残っている失敗を見つける確率（ModeStep.catchRate）。
+ * blind（素の AI の成果物を見逃す割合。core/harness.ts の reviewBlind）の分だけ検出率が下がる。
+ * 人間のレビューも、AI が自分の成果物に書く自動テストも、それらしく見える素の AI の失敗を見逃す
+ */
+export function reviewCatch(task: TaskDef, step: ModeStep, blind = 0): number {
+  const base = step.catchRate ?? (step.actor === 'ai' ? autoTestCatch(task) : 1);
+  return base * (1 - blind);
 }
 
 /** Harness が人間の時間の見込みに与える補正（core/harness.ts の HarnessModifiers の一部） */
@@ -136,6 +141,8 @@ export interface HumanTimeHarness {
   readonly humanTime: number;
   /** AI の作業の直後の自動検証が失敗を見つける確率 */
   readonly evalCatch: number;
+  /** 人間のレビューが素の AI の成果物の失敗を見逃す割合（core/harness.ts の reviewBlind）。省けば 0 */
+  readonly reviewBlind?: number;
 }
 
 const NO_HARNESS: HumanTimeHarness = { humanTime: 1, evalCatch: 0 };
@@ -179,7 +186,7 @@ export interface ModeOutcome {
  * モードの工程を順にたどった見込み。シミュレーション（core/taskFlow.ts）と同じ流れを、乱数を引かずに確率で平均する。
  * - 作業の工程は成功確率で失敗を残す。aiSuccess で AI の作業の成功確率を補正できる（Context と Harness の影響。core/contextWork.ts・core/harness.ts）。
  *   harness の Eval（evalCatch）があれば AI の作業の直後に検証して残る失敗を減らす
- * - 人間のレビューは、残っている失敗を catchRate の確率で見つけて手戻りにする（既定は必ず見つける）
+ * - 人間のレビューは、残っている失敗を catchRate の確率で見つけて手戻りにする（既定は必ず見つける。harness.reviewBlind の分だけ見逃す）
  * - AI の自動テストは、Task の種類の検出率で見つけて AI が直し、もう一度テストする（Eval と同じループ）
  * harness を渡すと、指示出しと確認の時間を補正する（連鎖による指示出しの省略は考えない）。
  */
@@ -215,7 +222,7 @@ export function modeOutcome(
       continue;
     }
     if (step.phase !== 'review') continue;
-    const c = reviewCatch(task, step);
+    const c = reviewCatch(task, step, harness.reviewBlind);
     if (step.actor === 'human') {
       const chance = (1 - pAllOk) * c;
       const share = balance.assign.reworkShare;

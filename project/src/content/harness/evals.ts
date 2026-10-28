@@ -16,7 +16,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalUnitTest',
     name: n.evalUnitTest,
     installCost: 15_000,
-    modifiers: { evalCatch: 0.5 },
+    modifiers: { evalCatch: 0.5, guard: 0.5 },
     appliesTo: ['code', 'test'],
   },
   {
@@ -24,7 +24,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalAcceptance',
     name: n.evalAcceptance,
     installCost: 20_000,
-    modifiers: { evalCatch: 0.35, humanTime: 0.85 },
+    modifiers: { evalCatch: 0.35, humanTime: 0.85, guard: 0.4 },
     appliesTo: ['planning', 'research', 'design', 'content', 'code', 'test', 'release'],
   },
   {
@@ -32,7 +32,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalA11y',
     name: n.evalA11y,
     installCost: 15_000,
-    modifiers: { evalCatch: 0.3 },
+    modifiers: { evalCatch: 0.3, guard: 0.3 },
     appliesTo: ['design', 'content', 'code'],
   },
   {
@@ -40,7 +40,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalSecurity',
     name: n.evalSecurity,
     installCost: 20_000,
-    modifiers: { evalCatch: 0.3 },
+    modifiers: { evalCatch: 0.3, guard: 0.3 },
     burden: { risk: -0.03 },
     appliesTo: ['code', 'release'],
   },
@@ -49,7 +49,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalCodingRules',
     name: n.evalCodingRules,
     installCost: 10_000,
-    modifiers: { evalCatch: 0.25, humanTime: 0.85 },
+    modifiers: { evalCatch: 0.25, humanTime: 0.85, guard: 0.35 },
     appliesTo: ['code'],
   },
   {
@@ -57,7 +57,7 @@ export const evalParts: readonly HarnessPartDef[] = [
     id: 'evalUiReq',
     name: n.evalUiReq,
     installCost: 15_000,
-    modifiers: { evalCatch: 0.3 },
+    modifiers: { evalCatch: 0.3, guard: 0.35 },
     appliesTo: ['design', 'code'],
   },
 ];

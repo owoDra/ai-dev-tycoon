@@ -26,13 +26,14 @@ import {
   harnessSuccess,
   harnessToolMiss,
   requestParts,
+  reviewBlind,
 } from './harness';
 import { incidentEffects, rollIncidents } from './incidents';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
 import { humanSpeed } from './team';
 import { isManager, oversight, teamOfProject, workingStaff } from './teams';
-import { forcedAiOutcome } from './tutorial';
+import { forcedAiOutcome, isScriptedTask } from './tutorial';
 
 /*
  * Task の工程を進める共通処理。taskSystem（開始・AI の工程）と humanQueueSystem（人間の工程）から呼ぶ。
@@ -72,6 +73,12 @@ export function aiActor(state: GameState, run: TaskRun, task: TaskDef): ActorPro
   return { kind: 'ai', model: harnessModel(state, workerId, runModifiers(state, run, task)) };
 }
 
+/** 素の AI の弱さを決める補正。チュートリアルの台本の Task は、型にはめ切った（guard 1）ものとして扱う（core/tutorial.ts） */
+function guardedModifiers(state: GameState, run: TaskRun, projectId: string, task: TaskDef): HarnessModifiers {
+  const mods = runModifiers(state, run, task);
+  return isScriptedTask(state, projectId, task.id) ? { ...mods, guard: 1 } : mods;
+}
+
 /**
  * AI の作業の成功確率。Model の能力に、Context（資料のある案件）・発生中の事件と Harness の補正と、AI PM の見落とし（core/teams.ts）を入れる。
  */
@@ -79,7 +86,7 @@ function aiSuccess(state: GameState, run: TaskRun, projectId: string, task: Task
   const p = successProbability(task, aiActor(state, run, task));
   const q = harnessSuccess(
     aiSuccessWithContext(state, run.assignment?.workerId ?? '', projectId, task.id, p),
-    runModifiers(state, run, task),
+    guardedModifiers(state, run, projectId, task),
   );
   const { miss } = oversight(state, projectId, task);
   return miss > 0 ? Math.max(balance.success.min, q - miss) : q;
@@ -277,7 +284,9 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
   if (!step) return state;
 
   // 確認の工程は、残っている失敗を検出率の確率で見つける（必ず見つける確認では乱数を引かない）
-  const caught = step.phase === 'review' && run.defect && catches(getTask(projectId, taskId), step, ctx);
+  const task = getTask(projectId, taskId);
+  const caught =
+    step.phase === 'review' && run.defect && catches(task, step, reviewBlindOf(state, run, projectId, task), ctx);
 
   if (caught && step.actor === 'ai') {
     ctx.emit({ type: 'EvalCaught', projectId, taskId });
@@ -288,7 +297,6 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
     const humanId = run.humanId;
     ctx.emit({ type: 'ReworkDetected', projectId, taskId, humanId });
     const intervention = usesAi(run) ? 1 : 0;
-    const task = getTask(projectId, taskId);
     const remaining = reworkMinutes(task, humanSpeed(humanId, task));
     const base = intervention && run.assignment ? intervene(state, run.assignment.workerId) : state;
     const next = updateTask(base, projectId, taskId, (r) => ({
@@ -304,7 +312,6 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
 
   let next = state;
   if (step.phase === 'work') {
-    const task = getTask(projectId, taskId);
     const ai = step.actor === 'ai';
     const forced = ai ? forcedAiOutcome(state, projectId, taskId) : null;
     const p = ai ? aiSuccess(state, run, projectId, task) : successProbability(task, humanActor(run.humanId));
@@ -323,9 +330,14 @@ export function finishStep(state: GameState, projectId: string, taskId: string, 
   return enterStep(next, projectId, taskId, run.stepIndex + 1, ctx);
 }
 
-/** 確認の工程が残っている失敗を見つけるか。検出率が 1 なら乱数を引かない */
-function catches(task: TaskDef, step: ModeStep, ctx: SystemContext): boolean {
-  const c = reviewCatch(task, step);
+/** AI が関わる Task の確認の工程が、素の AI の成果物の失敗を見逃す割合（Harness の guard が届かない分） */
+function reviewBlindOf(state: GameState, run: TaskRun, projectId: string, task: TaskDef): number {
+  return usesAi(run) ? reviewBlind(guardedModifiers(state, run, projectId, task)) : 0;
+}
+
+/** 確認の工程が残っている失敗を見つけるか（blind は素の AI の成果物を見逃す割合）。検出率が 1 なら乱数を引かない */
+function catches(task: TaskDef, step: ModeStep, blind: number, ctx: SystemContext): boolean {
+  const c = reviewCatch(task, step, blind);
   return c >= 1 || ctx.rng.chance(c);
 }
 

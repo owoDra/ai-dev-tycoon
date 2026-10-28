@@ -7,6 +7,7 @@ import { deadlineMinutes } from '../../src/core/formulas';
 import { type ProjectScore, scoreProject } from '../../src/core/scoring';
 import { createInitialState } from '../../src/core/state';
 import { compare, seeds } from '../helpers/compare';
+import { EARLY } from '../helpers/fitted';
 import { runHeadless } from '../helpers/headless';
 import { strategies } from '../helpers/strategies';
 
@@ -130,16 +131,12 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
   });
 
   it('Subagent は増やすほど強いわけではない：Subagent 数と成果は山型で、最適値は 2〜3（企画書15章）', () => {
+    // 素の AI（Harness なし）は失敗だらけで Subagent の差が埋もれるので、Skill と Hook を付けた上で Subagent の数だけを変える
     const counts = [1, 2, 3, 4, 5];
     const candidates = Object.fromEntries(
       counts.map((n) => [
         `n${n}`,
-        (seed: string) =>
-          play(
-            seed,
-            'standard',
-            subagentParts.slice(0, n).map((p) => p.id),
-          ),
+        (seed: string) => play(seed, 'standard', [...EARLY, ...subagentParts.slice(0, n).map((p) => p.id)]),
       ]),
     );
     const r = compare(candidates, SEEDS);

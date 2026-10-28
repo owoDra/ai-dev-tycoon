@@ -26,6 +26,7 @@ export const NEUTRAL: HarnessModifiers = {
   aiCost: 1,
   risk: 0,
   evalCatch: 0,
+  guard: 0,
 };
 
 const KEYS = Object.keys(NEUTRAL) as HarnessModifierKey[];
@@ -191,11 +192,34 @@ export function partsModel(model: ModelDef, parts: readonly HarnessPartDef[], mo
   };
 }
 
-/** Harness の補正を入れた AI の作業の成功確率。成功率の補正を足し、Noise（Tool の複雑さ・お願いの指示文）の分を引く */
+/**
+ * 素の AI の度合い（0〜1）。部品の guard（ルール・Skill・Eval で AI の仕事を型にはめる度合い）が届かない分。
+ * 部品を何も付けていなければ 1、型にはめる部品で固めるほど 0 に近づく
+ */
+export function bareness(mods: HarnessModifiers): number {
+  return 1 - mods.guard;
+}
+
+/**
+ * Harness の補正を入れた AI の作業の成功確率。成功率の補正を足して Noise（Tool の複雑さ・お願いの指示文）の分を引き、
+ * 素の AI の弱さとして (1 − balance.harness.bare.successLoss × bareness) を掛ける。
+ * Harness なしの AI は、それらしいが要件を外した成果物を出しやすい。掛け算なので、Context や事件の影響は素の AI にも同じ向きに効く
+ */
 export function harnessSuccess(p: number, mods: HarnessModifiers): number {
-  if (mods.success === 0 && mods.noise === 0) return p;
+  const keep = 1 - balance.harness.bare.successLoss * bareness(mods);
+  if (mods.success === 0 && mods.noise === 0 && keep === 1) return p;
   const { min, max } = balance.success;
-  return Math.min(max, Math.max(min, p + mods.success - mods.noise * balance.context.errorPerNoise));
+  return Math.min(max, Math.max(min, (p + mods.success - mods.noise * balance.context.errorPerNoise) * keep));
+}
+
+/**
+ * 確認の工程（人間のレビュー・最終確認と、担当モードの自動テスト）が、素の AI の成果物の失敗を見逃す割合（検出率に掛けて減らす割合）。
+ * Harness なしの AI の成果物はそれらしく見えるので、人間がじっくり見ても失敗の一部を見逃し、AI が自分で書くテストは自分の思い込みを
+ * 確かめるだけになる（balance.harness.bare.reviewBlind × bareness）。ルール・Skill・Eval で型にはめた成果物は、どこを見ればよいかが
+ * 決まっているので見逃さない
+ */
+export function reviewBlind(mods: HarnessModifiers): number {
+  return balance.harness.bare.reviewBlind * bareness(mods);
 }
 
 /** Harness の Noise による Tool の誤選択の確率 */

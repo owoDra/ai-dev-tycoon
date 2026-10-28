@@ -194,9 +194,9 @@ export function App(props: {
       onCleanup(
         store.onEvents((events) => {
           if (events.some((e) => e.type === 'TutorialEnded')) markTutorialDone();
-          if (events.some((e) => e.type === 'SeatChanged' || e.type === 'BidWon' || e.type === 'BidSubmitted')) save();
+          if (events.some((e) => e.type === 'SeatChanged' || e.type === 'OrderAccepted')) save();
           // ホームで受注したら、その案件のフロアへ移る（担当を決めるまで時間は進まないので、すぐ見せる）
-          const won = events.flatMap((e) => (e.type === 'BidWon' ? [e.projectId] : [])).at(0);
+          const won = events.flatMap((e) => (e.type === 'OrderAccepted' ? [e.projectId] : [])).at(0);
           const at = screens.screen();
           if (won !== undefined && at.id === 'play' && at.projectId === undefined) {
             screens.go({ type: 'Switch', projectId: won });
@@ -211,6 +211,17 @@ export function App(props: {
           if (events.some((e) => e.type === 'CompanyBankrupt')) {
             milestones.showBankrupt();
             save();
+          }
+          // 打ち切った案件のフロアを見ていたら、納品と同じく次の案件かホームへ移る
+          const cancelled = events.flatMap((e) => (e.type === 'ProjectCancelled' ? [e.projectId] : []));
+          if (cancelled.length > 0) {
+            save();
+            const screen = screens.screen();
+            const next = afterDelivery(screen, cancelled, activeProjects(store.state()), store.state().board !== null);
+            if (next !== screen && screen.id === 'play') {
+              selection.dispatch({ type: 'SelectEntity', entityId: null });
+              screens.set(next);
+            }
           }
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;

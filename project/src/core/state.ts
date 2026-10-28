@@ -19,9 +19,9 @@ import type {
   TermId,
 } from '../content/types';
 import { allFeatures, unlockDefs } from '../content/unlocks';
-import type { BidResult, InquiryRun } from './bidding';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
+import type { InquiryRun } from './orders';
 import { hashSeed, type RngState } from './rng';
 import { initialTalent, marketCandidates } from './talent';
 
@@ -92,15 +92,25 @@ export interface ProjectRun {
   readonly projectId: string;
   readonly startedAt: number;
   readonly completedAt: number | null;
-  /** 売上（円）。コンペで受注した案件は見積額、それ以外は案件の定義の売上 */
+  /** 売上（円）。引き合いから受注した案件は受注の条件（core/orders.ts）の額、それ以外は案件の定義の売上 */
   readonly revenue: number;
-  /** 納期（営業日）。コンペで受注した案件は提案した納期、それ以外は案件の定義の納期 */
+  /** 納期（営業日）。受注した日から数える */
   readonly deadlineDays: number;
   /** TaskDef の並び順で持つ */
   readonly tasks: Readonly<Record<string, TaskRun>>;
   /** 管理者がこの案件の運営に使った分（core/teams.ts の managementSystem）。人間 PM の稼働は人日に数える */
   readonly management: ManagementRun;
+  /** 期限が切れて炎上した時刻（炎上しても続行の契約。core/contract.ts）。炎上していなければ null */
+  readonly burningAt: number | null;
+  /**
+   * 打ち切った理由（core/contract.ts）。expired：期限厳守の案件の期限切れ / cancelled：会社側から打ち切った。
+   * 打ち切った案件は completedAt に打ち切った時刻が入り、入金はない。打ち切っていなければ null
+   */
+  readonly cancelled: CancelReason | null;
 }
+
+/** 案件を打ち切った理由 */
+export type CancelReason = 'expired' | 'cancelled';
 
 /** 管理者の運営の記録。人間 PM の稼働時間（分）と人件費、AI PM の AI 費用（円） */
 export interface ManagementRun {
@@ -116,7 +126,7 @@ export interface ManagementRun {
  * 会社のスコア・解放の条件・コンペの実績・Workflow の実績は、ここと state.projects の両方を数える
  */
 export interface LedgerRun {
-  /** 記録に移した案件の数（どれも納品済み） */
+  /** 記録に移した、納品した案件の数（打ち切った案件は数えない） */
   readonly delivered: number;
   readonly revenue: number;
   /** 案件の利益の合計（Harness 部品の導入コストを除く。core/scoring.ts の projectProfit と同じ数え方） */
@@ -282,14 +292,12 @@ export interface MarketRun {
   readonly candidates: readonly string[];
 }
 
-/** 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、見積を出してコンペに勝つと受注する（core/bidding.ts） */
+/** 案件ボード（core/board.ts）。営業日ごとに引き合いが届き、選んで受注する（core/orders.ts） */
 export interface BoardRun {
   /** 最後に引き合いが届いた営業日。チュートリアルの間はまだ届かない（null） */
   readonly day: number | null;
-  /** 応募の締切前の引き合い（届いた順） */
+  /** 受付の締切前の引き合い（届いた順） */
   readonly inquiries: readonly InquiryRun[];
-  /** 最近のコンペの結果（新しい順、balance.board.history 件まで） */
-  readonly results: readonly BidResult[];
 }
 
 /** 人間の待ち行列の1件。先頭だけが処理される */
@@ -442,6 +450,8 @@ export interface GameState {
   readonly board: BoardRun | null;
   /** 会社の評判（balance.reputation の 0〜100）。納品のたびに納期と品質で変わり、コンペの提案力になる */
   readonly reputation: number;
+  /** 期限切れ・打ち切りで失った企業価値（円）。営業日ごとに少しずつ戻る（core/contract.ts） */
+  readonly valuationHit: number;
   /** 会社の規模の段階（content/companyTiers.ts）。納品のたびに昇格の条件を判定する（core/company.ts） */
   readonly tier: CompanyTierId;
   /** 日割りで計上したオフィスの固定費の合計（円）。会社の費用なので会社のスコアで引く */
@@ -525,8 +535,9 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     market: { day: 0, candidates: marketCandidates(seed, 0, getCompanyTier(tier).candidates) },
     hireCost: 0,
     idleCost: 0,
-    board: isBoard ? { day: null, inquiries: [], results: [] } : null,
+    board: isBoard ? { day: null, inquiries: [] } : null,
     reputation: balance.reputation.initial,
+    valuationHit: 0,
     tier,
     officeCost: 0,
     agents: aiWorkers.map((w) => w.id),
@@ -609,7 +620,17 @@ export function createProjectRun(
   const tasks = Object.fromEntries(def.tasks.map((t) => [t.id, createTaskRun()]));
   const { revenue, deadlineDays } = terms ?? def;
   const management = { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0 };
-  return { projectId, startedAt: clock, completedAt: null, revenue, deadlineDays, tasks, management };
+  return {
+    projectId,
+    startedAt: clock,
+    completedAt: null,
+    revenue,
+    deadlineDays,
+    tasks,
+    management,
+    burningAt: null,
+    cancelled: null,
+  };
 }
 
 export function createTaskRun(): TaskRun {

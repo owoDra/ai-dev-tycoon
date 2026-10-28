@@ -20,8 +20,6 @@ export const balance = {
   project: {
     /** 1人日の長さ（人間が働くゲーム内の分）。勤務時間から昼休みを除いた長さ */
     minutesPerPersonDay: 480,
-    /** 納期を1営業日超過するごとに失う、売上に対する割合 */
-    delayLossPerDay: 0.1,
   },
   success: {
     /** 失敗リスクに対する難易度の重み */
@@ -37,6 +35,11 @@ export const balance = {
     competence: 0.97,
     /** 人間が受けるリスクの倍率。人間は遅いが安定している（企画書5章） */
     riskScale: 0.3,
+    /**
+     * 掛け持ちの切り替えの手間。2件以上を掛け持ちすると、合計の進み方がこの割合だけ減り、それを件数で等分する
+     * （core/formulas.ts の multitaskShare。2件なら各40%、3件なら各約27%）
+     */
+    switchLoss: 0.2,
   },
   ai: {
     /** AI 適性 0 の Task で発揮できる能力の割合。適性 1 で能力をすべて発揮する */
@@ -296,17 +299,14 @@ export const balance = {
     /** Task ごとの作業量のばらつき（倍率の範囲）と、丸める刻み（分） */
     effortJitter: { min: 0.85, max: 1.15 },
     effortStep: 10,
+    /**
+     * 納期の倍率（型の標準の納期 × 規模の倍率に掛ける）。時間は1日ずつ進めるので、人手の割り当てを考えないと間に合わない程度に締める
+     * （人間1人に全部を掛け持ちさせると外し、分担すれば間に合う。tests/balance/contract.test.ts）
+     */
+    deadlineScale: 0.35,
     /** 案件ごとの標準価格のばらつき（倍率の範囲）と、丸める刻み（円） */
     priceJitter: { min: 0.9, max: 1.1 },
     priceStep: 10_000,
-    /** 発注者の性格ごとの予算の上限（標準価格に対する倍率の範囲） */
-    budget: {
-      price: { min: 1.05, max: 1.15 },
-      quality: { min: 1.15, max: 1.35 },
-      deadline: { min: 1.08, max: 1.25 },
-    },
-    /** 競合の数の範囲 */
-    rivals: { min: 2, max: 4 },
     /** 生成した案件の定義と資料のキャッシュの上限（超えたら捨てて作り直す。同じ id なら同じ結果になる） */
     cacheLimit: 2000,
   },
@@ -321,47 +321,37 @@ export const balance = {
      */
     closeAt: 1020,
     /**
-     * 規模ごとの応募の期間（届いた営業日を1日目とする営業日数）。毎朝ボードを見なくても、翌日に見積を出せる。
-     * 大きい案件ほど長く、見積を考える時間をとれる
+     * 規模ごとの受付の期間（届いた営業日を1日目とする営業日数）。毎朝ボードを見なくても、翌日に受注できる。
+     * 大きい案件ほど長く、手が空くのを待てる
      */
     closeDays: { S: 2, M: 2, L: 3, XL: 3 },
     /** 届いてから締切までに少なくとも残す時間（ゲーム内の分） */
     minOpenMinutes: 120,
-    /** 案件ボードに残す最近のコンペの結果の数 */
-    history: 10,
   },
   /**
-   * コンペ（core/bidding.ts）。見積の基準額 = 見積人日 × 平均売値（balance.talent.rate.mean）。
-   * 見積人日は市場の標準価格を平均売値で割った値（請求の人日。ゲーム内の作業時間はこれより短く縮めてある）。
-   * 各社の評価 = −価格の比 × price ＋ 提案力 × proposal − 納期の比 × deadline（重みは発注者の性格ごと）で、
-   * 勝率 = exp(評価 / temperature) を競合とあわせて正規化した値。予算の上限を超える見積は 0
+   * 受注（core/orders.ts）。売上は評判で上下する（評判の幅いっぱいで ±reputationWeight / 2）。金額は amountStep（円）に丸める。
+   * 評判は期限切れのたびにも下がる（balance.contract）ので、売上への効きを大きくしすぎると、期限を外しがちな会社が
+   * 値下がりと打ち切りの二重で一気に倒産する（下手な戦略でも1年は持つ。tests/balance/long-run.test.ts）
    */
-  bid: {
-    /** 選べる価格（基準額に対する倍率）。中央が基準 */
-    prices: { minus20: 0.8, minus10: 0.9, base: 1, plus10: 1.1, plus20: 1.2 },
-    /** 選べる納期（標準の納期に対する倍率。営業日に丸め、1日以上） */
-    deadlines: { short: 0.8, standard: 1, long: 1.2 },
-    /** 見積人日を丸める刻み */
-    personDayStep: 0.5,
-    /** 金額を丸める刻み（円） */
+  orders: {
+    reputationWeight: 0.2,
     amountStep: 10_000,
-    temperature: 0.105,
-    focus: {
-      price: { price: 1.2, proposal: 0.4, deadline: 0.4 },
-      quality: { price: 0.5, proposal: 1.2, deadline: 0.4 },
-      deadline: { price: 0.5, proposal: 0.4, deadline: 1.2 },
-    },
-    /** 提案力（0〜1）= 評判 × reputation ＋ 同業種の実績（trackCap 件で頭打ち）× track ＋ AI 体制（aiCap で頭打ち）× ai */
-    proposal: { reputation: 1, track: 0.15, trackCap: 3, ai: 0.15, aiCap: 4 },
-    /** 競合の価格の比・提案力・納期の比の範囲（三角分布） */
-    rival: {
-      price: { min: -0.15, max: 0.15 },
-      proposal: { min: 0.35, max: 0.65 },
-      deadline: { min: -0.2, max: 0.2 },
-    },
   },
   /**
-   * 評判（0〜100）。納品のたびに変わる：納期内なら onTime を足し、遅れたら遅れた営業日（切り上げ）× perLateDay を引く。
+   * 案件の契約（core/contract.ts）。生成した案件の strictShare が期限厳守で、売上が strictPremium 倍になる。
+   * 期限厳守の案件は期限が切れるとその場で打ち切り（入金なし）、それ以外は炎上して作業を続ける（納品すれば元の売上が入る）。
+   * 期限切れ・打ち切りのたびに評判が下がり（reputation）、企業価値も売上 × valuation の分だけ下がる（valuationHit。営業日ごとに recovery の割合ずつ戻る）。
+   * 会社側から打ち切ると、期限切れより大きく下がる
+   */
+  contract: {
+    strictShare: 0.4,
+    strictPremium: 1.3,
+    reputation: { burning: 12, expired: 15, cancelled: 22 },
+    valuation: { burning: 1.5, expired: 2, cancelled: 3 },
+    recovery: 0.05,
+  },
+  /**
+   * 評判（0〜100）。納品のたびに変わる：期限内なら onTime を足す（炎上した案件は足さない。期限切れの下げは balance.contract）。
    * さらに品質（作業量で重み付けした平均）が qualityPivot より高いほど足し、低いほど引く（× perQuality）
    */
   reputation: {
@@ -369,14 +359,13 @@ export const balance = {
     min: 0,
     max: 100,
     onTime: 4,
-    perLateDay: 8,
     qualityPivot: 0.9,
     perQuality: 40,
   },
   /**
    * 会社の規模（content/companyTiers.ts。並び順が昇格の順）。昇格の条件（requires）は、累計の会社の利益（円）・評判・納品数のすべてを満たすこと。
    * 段階ごとに、人員の上限（maxStaff）・AI Worker の上限（maxAiWorkers）・チーム数の上限（直轄を含む、maxTeams）・管理者を置けるか（managers）・
-   * 営業日ごとの引き合いの数（inquiries）と規模の重み（sizes）・採用候補の数（candidates）・オフィスの固定費（円/営業日、officeDaily）が変わる
+   * 同時に進められる案件の数（maxProjects）・営業日ごとの引き合いの数（inquiries）と規模の重み（sizes）・採用候補の数（candidates）・オフィスの固定費（円/営業日、officeDaily）が変わる
    */
   company: {
     tiers: {
@@ -386,6 +375,7 @@ export const balance = {
         maxAiWorkers: 1,
         maxTeams: 1,
         managers: false,
+        maxProjects: 2,
         inquiries: 3,
         sizes: { S: 1, M: 1, L: 0, XL: 0 },
         candidates: 3,
@@ -397,6 +387,7 @@ export const balance = {
         maxAiWorkers: 2,
         maxTeams: 1,
         managers: false,
+        maxProjects: 3,
         inquiries: 3,
         sizes: { S: 1, M: 2, L: 0, XL: 0 },
         candidates: 3,
@@ -408,6 +399,7 @@ export const balance = {
         maxAiWorkers: 3,
         maxTeams: 2,
         managers: true,
+        maxProjects: 4,
         inquiries: 4,
         sizes: { S: 1, M: 2, L: 1, XL: 0 },
         candidates: 4,
@@ -419,6 +411,7 @@ export const balance = {
         maxAiWorkers: 4,
         maxTeams: 3,
         managers: true,
+        maxProjects: 6,
         inquiries: 4,
         sizes: { S: 1, M: 2, L: 2, XL: 1 },
         candidates: 4,
@@ -430,6 +423,7 @@ export const balance = {
         maxAiWorkers: 6,
         maxTeams: 4,
         managers: true,
+        maxProjects: 8,
         inquiries: 5,
         sizes: { S: 0, M: 2, L: 2, XL: 2 },
         candidates: 5,

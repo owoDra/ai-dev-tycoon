@@ -4,12 +4,13 @@ import { balance } from '../content/balance';
 import { getCompanyTier } from '../content/companyTiers';
 import { getHuman, getProject } from '../content/index';
 import { isAchieved } from '../core/achievements';
-import { deliveryRating } from '../core/bidding';
 import { goalProgress, isListed, type PromotionProgress, tierOf } from '../core/company';
 import { priceWarCut, retainBonus } from '../core/companyEvents';
+import { isDelivered } from '../core/contract';
 import { fiscalDaysLeft, lastReport } from '../core/fiscal';
 import { perPersonDay } from '../core/formulas';
 import { cashOf, companyRunning, valuationOf } from '../core/funds';
+import { deliveryRating } from '../core/orders';
 import type { FiscalRecord } from '../core/resultCode';
 import { scoreProject } from '../core/scoring';
 import type { FiscalReport, GameState, ValuationSample } from '../core/state';
@@ -227,7 +228,7 @@ export interface DeliveryView {
   readonly qualityGood: boolean;
   /** 直轄のチームの案件か（管理者に任せていない） */
   readonly direct: boolean;
-  /** 評判の変化（core/bidding.ts の deliveryRating） */
+  /** 評判の変化（core/orders.ts の deliveryRating） */
   readonly reputation: number;
 }
 
@@ -270,7 +271,7 @@ export function bankruptView(state: GameState): BankruptView {
     samples,
     peak,
     days: end - start,
-    delivered: state.ledger.delivered + Object.values(state.projects).filter((p) => p.completedAt !== null).length,
+    delivered: state.ledger.delivered + Object.values(state.projects).filter(isDelivered).length,
     tier: tierOf(state).name,
     fiscalCount: last?.no ?? 0,
     achievements: state.achievements.length,

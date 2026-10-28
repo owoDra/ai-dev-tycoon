@@ -81,7 +81,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('解放の進み具合はセーブを通っても残り、v2 などキャンペーン以前の形式のセーブは読み込めない（OutdatedSaveError）', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     expect(() => deserialize(JSON.stringify({ saveVersion: 2, state: v2 }))).toThrow(OutdatedSaveError);
-    expect(SAVE_VERSION).toBe(20);
+    expect(SAVE_VERSION).toBe(21);
     const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
     const loaded = deserialize(serialize(s));
     expect(loaded.unlocked).toEqual(s.unlocked);

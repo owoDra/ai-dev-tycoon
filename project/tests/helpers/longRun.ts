@@ -1,7 +1,6 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import type { AssignModeId } from '../../src/content/types';
-import { type PriceStep, quoteBid } from '../../src/core/bidding';
 import { activeProjects, openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
@@ -25,7 +24,7 @@ import { FITTED } from './fitted';
 
 /*
  * 長く遊ぶ戦略 Bot（画面なし）。チュートリアルなしで始めた会社を、方針（LongStrategy）に従って何年も経営する。
- * 毎営業日のはじめと CHUNK 分ごとに、見積・採用・AI Worker と Harness・チームと管理者・直轄の担当を決め、時間を進める。
+ * 毎営業日のはじめと CHUNK 分ごとに、受注・採用・AI Worker と Harness・チームと管理者・直轄の担当を決め、時間を進める。
  * 決算ごとの推移と、1ステップの処理時間・state の大きさを記録する。
  */
 
@@ -40,13 +39,11 @@ export interface LongStrategy {
   readonly assign: 'smart' | 'human' | 'ai';
   /** AI Worker に Harness の部品を付け、資料を必要なものに絞る */
   readonly harness: boolean;
-  /** 見積の価格 */
-  readonly price: PriceStep;
   /** 管理者を置ける規模になったら、チームを作ってこの管理者に任せる。null なら直轄だけ */
   readonly manager: ManagerRun['kind'] | null;
   /** 仕事が人数に比べて多ければ採用する */
   readonly hire: boolean;
-  /** 社員1人あたりの進行中の案件がこれを超えたら、見積を出さない（仕事を抱えすぎない） */
+  /** 社員1人あたりの進行中の案件がこれを超えたら、受注しない（仕事を抱えすぎない） */
   readonly loadCap: number;
   /** 引き抜きの打診に、引き留めで答える */
   readonly retain: boolean;
@@ -57,30 +54,27 @@ export const skilled: LongStrategy = {
   name: '上手（smart＋Harness・人間 PM）',
   assign: 'smart',
   harness: true,
-  price: 'base',
   manager: 'human',
   hire: true,
   loadCap: 0.6,
   retain: true,
 };
 
-/** 下手な戦略：すべて人間で進め、AI にも人材にも投資しない（見積と抱える量は上手な戦略と同じ） */
+/** 下手な戦略：すべて人間で進め、AI にも人材にも投資しない（抱える量は上手な戦略と同じ） */
 export const clumsy: LongStrategy = {
   name: '下手（すべて人間・投資なし）',
   assign: 'human',
   harness: false,
-  price: 'base',
   manager: null,
   hire: false,
   loadCap: 0.6,
   retain: false,
 };
 
-/** 無理な受注を続ける戦略：下手な戦略で、届いた引き合いすべてに高めの見積を出し続ける（人手を見ずに抱え込む） */
+/** 無理な受注を続ける戦略：下手な戦略で、同時に進められる上限まで何でも受注し続ける（人手を見ずに抱え込む） */
 export const reckless: LongStrategy = {
   ...clumsy,
-  name: '無理な受注（すべて人間・すべてに高めの見積）',
-  price: 'plus10',
+  name: '無理な受注（すべて人間・上限まで受注）',
   loadCap: Number.POSITIVE_INFINITY,
 };
 
@@ -130,17 +124,13 @@ function assignDirect(state: GameState, strategy: LongStrategy): GameState {
   return s;
 }
 
-/**
- * 見積を出す（結果はその場で出る）。抱える仕事は、進行中の案件に、この見積の勝率（受注の見込み）を足して数え、
- * 人数に比べて多くなりすぎるなら出さない
- */
+/** 受注する（必ず受注できる）。進行中の案件が人数に比べて多くなりすぎるなら受けない（同時に進められる上限でも止まる） */
 function bid(state: GameState, strategy: LongStrategy): GameState {
   let s = state;
   const staff = Object.keys(s.team).length;
   for (const projectId of openInquiries(s)) {
-    const chance = quoteBid(s, projectId, strategy.price, 'standard').winChance;
-    if (activeProjects(s).length + chance > staff * strategy.loadCap) break;
-    s = apply(s, { type: 'SubmitBid', projectId, price: strategy.price, deadline: 'standard' });
+    if (activeProjects(s).length + 1 > staff * strategy.loadCap) break;
+    s = apply(s, { type: 'AcceptOrder', projectId });
   }
   return s;
 }

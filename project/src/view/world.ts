@@ -357,7 +357,7 @@ export function worldView(state: GameState, projectId: string | null, look: Worl
     .filter((h) => crew === null || crew.includes(h.id))
     .map((h) => {
       const queue = state.humanQueues[h.id] ?? [];
-      const head = queue[0]?.projectId === projectId ? queue[0] : undefined;
+      const head = queue.find((q) => q.projectId === projectId);
       const id = humanActorId(h.id);
       const working = head !== undefined;
       const crowded = queue.length >= 2 || flagged(id);

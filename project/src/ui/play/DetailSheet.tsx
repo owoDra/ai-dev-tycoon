@@ -41,7 +41,7 @@ export function DetailSheet(props: {
   /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
   maxHeight?: number;
   onClose: () => void;
-  onAssign: (taskId: string, mode: AssignModeId) => void;
+  onAssign: (taskId: string, mode: AssignModeId, workerId?: string) => void;
   /** Harness Builder を開く（AI のキャラクターを選んだとき。解放前は渡さない） */
   onHarness?: () => void;
   /** Workflow Library を開いて、この Task に Workflow を適用する（Harness の解放前は渡さない） */
@@ -209,7 +209,7 @@ export function DetailSheet(props: {
             row={row()}
             scroll={props.scrollCards}
             fresh={props.fresh}
-            onAssign={(mode) => props.onAssign(row().id, mode)}
+            onAssign={(mode, workerId) => props.onAssign(row().id, mode, workerId)}
           />
         )}
       </Show>

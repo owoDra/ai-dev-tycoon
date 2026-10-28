@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { founders } from '../../src/content/staff';
-import { quoteBid, submitBid } from '../../src/core/bidding';
 import {
   activeProjects,
   canStartProject,
@@ -14,6 +13,7 @@ import { calendarDay, minuteOfDay } from '../../src/core/clock';
 import { type Command, reduce } from '../../src/core/commands';
 import { tierOf } from '../../src/core/company';
 import type { GameEvent } from '../../src/core/events';
+import { acceptOrder, maxProjects, orderBlock, orderTerms } from '../../src/core/orders';
 import { settleProgress } from '../../src/core/progress';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -23,7 +23,7 @@ import { boardView, projectTabs } from '../../src/view/board';
 import { hhmm } from '../../src/view/hud';
 
 /*
- * 案件ボードの進行（以前のキャンペーンの進行のテストを、引き合いとコンペで表し直したもの）。
+ * 案件ボードの進行（以前のキャンペーンの進行のテストを、引き合いと受注で表し直したもの）。
  * チュートリアル → 案件ボード → 受注した案件の同時進行 → 会社の資産の持ち越し → セーブからの再開。
  */
 
@@ -43,17 +43,10 @@ function settle(state: GameState): { state: GameState; events: readonly GameEven
   return { state: settleProgress(state, (e) => events.push(e)), events };
 }
 
-/** 引き合いに基準の見積を出し、勝ったことにする（勝敗の乱数は別のテストで確かめる） */
+/** 引き合いを受注する（受注の条件は tests/unit/orders.test.ts で確かめる） */
 function win(state: GameState, projectId: string): GameState {
-  const s = submitBid(
-    state,
-    projectId,
-    'base',
-    'standard',
-    () => 0,
-    () => {},
-  );
-  if (!s.projects[projectId]) throw new Error(`見積を出せない ${projectId}`);
+  const s = acceptOrder(state, projectId, () => {});
+  if (!s.projects[projectId]) throw new Error(`受注できない ${projectId}`);
   return s;
 }
 
@@ -96,7 +89,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     // チュートリアルの直後はまだ採用できない（人手が足りなくなるほど案件を重ねていない）
     expect(events).not.toContainEqual({ type: 'FeatureUnlocked', feature: 'hire' });
     expect(reduce(s, { type: 'Hire', staffId: candidate }).state).toBe(s);
-    // 受注していない案件は直接始められない（コンペで受注する）
+    // 受注していない案件は直接始められない（案件ボードで受注する）
     expect(canStartProject(s, posted[0] ?? '')).toBe(false);
     // 4件目を納品した後、営業日ごとに1つずつ解放され、何日かのうちに採用市場が開く
     let later: GameState = { ...s, ledger: { ...s.ledger, delivered: 3 } };
@@ -111,31 +104,26 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(hired.state.team[candidate]).toEqual({ seat: 'standard', used: 0 });
   });
 
-  it('コンペで受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上は見積額、納期は提案した納期', () => {
+  it('受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上と納期は受注の条件（orderTerms）', () => {
     let s = afterTutorial().state;
     const [a = '', b = ''] = openInquiries(s);
-    const quoteA = quoteBid(s, a, 'base', 'standard');
-    const quoteB = quoteBid(s, b, 'minus10', 'long');
-    s = reduce(s, { type: 'SubmitBid', projectId: b, price: 'minus10', deadline: 'long' }).state;
-    // b の見積はその場で結果が出る（勝敗は乱数）。どちらにしても引き合いからは外れる
+    const termsA = orderTerms(s, a);
+    const termsB = orderTerms(s, b);
+    s = reduce(s, { type: 'AcceptOrder', projectId: b }).state;
+    // 受注した引き合いはボードから外れ、その場で案件が始まる
     expect(openInquiries(s)).not.toContain(b);
-    expect(s.board?.results[0]).toMatchObject({ projectId: b, amount: quoteB.amount });
     s = win(s, a);
-    expect(activeProjects(s)).toEqual([b, a].filter((id) => s.projects[id]));
-    // 進行中の案件は案件ボードではなくタブに並び、売上は見積額
-    expect(s.projects[a]?.revenue).toBe(quoteA.amount);
-    expect(projectTabs(s, null).tabs.map((t) => t.projectId)).toContain(a);
-    if (s.projects[b]) {
-      expect(s.projects[b]?.revenue).toBe(quoteB.amount);
-      expect(s.projects[b]?.deadlineDays).toBe(quoteB.deadlineDays);
-      expect(projectTabs(s, a).tabs.map((t) => [t.projectId, t.floor, t.selected])).toEqual([
-        [b, 1, false],
-        [a, 2, true],
-      ]);
-    }
+    expect(activeProjects(s)).toEqual([b, a]);
+    // 進行中の案件は案件ボードではなくタブに並ぶ
+    expect(s.projects[a]).toMatchObject({ revenue: termsA.revenue, deadlineDays: termsA.deadlineDays });
+    expect(s.projects[b]).toMatchObject({ revenue: termsB.revenue, deadlineDays: termsB.deadlineDays });
+    expect(projectTabs(s, a).tabs.map((t) => [t.projectId, t.floor, t.selected])).toEqual([
+      [b, 1, false],
+      [a, 2, true],
+    ]);
   });
 
-  it('終わりはなく、営業日ごとに新しい引き合いが届き続ける。見積を出さなかった引き合いは締切で見送り、通知する', () => {
+  it('終わりはなく、営業日ごとに新しい引き合いが届き続ける。受注しなかった引き合いは締切で黙って消える', () => {
     let s = afterTutorial().state;
     const events: GameEvent[] = [];
     for (let day = 1; day <= 5; day++) {
@@ -152,9 +140,16 @@ describe('案件ボードの進行（core/board.ts）', () => {
       expect(i.closesAt).toBeGreaterThan(s.clock);
       expect(i.postedDay).toBeGreaterThan(5 - longest);
     }
-    expect(events.some((e) => e.type === 'BidWon' || e.type === 'BidLost')).toBe(false);
-    // それより前に届いた分（最初の日の分を含む6日分）は、締切で「見送った」と知らせる
-    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(tierOf(s).inquiries * 6 - remaining.length);
+    // 選ばなければ受注しない
+    expect(events.some((e) => e.type === 'OrderAccepted')).toBe(false);
+    expect(activeProjects(s)).toEqual([]);
+    // それより前に届いた分（最初の日の分を含む6日分）は、知らせずに消える
+    const posted = events.flatMap((e) => (e.type === 'InquiriesPosted' ? e.projectIds : []));
+    const gone = posted.filter((id) => !remaining.some((i) => i.projectId === id));
+    expect(gone.length).toBeGreaterThan(0);
+    for (const e of events) {
+      if (e.type !== 'InquiriesPosted' && 'projectId' in e) expect(gone).not.toContain(e.projectId);
+    }
   });
 
   it('作った Harness（会社の資産）は次の案件へ持ち越し、導入コストを二度払わない', () => {
@@ -185,18 +180,14 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(openInquiries(step(s, DAY * 2).state)).toEqual([]);
   });
 
-  it('セーブして読み込むと、案件ボードの途中（引き合い・コンペの結果・受注した案件・評判）から同じ状態で再開できる', () => {
+  it('セーブして読み込むと、案件ボードの途中（引き合い・受注した案件・評判）から同じ状態で再開できる', () => {
     let s = afterTutorial().state;
     const [a = '', b = ''] = openInquiries(s);
     s = win(s, a);
     const morning = nextMorning(s);
     expect(openInquiries(morning).length).toBeGreaterThan(0);
-    s = reduce(morning, {
-      type: 'SubmitBid',
-      projectId: openInquiries(morning)[0] ?? b,
-      price: 'plus10',
-      deadline: 'short',
-    }).state;
+    s = reduce(morning, { type: 'AcceptOrder', projectId: openInquiries(morning)[0] ?? b }).state;
+    expect(activeProjects(s)).toHaveLength(2);
     const loaded = deserialize(serialize(s));
     expect(loaded).toEqual(s);
     expect(activeProjects(loaded)).toContain(a);
@@ -204,7 +195,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
   });
 });
 
-describe('見積の締切（core/board.ts・core/step.ts）', () => {
+describe('受付の締切と受注（core/board.ts・core/orders.ts・core/step.ts）', () => {
   it('締切は、届いた営業日から数えて規模ごとの営業日目の夕方（balance.board.closeAt）で、HUD の時計と同じ「N日目 HH:MM」で読める', () => {
     const s = afterTutorial().state;
     expect(s.board?.inquiries.length).toBeGreaterThan(0);
@@ -218,7 +209,7 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
     expect(hhmm(balance.board.closeAt)).toBe('17:00');
   });
 
-  it('応募の期間は規模が大きいほど長く、どれも翌営業日以降まで残る（毎朝ボードを見なくても見積を出せる）', () => {
+  it('受付の期間は規模が大きいほど長く、どれも翌営業日以降まで残る（毎朝ボードを見なくても受注できる）', () => {
     const { S, M, L, XL } = balance.board.closeDays;
     expect(S).toBeGreaterThanOrEqual(2);
     expect(M).toBeGreaterThanOrEqual(S);
@@ -238,51 +229,48 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
     expect(closingTime(DAY - 1)).toBe(closeOffset + DAY);
   });
 
-  it('見積を出すと、時間を進めずにその場でコンペの結果が出る。結果を待つための早送りはしない', () => {
+  it('受注すると、時間を進めずにその場で案件が始まる。同時に進められる数に達したら、それ以上は受注できない', () => {
     let s = afterTutorial().state;
     const clock = s.clock;
     const ids = openInquiries(s);
+    const max = maxProjects(s);
+    expect(ids.length).toBeGreaterThan(max);
     const events: GameEvent[] = [];
     for (const projectId of ids) {
-      const r = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
+      const r = reduce(s, { type: 'AcceptOrder', projectId });
       s = r.state;
       events.push(...r.events);
-      const outcome = r.events.find((e) => e.type === 'BidWon' || e.type === 'BidLost');
-      expect(outcome?.projectId).toBe(projectId);
     }
     expect(s.clock).toBe(clock);
-    expect(openInquiries(s)).toEqual([]);
-    expect(events.filter((e) => e.type === 'BidSubmitted')).toHaveLength(ids.length);
-    expect(s.board?.results.map((r) => r.projectId).sort()).toEqual([...ids].sort());
-    // 受注した案件はすぐ始まる
-    for (const e of events) if (e.type === 'BidWon') expect(activeProjects(s)).toContain(e.projectId);
-    // 結果の出た引き合いには、もう見積を出せない（出し直しはない）
-    const again = reduce(s, { type: 'SubmitBid', projectId: ids[0] ?? '', price: 'minus20', deadline: 'standard' });
+    const accepted = events.flatMap((e) => (e.type === 'OrderAccepted' ? [e.projectId] : []));
+    expect(accepted).toEqual(ids.slice(0, max));
+    expect(activeProjects(s)).toEqual(accepted);
+    // 残りは上限に達していて受注できず、ボードに残る
+    expect(openInquiries(s)).toEqual(ids.slice(max));
+    for (const id of ids.slice(max)) expect(orderBlock(s, id)).toBe('full');
+    // 受注した引き合いには、もう一度は受注できない
+    const again = reduce(s, { type: 'AcceptOrder', projectId: ids[0] ?? '' });
     expect(again.state).toBe(s);
   });
 
-  it('勝敗は state の乱数で決まり、同じ state から同じ見積を出せば同じ結果になる', () => {
+  it('受注に乱数は使わない（同じ state から受注すれば同じ結果になり、state の乱数は進まない）', () => {
     const s = afterTutorial().state;
     const [a = ''] = openInquiries(s);
-    const bid: Command = { type: 'SubmitBid', projectId: a, price: 'base', deadline: 'standard' };
-    const r1 = reduce(s, bid);
-    expect(r1).toEqual(reduce(s, bid));
-    expect(r1.state.rng).not.toBe(s.rng);
+    const order: Command = { type: 'AcceptOrder', projectId: a };
+    const r1 = reduce(s, order);
+    expect(r1).toEqual(reduce(s, order));
+    expect(r1.state.rng).toBe(s.rng);
   });
 
-  it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消え、結果の履歴に「見送り」として残る', () => {
+  it('受注せずに締切が過ぎた引き合いは、知らせずにボードから消える', () => {
     const s = afterTutorial().state;
     const ids = openInquiries(s);
     const last = Math.max(...(s.board?.inquiries ?? []).map((i) => i.closesAt));
     const { state, events } = step(s, last - s.clock);
-    expect(
-      events
-        .filter((e) => e.type === 'InquiryPassed')
-        .map((e) => e.projectId)
-        .sort(),
-    ).toEqual([...ids].sort());
     expect(state.board?.inquiries.map((i) => i.projectId)).toEqual(expect.not.arrayContaining(ids));
-    const passed = (state.board?.results ?? []).filter((r) => ids.includes(r.projectId));
-    expect(passed.map((r) => r.outcome)).toEqual(ids.map(() => 'passed'));
+    for (const e of events) {
+      if (e.type !== 'InquiriesPosted' && 'projectId' in e) expect(ids).not.toContain(e.projectId);
+    }
+    expect(Object.keys(state.projects).filter((id) => ids.includes(id))).toEqual([]);
   });
 });

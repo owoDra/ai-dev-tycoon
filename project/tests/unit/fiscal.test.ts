@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { archivable, archiveProjects } from '../../src/core/archive';
-import { industryTrack, winChance } from '../../src/core/bidding';
 import { reduce } from '../../src/core/commands';
 import { goalProgress, promote, rankProgress, tierOf } from '../../src/core/company';
 import { answerPoach, dailyCompanyEvents, outageChance, priceWarCut, retainBonus } from '../../src/core/companyEvents';
@@ -10,6 +9,7 @@ import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
 import { companyTotals, fiscalReport } from '../../src/core/fiscal';
 import { addSample, cashOf, isBankrupt, valuationOf } from '../../src/core/funds';
+import { orderTerms } from '../../src/core/orders';
 import { generatedProjectId } from '../../src/core/projectGen';
 import { decodeFiscalCode, decodeResultCode, encodeFiscalCode, type FiscalRecord } from '../../src/core/resultCode';
 import { scoreCompany } from '../../src/core/scoring';
@@ -21,6 +21,15 @@ import { growCompany } from '../helpers/growth';
 import { campaignInProgress } from '../helpers/session';
 
 const DAY = balance.time.minutesPerDay;
+
+/** 同業種の納品の実績（移した分の記録 ＋ 手元の納品済みの案件） */
+function industryTrack(state: GameState, industry: string | undefined): number {
+  if (industry === undefined) return 0;
+  const kept = Object.values(state.projects).filter(
+    (p) => p.completedAt !== null && p.cancelled === null && getProject(p.projectId).brief?.industry === industry,
+  ).length;
+  return (state.ledger.industries[industry as keyof typeof state.ledger.industries] ?? 0) + kept;
+}
 const FISCAL = balance.fiscal.days;
 
 /** チュートリアルなしで始めた会社 */
@@ -138,8 +147,8 @@ describe('累計の記録（core/archive.ts）', () => {
     ] as const) {
       expect(holds(archived, c)).toBe(holds(state, c));
     }
-    const def = getProject(all[0] ?? '');
-    expect(industryTrack(archived, def)).toBe(industryTrack(state, def));
+    const industry = getProject(all[0] ?? '').brief?.industry;
+    expect(industryTrack(archived, industry)).toBe(industryTrack(state, industry));
   });
 
   it('営業日の始まりに、納品から日のたった案件だけを移す（直近の案件は画面で見せるため残す）', () => {
@@ -202,13 +211,12 @@ describe('資金と倒産・時価総額（core/funds.ts）', () => {
 });
 
 describe('後半の事件（core/companyEvents.ts）', () => {
-  it('競合の値下げの間は、同じ見積でも勝率が下がる', () => {
+  it('競合の値下げの間は、同じ案件でも受注の売上が下がる', () => {
     const s = company('war', 'mid');
-    const def = getProject(generatedProjectId('war-1', 'M'));
-    const amount = def.revenue;
+    const id = generatedProjectId('war-1', 'M');
     const war = { ...s, companyEvents: { ...s.companyEvents, priceWarUntil: s.clock + DAY } };
     expect(priceWarCut(war)).toBe(balance.companyEvents.priceWar.priceCut);
-    expect(winChance(war, def, amount, def.deadlineDays)).toBeLessThan(winChance(s, def, amount, def.deadlineDays));
+    expect(orderTerms(war, id).revenue).toBeLessThan(orderTerms(s, id).revenue);
   });
 
   it('引き抜きの打診：引き留めると賞与を払って残り、見送ると（手が空いていれば）すぐ退職する', () => {
@@ -277,6 +285,8 @@ describe('後半の事件（core/companyEvents.ts）', () => {
         deadlineDays: 1,
         tasks,
         management: { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0 },
+        burningAt: null,
+        cancelled: null,
       };
       return { ...s, projects: { [projectId]: run } };
     };
@@ -320,7 +330,7 @@ describe('セーブと閉じている間の進行', () => {
     const s = company('migrate');
     const { rank, eventCost, ledger, fiscal, funds, achievements, companyEvents, ...v12 } = s;
     const json = JSON.stringify({ saveVersion: 12, state: v12 });
-    expect(SAVE_VERSION).toBe(20);
+    expect(SAVE_VERSION).toBe(21);
     expect(() => deserialize(json)).toThrow(OutdatedSaveError);
     const loaded = deserialize(json, MIGRATIONS, 13);
     expect(loaded).toMatchObject({ rank: 0, eventCost: 0, achievements: [] });

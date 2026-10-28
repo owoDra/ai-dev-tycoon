@@ -45,6 +45,8 @@ export function unassignedProjects(state: GameState): string[] {
 /** 起きたら「判断が必要になるまで進める」を止める出来事（結果を見て次の手を考える・答える必要があるもの） */
 const decisionEvents: ReadonlySet<GameEvent['type']> = new Set<GameEvent['type']>([
   'ProjectCompleted',
+  'ProjectBurning',
+  'ProjectCancelled',
   'FeatureUnlocked',
   'FiscalClosed',
   'CompanyBankrupt',

@@ -94,7 +94,7 @@ describe('Task の進行', () => {
     expect(finish(B)).toEqual([90, withLunch(90 + 120)]);
   });
 
-  it('人間1人は同時に1件しか処理しない（同じ人に並べると直列になる）', () => {
+  it('人間1人が掛け持ちすると、1件ずつの進みが遅くなり、切り替えの手間で合計も減る（別の人に分ければ並列で進む）', () => {
     const solo = at0([
       start,
       assign('hearing', 'human', A),
@@ -114,8 +114,9 @@ describe('Task の進行', () => {
         ?.tasks;
       return Math.max(t?.uiDesign?.completedAt ?? Infinity, t?.research?.completedAt ?? Infinity);
     };
-    // 90 + 120 のあと、UI設計 150 と 競合調査 120 を1人なら直列、2人なら並列で処理する
-    expect(done(solo)).toBe(withLunch(90 + 120 + 150 + 120));
+    // 90 + 120 のあと、UI設計 150 と 競合調査 120 を、1人なら掛け持ち（各 multitaskShare(2)）で進めるので、
+    // 1件ずつ直列に片付けるより遅い（切り替えの手間の分。作業時間 90 + 120 + 120 ÷ share + 30 = 540 分は1日の勤務を越える）。2人なら並列で処理する
+    expect(done(solo)).toBeGreaterThan(withLunch(90 + 120 + 150 + 120));
     expect(done(split)).toBe(withLunch(90 + 120 + 150));
   });
 

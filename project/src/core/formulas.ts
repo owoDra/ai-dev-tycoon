@@ -11,6 +11,15 @@ export type ActorProfile =
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+/**
+ * 掛け持ちしている人間の、1件あたりの進み方（0〜1）。人間は担当している仕事を同時に少しずつ進めるが、
+ * 1日の作業量を件数で分けたうえ、切り替えの手間（balance.human.switchLoss）で合計も減る（1件なら 1、2件なら各 0.4）
+ */
+export function multitaskShare(n: number): number {
+  if (n <= 1) return 1;
+  return (1 - balance.human.switchLoss) / n;
+}
+
 /** 工程の所要時間（分）。作業量 × 工程の割合を、人間は skill、AI は Model の速度で割る */
 export function stepMinutes(task: TaskDef, step: ModeStep, actor: ActorProfile): number {
   const rate = actor.kind === 'human' ? actor.skill : actor.model.speed;
@@ -282,10 +291,4 @@ export interface ProjectTerms {
 /** 納期（ゲーム内の分、案件開始からの経過） */
 export function deadlineMinutes(project: ProjectTerms): number {
   return project.deadlineDays * balance.time.minutesPerDay;
-}
-
-/** 遅延損失（円）。納期を超えた営業日数（端数も比例）× 売上 × 1日あたりの損失率 */
-export function delayLoss(elapsedMinutes: number, project: ProjectTerms): number {
-  const lateDays = Math.max(0, elapsedMinutes - deadlineMinutes(project)) / balance.time.minutesPerDay;
-  return lateDays * project.revenue * balance.project.delayLossPerDay;
 }

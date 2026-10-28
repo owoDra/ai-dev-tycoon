@@ -1,7 +1,7 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
-import { delayLoss, escapedDefectCost, escapedFixMinutes, perPersonDay, laborCost as wageCost } from './formulas';
+import { escapedDefectCost, escapedFixMinutes, perPersonDay, laborCost as wageCost } from './formulas';
 import type { GameState } from './state';
 
 /** 案件のスコア（企画書22章）。金額は円、時間はゲーム内の分 */
@@ -18,7 +18,6 @@ export interface ProjectScore {
   readonly accidentCost: number;
   /** 管理者の運営の費用（人間 PM の人件費・AI PM の AI 費用。core/teams.ts） */
   readonly managementCost: number;
-  readonly delayLoss: number;
   readonly profit: number;
   /** 人間の総稼働時間（分）。見逃した失敗を納品後に直す時間と、人間 PM が案件の運営に使った時間を含む */
   readonly humanMinutes: number;
@@ -54,7 +53,8 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
   const run = state.projects[projectId];
   if (!run) return null;
   const def = getProject(projectId);
-  const completed = run.completedAt !== null;
+  // 打ち切った案件は終わっているが、納品していない（売上は入らない。core/contract.ts）
+  const completed = run.completedAt !== null && run.cancelled === null;
   const elapsedMinutes = (run.completedAt ?? state.clock) - run.startedAt;
 
   let laborCost = 0;
@@ -98,13 +98,12 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
   humanMinutes += aftercareMinutes + run.management.minutes;
   const managementCost = run.management.laborCost + run.management.aiCost;
   const revenue = completed ? run.revenue : 0;
-  const delay = delayLoss(elapsedMinutes, run);
   const end = run.completedAt ?? state.clock;
   const harnessCost = state.harnessLedger
     .filter((e) => e.at >= run.startedAt && e.at <= end)
     .reduce((sum, e) => sum + e.cost, 0);
   const accidentCost = accidents * balance.harness.accidentCost;
-  const profit = revenue - laborCost - aiCost - reworkCost - harnessCost - accidentCost - managementCost - delay;
+  const profit = revenue - laborCost - aiCost - reworkCost - harnessCost - accidentCost - managementCost;
   return {
     revenue,
     laborCost,
@@ -113,7 +112,6 @@ export function scoreProject(state: GameState, projectId: string): ProjectScore 
     harnessCost,
     accidentCost,
     managementCost,
-    delayLoss: delay,
     profit,
     humanMinutes,
     aftercareMinutes,

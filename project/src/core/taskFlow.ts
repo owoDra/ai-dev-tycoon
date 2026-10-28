@@ -3,7 +3,6 @@ import { balance } from '../content/balance';
 import { getAiWorker, getHuman, getProject, getTask } from '../content/index';
 import type { HarnessModifiers, ModeStep, TaskDef } from '../content/types';
 import { intervene } from './autonomy';
-import { rateDelivery } from './bidding';
 import { promote } from './company';
 import { contextApplies, fedDocs, getSession, projectNeededDocs, readContext, updateSession } from './context';
 import { aiSuccessWithContext, aiWorkTime } from './contextWork';
@@ -29,6 +28,7 @@ import {
   reviewBlind,
 } from './harness';
 import { incidentEffects, rollIncidents } from './incidents';
+import { rateDelivery } from './orders';
 import { type GameState, type TaskRun, updateTask } from './state';
 import type { SystemContext } from './system';
 import { humanSpeed } from './team';
@@ -109,28 +109,34 @@ function rollRequests(
 
 /**
  * 人間の工程を誰に任せるか。人間だけのモードなら指名された人、それ以外は案件のチームの作業をする社員（人間 PM を除く。
- * いなければ PM 以外の会社の社員）のうち、待ち行列の残り時間が最も短い人（同じなら、その Task が得意分野の人）
+ * いなければ PM 以外の会社の社員）のうち、掛け持ちの数が最も少ない人（掛け持ちは遅くなるので。core/formulas.ts の multitaskShare）。
+ * 同じなら担当している仕事の残り時間が短い人、それも同じなら、その Task が得意分野の人
  */
 function chooseHuman(state: GameState, projectId: string, run: TaskRun, task: TaskDef): string {
   const assigned = run.assignment?.workerId;
   const team = humanPool(state, projectId).map(getHuman);
   if (assigned && team.some((h) => h.id === assigned)) return assigned;
   let best = team[0]?.id ?? '';
-  let bestLoad = Number.POSITIVE_INFINITY;
-  let bestSpeed = 0;
+  let bestKey = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, 0];
   for (const h of team) {
-    const load = (state.humanQueues[h.id] ?? []).reduce(
-      (sum, q) => sum + (state.projects[q.projectId]?.tasks[q.taskId]?.remaining ?? 0),
-      0,
-    );
-    const speed = humanSpeed(h.id, task);
-    if (load < bestLoad || (load === bestLoad && speed > bestSpeed)) {
-      best = h.id;
-      bestLoad = load;
-      bestSpeed = speed;
-    }
+    const queue = state.humanQueues[h.id] ?? [];
+    const load = queue.reduce((sum, q) => sum + (state.projects[q.projectId]?.tasks[q.taskId]?.remaining ?? 0), 0);
+    const key = [queue.length, load, -humanSpeed(h.id, task)];
+    if (!lessThan(key, bestKey)) continue;
+    best = h.id;
+    bestKey = key;
   }
   return best;
+}
+
+/** 数の並びを辞書順で比べる */
+function lessThan(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x < y;
+  }
+  return false;
 }
 
 /** 案件の人間の工程を担える社員。チームの作業をする社員で、いなければ人間 PM 以外の会社の社員（それもいなければ全員） */

@@ -1,13 +1,13 @@
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
-import { assignModes } from '../../content/assignModes';
+import { assignModes, getAssignMode, primaryActor } from '../../content/assignModes';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature } from '../../content/unlocks';
 import { isAllowed } from '../../core/tutorial';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { forecastAssign } from '../../view/forecast';
-import { defaultWorkerFor, type TaskRowView } from '../../view/project';
+import { defaultWorkerFor, humanChoices, type TaskRowView } from '../../view/project';
 import { Icon } from '../Icon';
 import { modeIcon, NewBadge, primaryButton } from '../parts';
 import { ForecastPreview } from './ForecastPreview';
@@ -31,8 +31,15 @@ export function AssignCards(props: {
   scroll: boolean;
   /** 解放されたばかりで、まだ使っていない機能 */
   fresh?: ReadonlySet<FeatureId>;
-  onAssign: (mode: AssignModeId) => void;
+  /** 担当を決める。人間が主な担い手のモードでは、選んだ社員（workerId）を渡す */
+  onAssign: (mode: AssignModeId, workerId?: string) => void;
 }) {
+  // 人間に任せるときの担当者。既定は掛け持ちの最も少ない人（掛け持ちすると遅くなるので、誰が空いているかを見せる）
+  const humans = createMemo(() => humanChoices(props.store.state()));
+  const [human, setHuman] = createSignal<string | null>(null);
+  const pickedHuman = () => human() ?? humans()[0]?.id;
+  const humanMode = (mode: AssignModeId) => primaryActor(getAssignMode(mode)) === 'human';
+  const commit = (mode: AssignModeId) => props.onAssign(mode, humanMode(mode) ? pickedHuman() : undefined);
   const modes = createMemo(() => assignModes.filter((m) => isUnlocked(props.store.state(), modeFeature(m.id))));
   /** そのモードを今選べるか（開始前で、チュートリアル中なら今のステップで許している） */
   const selectable = (mode: AssignModeId) =>
@@ -42,7 +49,7 @@ export function AssignCards(props: {
       projectId: props.projectId,
       taskId: props.row.id,
       mode,
-      workerId: defaultWorkerFor(mode, props.store.state(), props.projectId),
+      workerId: humanMode(mode) ? (pickedHuman() ?? '') : defaultWorkerFor(mode, props.store.state(), props.projectId),
     });
   const [preview, setPreview] = createSignal<AssignModeId | null>(null);
   const [touch, setTouch] = createSignal(false);
@@ -85,7 +92,7 @@ export function AssignCards(props: {
       setPreview(mode);
       return;
     }
-    props.onAssign(mode);
+    commit(mode);
   };
 
   return (
@@ -98,7 +105,7 @@ export function AssignCards(props: {
           <ForecastPreview forecast={forecast()} />
           <Show when={forecast()}>
             {(f) => (
-              <button type="button" class={`${primaryButton} text-sm`} onClick={() => props.onAssign(f().mode)}>
+              <button type="button" class={`${primaryButton} text-sm`} onClick={() => commit(f().mode)}>
                 {t.confirm(ja.modes[f().mode])}
               </button>
             )}
@@ -160,6 +167,20 @@ export function AssignCards(props: {
           )}
         </For>
       </fieldset>
+      <Show when={props.row.editable && humans().length > 1 && modes().some((m) => humanMode(m.id))}>
+        <label class="flex items-center gap-2 text-sm">
+          <Icon name="human" class="text-lg" />
+          <span class="font-bold whitespace-nowrap">{t.humanPick}</span>
+          <select
+            data-human-pick
+            class="min-h-11 min-w-0 rounded-md border-[3px] border-line bg-surface px-2"
+            value={pickedHuman()}
+            onChange={(e) => setHuman(e.currentTarget.value)}
+          >
+            <For each={humans()}>{(h) => <option value={h.id}>{t.humanLoad(h.name, h.load)}</option>}</For>
+          </select>
+        </label>
+      </Show>
       <Show when={!props.row.editable}>
         <p class="text-xs text-ink-muted">{t.locked}</p>
       </Show>

@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import { type Command, reduce } from '../../src/core/commands';
+import { contractOf } from '../../src/core/contract';
 import { generatedProjectId } from '../../src/core/projectGen';
 import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -33,8 +34,8 @@ const variants: readonly LongStrategy[] = [
   skilled,
   { ...skilled, name: 'AI PM に任せる', manager: 'ai' },
   { ...skilled, name: 'Harness に投資しない', harness: false },
-  { ...skilled, name: '安めの見積（−10%）', price: 'minus10' },
-  { ...skilled, name: '高めの見積（+10%）', price: 'plus10' },
+  { ...skilled, name: '控えめに受注（1人0.4件まで）', loadCap: 0.4 },
+  { ...skilled, name: '多めに受注（1人1件まで）', loadCap: 1 },
 ];
 
 const runs = new Map<string, LongRunResult>();
@@ -113,7 +114,7 @@ describe('長く遊ぶ（数年分の自動戦略）', () => {
     for (const u of uplift) expect(u.harness).toBeGreaterThan(u.ai);
   });
 
-  it('1つの戦略（モード・構成・見積の方針・PM の種類）が常に最適にはならない', () => {
+  it('1つの戦略（モード・構成・受注の量・PM の種類）が常に最適にはならない', () => {
     const quarters = run(skilled).quarters.length;
     const bestOf = (metric: (r: LongRunResult, q: number) => number) =>
       Array.from({ length: quarters }, (_, q) => {
@@ -194,8 +195,11 @@ const SMART_APTITUDE = 0.6;
 /** 規模ごとの 利益 / 人日 の平均（人間だけ・AI・AI＋Harness） */
 function sizeUplift(size: 'S' | 'M' | 'L' | 'XL') {
   const sum = { human: 0, ai: 0, harness: 0 };
-  for (let i = 0; i < SIZE_SAMPLES; i++) {
+  // 仕事の進め方だけを比べるので、売上の高い期限厳守の案件は除き、炎上しても続行の案件だけで比べる（core/contract.ts）
+  for (let i = 0, n = 0; n < SIZE_SAMPLES; i++) {
     const projectId = generatedProjectId(`size:${i}`, size);
+    if (contractOf(projectId) !== 'lenient') continue;
+    n++;
     for (const kind of ['human', 'ai', 'harness'] as const)
       sum[kind] += playSized(projectId, kind, `size-${i}`) / SIZE_SAMPLES;
   }

@@ -1,6 +1,7 @@
 import { companyTiers } from '../content/companyTiers';
 import { getProject } from '../content/index';
 import type { Condition } from '../content/types';
+import { isDelivered } from './contract';
 import type { GameState, TaskRun } from './state';
 
 function allTasks(state: GameState): TaskRun[] {
@@ -28,9 +29,7 @@ export function holds(state: GameState, c: Condition): boolean {
         c.count
       );
     case 'projectsCompleted':
-      return (
-        state.ledger.delivered + Object.values(state.projects).filter((p) => p.completedAt !== null).length >= c.count
-      );
+      return state.ledger.delivered + Object.values(state.projects).filter(isDelivered).length >= c.count;
     case 'unlocked':
       return state.unlocked.includes(c.feature);
     case 'taskAssigned': {
@@ -39,14 +38,16 @@ export function holds(state: GameState, c: Condition): boolean {
     }
     case 'taskCompleted':
       return state.projects[c.projectId]?.tasks[c.taskId]?.status === 'done';
-    case 'projectCompleted':
-      return (state.projects[c.projectId]?.completedAt ?? null) !== null;
+    case 'projectCompleted': {
+      const run = state.projects[c.projectId];
+      return run !== undefined && isDelivered(run);
+    }
     case 'templateCompleted':
       return (
         state.ledger.templates.includes(c.templateId) ||
         Object.values(state.projects).some(
           (p) =>
-            p.completedAt !== null &&
+            isDelivered(p) &&
             (p.projectId === c.templateId || getProject(p.projectId).brief?.templateId === c.templateId),
         )
       );

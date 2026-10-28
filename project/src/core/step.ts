@@ -27,11 +27,7 @@ export function stalledProjects(state: GameState): string[] {
     .map((p) => p.projectId);
 }
 
-/**
- * 担当待ち。進められない案件が1つでもあれば、プレイヤーが担当を決めるまで時間を進めない
- * （ほかの案件が動いている間に、受注したばかりの案件や止まった案件の納期だけが減らないようにする）。
- * 案件がなければ（見積の結果待ちなど）止めない
- */
+/** 担当待ち。進められない案件が1つでもあるか（時間はプレイヤーが進めるので止めはしない。判断が要るかは core/turn.ts） */
 export function awaitingAssignment(state: GameState): boolean {
   return stalledProjects(state).length > 0;
 }

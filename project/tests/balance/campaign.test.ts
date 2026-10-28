@@ -55,7 +55,7 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
           console.log(
             `  ${getProject(id).name}：Profit/Person-Day ${fmt(s?.profitPerPersonDay ?? 0)} 円/人日` +
               ` / 受注 ${dayOf(run?.startedAt ?? 0).toFixed(1)} 日目 → 納品 ${dayOf(run?.completedAt ?? 0).toFixed(1)} 日目` +
-              ` / 遅延損失 ${fmt(s?.delayLoss ?? 0)} 円`,
+              `${run?.burningAt !== null ? ' / 炎上' : ''}`,
           );
         }
       }

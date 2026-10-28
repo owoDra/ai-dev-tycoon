@@ -48,7 +48,7 @@ describe('Keyed（キーで対応づける一覧）', () => {
 });
 
 describe('案件ボード', () => {
-  it('時計が進んでも引き合いのカードは作り直さず、選んだ価格と見積を出すボタンが残る', () => {
+  it('時計が進んでも引き合いのカードは作り直さず、受注するボタンとそのフォーカスが残る', () => {
     const store = createGameStore(step(createInitialState('keyed', { board: true, tutorial: false }), 1).state);
     const root = document.createElement('div');
     document.body.append(root);
@@ -57,11 +57,11 @@ describe('案件ボード', () => {
       root,
     );
     const card = root.querySelector<HTMLElement>('[data-inquiry]');
-    const submit = card?.querySelector('[data-submit]');
-    card?.querySelector<HTMLButtonElement>('[data-price="plus10"]')?.click();
+    const accept = card?.querySelector<HTMLButtonElement>('[data-accept]');
+    accept?.focus();
     playFor(store, 30);
     expect(root.querySelector('[data-inquiry]')).toBe(card);
-    expect(card?.querySelector('[data-submit]')).toBe(submit);
-    expect(card?.querySelector('[data-price="plus10"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(card?.querySelector('[data-accept]')).toBe(accept);
+    expect(document.activeElement).toBe(accept);
   });
 });

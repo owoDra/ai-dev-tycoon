@@ -5,6 +5,7 @@ import { expectedImpact } from '../core/attribution';
 import { stageTimes } from '../core/bottleneck';
 import { reduce } from '../core/commands';
 import { getSession } from '../core/context';
+import { isDelivered } from '../core/contract';
 import { averageSkill } from '../core/expectation';
 import { harnessOf } from '../core/harness';
 import type { ResultRecord } from '../core/resultCode';
@@ -194,7 +195,7 @@ export interface GrowthRow {
 /** 会社の成長の推移：納品した案件を納品した順に、人間の時間の減少と Profit / Person-Day の上昇を並べる */
 export function companyGrowth(state: GameState): GrowthRow[] {
   return Object.entries(state.projects)
-    .filter(([, run]) => run.completedAt !== null)
+    .filter(([, run]) => isDelivered(run))
     .sort(([, a], [, b]) => (a.completedAt ?? 0) - (b.completedAt ?? 0))
     .flatMap(([projectId]) => {
       const score = scoreProject(state, projectId);

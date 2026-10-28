@@ -9,14 +9,14 @@ const CHUNK = 30;
 const LIMIT = 60 * 24 * 20;
 
 /**
- * 画面構成の確認ページ（Phase 25）で見せる場面。チュートリアルなしで始めた会社が、届いた引き合いに見積を出して
+ * 画面構成の確認ページ（Phase 25）で見せる場面。チュートリアルなしで始めた会社が、届いた引き合いから
  * 案件を2つ受注し、最初の案件の担当を一部だけ決めて少し進めた状態（問題・タブ・会社の帯が出る）にする。決まった seed で毎回同じになる
  */
 export function layoutScene(): { state: GameState; projectId: string | null } {
   let s = createInitialState('layout-check', { board: true, talent: true, tutorial: false });
   for (let t = 0; t < LIMIT && activeProjects(s).length < 2; t += CHUNK) {
     for (const projectId of openInquiries(s)) {
-      s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
+      s = reduce(s, { type: 'AcceptOrder', projectId }).state;
     }
     s = step(s, CHUNK).state;
   }

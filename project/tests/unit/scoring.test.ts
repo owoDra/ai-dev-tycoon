@@ -20,9 +20,7 @@ describe('scoreProject', () => {
     const { score } = playProject(P, strategies.smart(P), 'score');
     expect(score.completed).toBe(true);
     expect(score.revenue).toBe(def.revenue);
-    expect(score.profit).toBeCloseTo(
-      score.revenue - score.laborCost - score.aiCost - score.reworkCost - score.delayLoss,
-    );
+    expect(score.profit).toBeCloseTo(score.revenue - score.laborCost - score.aiCost - score.reworkCost);
     expect(score.profitPerPersonDay).toBeCloseTo(score.profit / (score.humanMinutes / MINUTES_PER_PERSON_DAY));
     expect(score.humanIntervention).toBeGreaterThan(0);
     expect(score.humanIntervention).toBeLessThanOrEqual(score.humanMinutes);
@@ -38,12 +36,11 @@ describe('scoreProject', () => {
     expect(score.aiCostPerWork).toBe(0);
   });
 
-  it('納品前は売上 0、納期を過ぎると遅延損失が出る', () => {
+  it('納品前は売上 0（納期を過ぎても、売上を日割りで減らす遅延損失はない。期限切れは core/contract.ts が扱う）', () => {
     const started = reduce(createInitialState('s'), { type: 'StartProject', projectId: P }).state;
     const late: GameState = { ...started, clock: deadlineMinutes(def) * 2 };
     const score = scoreProject(late, P);
     expect(score?.revenue).toBe(0);
-    expect(score?.delayLoss).toBeGreaterThan(0);
     expect(score?.profitPerPersonDay).toBe(0);
   });
 

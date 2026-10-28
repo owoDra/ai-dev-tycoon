@@ -3,6 +3,7 @@ import { stageOfPhase } from '../content/assignModes';
 import { findWorker, getProject } from '../content/index';
 import { defaultWorldLookId, type WorldBottleneckLook, worldLooks } from '../content/look/world';
 import type { IncidentId, Stage } from '../content/types';
+import { multitaskShare } from '../core/formulas';
 import { getIncidentDef } from '../core/incidents';
 import type { GameState, TaskRun } from '../core/state';
 import { currentStep } from '../core/taskFlow';
@@ -118,8 +119,10 @@ function worstBottleneck(state: GameState, projectId: string, rows: readonly Tas
     }
   }
   for (const [humanId, queue] of Object.entries(state.humanQueues)) {
-    const waiting = queue.slice(1).filter((q) => q.projectId === projectId);
-    const minutes = waiting.reduce((sum, q) => sum + (state.clock - q.queuedAt), 0);
+    const lost = 1 - multitaskShare(queue.length);
+    const minutes = queue
+      .filter((q) => q.projectId === projectId)
+      .reduce((sum, q) => sum + (state.clock - q.queuedAt) * lost, 0);
     const name = findWorker(humanId)?.name ?? humanId;
     consider({
       minutes,

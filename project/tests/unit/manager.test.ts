@@ -94,7 +94,8 @@ describe('チーム（core/teams.ts）', () => {
     const s = teamed();
     expect(reduce(s, { type: 'SetManager', teamId: 't~2', manager: { kind: 'human', staffId: 'sato' } }).state).toBe(s);
     const pm = managed({ kind: 'human', staffId: PM });
-    const run = step(pm, DAY).state;
+    // 仕事を抱えている間に見る（期限の短い案件は、1日たつと打ち切りや納品で手が空くことがある）
+    const run = step(pm, DAY / 6).state;
     expect(Object.values(run.projects[P]?.tasks ?? {}).some((t) => t.assignment?.workerId === PM)).toBe(false);
     expect(Object.values(run.humanQueues[PM] ?? [])).toHaveLength(0);
     const busy = W.find((id) => (run.humanQueues[id]?.length ?? 0) > 0) ?? '';

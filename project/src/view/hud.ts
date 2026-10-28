@@ -5,6 +5,7 @@ import type { AssignModeId } from '../content/types';
 import { autonomyOf } from '../core/autonomy';
 import { calendarDay, minuteOfDay } from '../core/clock';
 import { reduce } from '../core/commands';
+import { contractOf } from '../core/contract';
 import { expectTask } from '../core/expectation';
 import {
   dailyCost,
@@ -40,14 +41,19 @@ export interface HudView {
   readonly profitPerPersonDay: number;
   /** profitPerPersonDay・projectedProfit が見込みか（納品前） */
   readonly projected: boolean;
-  /** この案件にここまで使った金額（円）。人件費・AI 費用・運営の費用・導入コスト・事故と見逃しの損害・遅延損失 */
+  /** この案件にここまで使った金額（円）。人件費・AI 費用・運営の費用・導入コスト・事故と見逃しの損害・期限切れの損失は評判と企業価値で受ける */
   readonly spent: number;
   /** 受注額（円）。納品すると売上になる */
   readonly revenue: number;
   /** 利益（円）。納品前は今の担当のまま最後まで進めた見込み、納品後は確定値 */
   readonly projectedProfit: number;
-  /** 納期までの残り。超過していれば overdue で、days と time は超過分 */
-  readonly remaining: { readonly days: number; readonly time: string; readonly overdue: boolean };
+  /** 納期までの残り。超過していれば overdue（炎上中）で、days と time は超過分。strict は期限厳守の契約（切れたら打ち切り） */
+  readonly remaining: {
+    readonly days: number;
+    readonly time: string;
+    readonly overdue: boolean;
+    readonly strict: boolean;
+  };
   /** 今日の日付（1日目から）と時刻 */
   readonly today: { readonly day: number; readonly time: string };
   /** 作業中の人間の割合（0〜1） */
@@ -125,7 +131,12 @@ export function hudView(state: GameState, projectId: string): HudView | null {
     spent: score.revenue - score.profit,
     revenue: run.revenue,
     projectedProfit: outlook.profit,
-    remaining: { days: Math.floor(span / perDay), time: hhmm(span % perDay), overdue: left < 0 },
+    remaining: {
+      days: Math.floor(span / perDay),
+      time: hhmm(span % perDay),
+      overdue: left < 0,
+      strict: contractOf(projectId) === 'strict',
+    },
     today: { day: calendarDay(state.clock) + 1, time: hhmm(minuteOfDay(state.clock)) },
     human: humans.length > 0 ? humanBusy / humans.length : 0,
     ai: aiTasks > 0 ? aiBusy / aiTasks : 0,
@@ -162,7 +173,7 @@ function projectedOutlook(
   const skill = humans.reduce((sum, h) => sum + h.skill, 0) / humans.length;
 
   let human = score.aftercareMinutes;
-  let cost = score.reworkCost + score.harnessCost + score.accidentCost + score.delayLoss;
+  let cost = score.reworkCost + score.harnessCost + score.accidentCost;
   for (const task of def.tasks) {
     const t = run.tasks[task.id];
     if (!t) continue;

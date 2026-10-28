@@ -1,9 +1,9 @@
 import { balance } from '../content/balance';
 import { documents } from '../content/documents';
 import { getIndustry, projectTemplates } from '../content/projectTemplates';
-import type { ClientFocus, DocumentDef, ProjectDef, ProjectSize, ProjectTemplateDef, TaskDef } from '../content/types';
+import type { ContractKind, DocumentDef, ProjectDef, ProjectSize, ProjectTemplateDef, TaskDef } from '../content/types';
 import { ja } from '../i18n/ja';
-import { hashSeed, int, next, pick, type RngState } from './rng';
+import { hashSeed, next, pick, type RngState } from './rng';
 
 /*
  * 案件の生成（案件ボードの引き合い）。案件の型（content/projectTemplates.ts）に業種と規模を掛け合わせ、
@@ -14,7 +14,6 @@ import { hashSeed, int, next, pick, type RngState } from './rng';
 
 const PREFIX = 'p~';
 const SIZES: readonly ProjectSize[] = ['S', 'M', 'L', 'XL'];
-const FOCUSES: readonly ClientFocus[] = ['price', 'quality', 'deadline'];
 
 /** 生成した案件の id か */
 export const isGeneratedProjectId = (id: string) => id.startsWith(PREFIX);
@@ -93,11 +92,14 @@ export function generateProject(id: string): ProjectDef | undefined {
   const size = gen.sizes[parsed.size];
   const [template, s1] = pick(hashSeed(`project:${parsed.seed}`), projectTemplates);
   const [industryId, s2] = pick(s1, template.industries);
-  const [focus, s3] = pick(s2, FOCUSES);
+  // 以前のコンペの条件（発注者の性格・予算・競合の数）に使っていた乱数は、同じ案件を生成し続けるために読み飛ばす
+  const [, s3] = next(s2);
   const [client, s4] = pick(s3, ja.projectGen.clients[industryId]);
   const [priceJitter, s5] = uniform(s4, gen.priceJitter);
-  const [budgetRatio, s6] = uniform(s5, gen.budget[focus]);
-  const [rivals, s7] = int(s6, gen.rivals.min, gen.rivals.max);
+  const [, s7] = next(next(s5)[1]);
+  // 契約は別の乱数で決める（案件の中身の生成をずらさない）
+  const [contractRoll] = uniform(hashSeed(`contract:${parsed.seed}`), { min: 0, max: 1 });
+  const contract: ContractKind = contractRoll < balance.contract.strictShare ? 'strict' : 'lenient';
   const industry = getIndustry(industryId);
   const shaped = shapeTasks(template, parsed.size);
   let rng = s7;
@@ -113,21 +115,20 @@ export function generateProject(id: string): ProjectDef | undefined {
       aiAptitude: clamp01(t.aiAptitude + industry.aiAptitude),
     };
   });
-  const revenue = roundTo(template.revenue * size.price * industry.price * priceJitter, gen.priceStep);
+  const premium = contract === 'strict' ? balance.contract.strictPremium : 1;
+  const revenue = roundTo(template.revenue * size.price * industry.price * priceJitter * premium, gen.priceStep);
   const def: ProjectDef = {
     id,
     name: ja.projectGen.name(client, template.name),
     revenue,
-    deadlineDays: Math.max(1, Math.round(template.deadlineDays * size.deadline)),
+    deadlineDays: Math.max(1, Math.round(template.deadlineDays * size.deadline * gen.deadlineScale)),
     tasks,
+    contract,
     brief: {
       templateId: template.id,
       industry: industryId,
       size: parsed.size,
       client,
-      focus,
-      budget: roundTo(revenue * budgetRatio, gen.priceStep),
-      rivals,
     },
   };
   return remember(cache, id, def);

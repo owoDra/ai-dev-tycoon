@@ -25,6 +25,8 @@ export function PlayControls(props: {
   store: GameStore;
   compact: boolean;
   onBoard?: () => void;
+  /** 進み具合の一覧（案件のガントチャートと社員の勤務状態）を開く */
+  onOverview?: () => void;
   onTeam?: () => void;
   /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
   teamWarning?: boolean;
@@ -55,6 +57,17 @@ export function PlayControls(props: {
                 compact={props.compact}
                 onClick={open()}
                 data={{ 'data-menu-board': '' }}
+              />
+            )}
+          </Show>
+          <Show when={props.onOverview}>
+            {(open) => (
+              <MenuButton
+                icon="project"
+                label={ja.overview.open}
+                compact={props.compact}
+                onClick={open()}
+                data={{ 'data-menu-overview': '' }}
               />
             )}
           </Show>

@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -118,6 +118,23 @@ export const MIGRATIONS: readonly Migration[] = [
     from: 19,
     migrate: (state) => (isRecord(state) ? (({ speed, paused, ...rest }) => rest)(state) : state),
   },
+  // v20 → v21：案件の契約と期限切れ（Phase 34）・受注の見直し（Phase 35）。どの案件も炎上・打ち切りなしで、失った企業価値は 0 から。
+  // コンペの結果の履歴を落とす
+  {
+    from: 20,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.projects)) return state;
+      const projects = Object.fromEntries(
+        Object.entries(state.projects).map(([id, p]) => [
+          id,
+          isRecord(p) ? { ...p, burningAt: null, cancelled: null } : p,
+        ]),
+      );
+      // コンペの結果の履歴は、受注の見直し（Phase 35）でなくした
+      const board = isRecord(state.board) ? (({ results, ...rest }) => rest)(state.board) : state.board;
+      return { ...state, projects, board, valuationHit: 0 };
+    },
+  },
 ];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
@@ -194,6 +211,7 @@ function isGameState(v: unknown): v is GameState {
     typeof v.idleCost === 'number' &&
     (v.board === null || (isRecord(v.board) && Array.isArray(v.board.inquiries))) &&
     typeof v.reputation === 'number' &&
+    typeof v.valuationHit === 'number' &&
     typeof v.tier === 'string' &&
     typeof v.officeCost === 'number' &&
     Array.isArray(v.agents) &&

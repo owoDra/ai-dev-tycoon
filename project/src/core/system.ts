@@ -2,6 +2,7 @@ import { archiveSystem } from './archive';
 import { autonomySystem } from './autonomy';
 import { boardSystem } from './board';
 import { bottleneckSystem } from './bottleneck';
+import { contractSystem } from './contract';
 import type { GameEvent } from './events';
 import { fiscalSystem } from './fiscal';
 import { humanQueueSystem } from './humanQueueSystem';
@@ -45,8 +46,10 @@ export const defaultSystems: readonly System[] = [
   marketSystem,
   // 営業日の始まり：資金の確認・後半の事件・実績・期の終わりなら決算
   fiscalSystem,
-  // 締切を迎えた引き合いのコンペの結果を出す（受注した案件はこのステップから進む）
+  // 受付の締切を過ぎた引き合いを消す
   boardSystem,
+  // 期限を過ぎた案件を打ち切るか炎上させる。失った企業価値を営業日ごとに戻す
+  contractSystem,
   // 委任されたチームの管理者が、担当の決まっていない Task の担当を決める（Command を reduce に通す）
   managerSystem,
   // 管理者の運営の費用（人間 PM の稼働・AI PM の AI 費用と使用量）

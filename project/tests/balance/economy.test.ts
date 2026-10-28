@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import type { ProjectSize } from '../../src/content/types';
-import { estimatePersonDays, type PriceStep, priceSteps, quoteBid } from '../../src/core/bidding';
 import { openInquiries, postInquiries } from '../../src/core/board';
+import { contractOf } from '../../src/core/contract';
 import { dailyCost, laborCost } from '../../src/core/formulas';
+import { orderTerms } from '../../src/core/orders';
 import { generatedProjectId } from '../../src/core/projectGen';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
@@ -22,15 +23,19 @@ const median = (xs: readonly number[]) => [...xs].sort((a, b) => a - b)[Math.flo
 const average = { dailyRate: balance.talent.rate.mean };
 
 describe('人件費の縮尺', () => {
-  it('見積の「人間だけの人件費」は、人間だけで進めたときの実際の人件費とおおむね揃う（規模によらない）', () => {
+  it('標準価格から見積もった「人間だけの人件費」（標準価格 × 原価率）は、人間だけで進めたときの実際の人件費とおおむね揃う（規模によらない）', () => {
     for (const size of ['S', 'M', 'L', 'XL'] as const satisfies readonly ProjectSize[]) {
-      const ratios = Array.from({ length: 80 }, (_, i) => {
-        const def = getProject(generatedProjectId(`economy:${i}`, size));
-        const minutes = def.tasks.reduce((sum, t) => sum + t.effort, 0);
-        const actual = laborCost(minutes, dailyCost(average));
-        const estimate = estimatePersonDays(def) * balance.talent.rate.mean * balance.staff.costRatio;
-        return actual / estimate;
-      });
+      // 期限厳守の案件は標準価格に割増が乗るので、炎上しても続行の案件で比べる
+      const ids = Array.from({ length: 160 }, (_, i) => generatedProjectId(`economy:${i}`, size));
+      const ratios = ids
+        .filter((id) => contractOf(id) === 'lenient')
+        .slice(0, 80)
+        .map((id) => {
+          const def = getProject(id);
+          const minutes = def.tasks.reduce((sum, t) => sum + t.effort, 0);
+          const actual = laborCost(minutes, dailyCost(average));
+          return actual / (def.revenue * balance.staff.costRatio);
+        });
       const m = median(ratios);
       expect(m, size).toBeGreaterThan(0.5);
       expect(m, size).toBeLessThan(1.5);
@@ -56,37 +61,21 @@ describe('序盤の資金（失敗しても立て直せる）', () => {
   });
 });
 
-describe('見積の最善は評判で変わる', () => {
-  it('評判が低いと安めの見積が、高いと高めの見積が、期待利益（勝率 ×（見積額 − 人間だけの人件費））で最善になりやすい', () => {
-    const bestAt = (reputation: number) => {
-      const counts: Partial<Record<PriceStep, number>> = {};
-      for (let n = 0; n < 12; n++) {
-        const s = withInquiries(`best:${n}`, reputation);
-        for (const id of openInquiries(s)) {
-          const def = getProject(id);
-          const labor = estimatePersonDays(def) * balance.talent.rate.mean * balance.staff.costRatio;
-          const expected = (p: PriceStep) => {
-            const q = quoteBid(s, id, p, 'standard');
-            return q.winChance * (q.amount - labor);
-          };
-          const best = [...priceSteps].sort((a, b) => expected(b) - expected(a))[0];
-          if (best) counts[best] = (counts[best] ?? 0) + 1;
-        }
+describe('報酬は評判で変わる', () => {
+  it('同じ引き合いでも、評判が高いほど受注したときの報酬が高い（評判を守る価値がある）', () => {
+    let higher = 0;
+    let total = 0;
+    for (let n = 0; n < 12; n++) {
+      const low = withInquiries(`best:${n}`, 10);
+      const high = { ...low, reputation: 95 };
+      for (const id of openInquiries(low)) {
+        total++;
+        if (orderTerms(high, id).revenue > orderTerms(low, id).revenue) higher++;
+        expect(orderTerms(high, id).deadlineDays).toBe(orderTerms(low, id).deadlineDays);
       }
-      return counts;
-    };
-    const rank = (p: PriceStep) => priceSteps.indexOf(p);
-    const meanRank = (counts: Partial<Record<PriceStep, number>>) => {
-      const entries = Object.entries(counts) as [PriceStep, number][];
-      const total = entries.reduce((sum, [, c]) => sum + c, 0);
-      return entries.reduce((sum, [p, c]) => sum + rank(p) * c, 0) / Math.max(1, total);
-    };
-    const low = bestAt(10);
-    const high = bestAt(95);
-    console.log(`[経済] 期待利益で最善の価格：評判10 ${JSON.stringify(low)} / 評判95 ${JSON.stringify(high)}`);
-    // 評判が高いほど、最善の価格は高い側に寄る。どちらの評判でも、1つの価格がすべての引き合いで最善にはならない
-    expect(meanRank(high)).toBeGreaterThan(meanRank(low));
-    expect(Object.keys(high).length).toBeGreaterThan(1);
+    }
+    expect(total).toBeGreaterThan(0);
+    expect(higher).toBe(total);
   });
 });
 

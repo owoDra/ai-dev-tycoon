@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(20);
+    expect(SAVE_VERSION).toBe(21);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -104,18 +104,16 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
 });
 
 describe('コンペの結果の見送り（core/serialize.ts の v15 → v16）', () => {
-  it('旧形式の結果の won を、受注・失注の outcome に読み替える', () => {
+  it('旧形式の結果の won を読み替えたうえで、受注の見直し（v20 → v21）で結果の履歴ごと落とし、引き合いは残す', () => {
     const state = createInitialState('v15', { board: true });
     const results = [
       { projectId: 'p~1~S', won: true, amount: 1, winChance: 0.5, at: 0 },
       { projectId: 'p~2~S', won: false, amount: 2, winChance: 0.2, at: 0 },
     ];
-    const old = { saveVersion: 15, state: { ...state, board: { day: 0, inquiries: [], results } } };
+    const inquiries = [{ projectId: 'p~3~S', postedDay: 0, closesAt: 900 }];
+    const old = { saveVersion: 15, state: { ...state, board: { day: 0, inquiries, results } } };
     const s = deserialize(JSON.stringify(old));
-    expect(s.board?.results).toEqual([
-      { projectId: 'p~1~S', outcome: 'won', amount: 1, winChance: 0.5, at: 0 },
-      { projectId: 'p~2~S', outcome: 'lost', amount: 2, winChance: 0.2, at: 0 },
-    ]);
+    expect(s.board).toEqual({ day: 0, inquiries });
   });
 });
 
@@ -144,5 +142,23 @@ describe('速度と一時停止をなくす（core/serialize.ts の v19 → v20�
     expect(s).toEqual(state);
     expect(s).not.toHaveProperty('speed');
     expect(s).not.toHaveProperty('paused');
+  });
+});
+
+describe('案件の契約と受注の見直し（core/serialize.ts の v20 → v21）', () => {
+  it('進めている案件は炎上・打ち切りなしで読み込み、失った企業価値は 0、コンペの結果の履歴は落とす', () => {
+    const fresh = createInitialState('v20', { board: true });
+    const state = reduce(fresh, { type: 'StartProject', projectId: 'tutorialLp' }).state;
+    const { valuationHit, ...rest } = state;
+    const projects = Object.fromEntries(
+      Object.entries(state.projects).map(([id, p]) => [id, (({ burningAt, cancelled, ...r }) => r)(p)]),
+    );
+    const board = { ...state.board, results: [{ projectId: 'p~1~S', outcome: 'won', amount: 1, winChance: 1, at: 0 }] };
+    const old = { saveVersion: 20, state: { ...rest, projects, board } };
+    const s = deserialize(JSON.stringify(old));
+    expect(s).toEqual(state);
+    expect(s.projects.tutorialLp).toMatchObject({ burningAt: null, cancelled: null });
+    expect(s.valuationHit).toBe(0);
+    expect(s.board).not.toHaveProperty('results');
   });
 });

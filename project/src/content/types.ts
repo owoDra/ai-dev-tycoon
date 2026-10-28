@@ -65,8 +65,8 @@ export interface ProjectDef {
   readonly id: string;
   readonly name: string;
   /**
-   * 売上（円）。生成した案件では市場の標準価格（見積の基準。core/bidding.ts）で、受注した案件の売上は見積額になる
-   * （core/state.ts の ProjectRun.revenue）
+   * 売上（円）。生成した案件では市場の標準価格（期限厳守の割増を含む）で、受注した案件の売上はこれを評判で上下させた額になる
+   * （core/orders.ts の orderTerms・core/state.ts の ProjectRun.revenue）
    */
   readonly revenue: number;
   /** 納期（営業日）。生成した案件では標準の納期で、受注した案件の納期は提案した納期になる */
@@ -74,7 +74,15 @@ export interface ProjectDef {
   readonly tasks: readonly TaskDef[];
   /** 生成した案件（core/projectGen.ts）の素性。固定の案件にはない */
   readonly brief?: ProjectBrief;
+  /** 契約。省けば炎上しても続行（lenient） */
+  readonly contract?: ContractKind;
 }
+
+/**
+ * 案件の契約（core/contract.ts）。strict：期限厳守（期限が切れたらその場で打ち切り、入金なし。売上が高め）/
+ * lenient：炎上しても続行（期限が切れたら炎上案件になり、作業を続ける。納品すれば元の売上が入る）
+ */
+export type ContractKind = 'strict' | 'lenient';
 
 /** 案件の規模。Task の数・作業量・品質要求・納期・価格が変わる（balance.projectGen.sizes） */
 export type ProjectSize = 'S' | 'M' | 'L' | 'XL';
@@ -82,10 +90,7 @@ export type ProjectSize = 'S' | 'M' | 'L' | 'XL';
 /** 発注者の業種。文言は i18n の ja.projectGen.industries、補正は content/projectTemplates.ts の industries */
 export type IndustryId = 'ec' | 'saas' | 'internal' | 'media' | 'payment';
 
-/** 発注者の性格。コンペで何を重く見るか（balance.bid.focus） */
-export type ClientFocus = 'price' | 'quality' | 'deadline';
-
-/** 生成した案件の素性。コンペ（core/bidding.ts）と案件ボードの表示に使う */
+/** 生成した案件の素性。案件ボードの表示と、実績の数え方（業種・型）に使う */
 export interface ProjectBrief {
   /** 案件の型（content/projectTemplates.ts の id） */
   readonly templateId: string;
@@ -93,11 +98,6 @@ export interface ProjectBrief {
   readonly size: ProjectSize;
   /** 発注者の名前 */
   readonly client: string;
-  readonly focus: ClientFocus;
-  /** 予算の上限（円）。これを超える見積は選ばれない */
-  readonly budget: number;
-  /** 競合の数 */
-  readonly rivals: number;
 }
 
 /**
@@ -629,6 +629,8 @@ export interface CompanyTierDef {
   readonly maxTeams: number;
   /** 管理者（人間 PM / AI PM）を置けるか */
   readonly managers: boolean;
+  /** 同時に進められる案件の数（core/orders.ts） */
+  readonly maxProjects: number;
   /** 営業日ごとに届く引き合いの数 */
   readonly inquiries: number;
   /** 引き合いに出る案件の規模の重み */

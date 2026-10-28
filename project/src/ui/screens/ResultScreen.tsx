@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import type { GameStore } from '../../app/store';
 import { textureUrl } from '../../assets/registry';
 import { attributeProject, type Impact } from '../../core/attribution';
-import { deliveryRating } from '../../core/bidding';
+import { deliveryRating } from '../../core/orders';
 import { encodeResultCode } from '../../core/resultCode';
 import { feel } from '../../fx/feel';
 import { countUp, enter, morph, pop, prefersReducedMotion } from '../../fx/motion';

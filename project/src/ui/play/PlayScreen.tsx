@@ -62,6 +62,7 @@ import { HarnessSheet } from './HarnessSheet';
 import { IslandLabels } from './IslandLabels';
 import { LibrarySheet } from './LibrarySheet';
 import { NoticeHost } from './NoticeHost';
+import { OverviewSheet } from './OverviewSheet';
 import { PlayControls } from './PlayControls';
 import { ProblemToasts } from './ProblemToasts';
 import { SaveWorkflowForm } from './SaveWorkflowForm';
@@ -207,6 +208,13 @@ export function PlayScreen(props: {
           notices.push({ text: ja.notices.incident(name), icon: getIncidentDef(e.incident).icon, tone: 'danger' });
         }
         if (e.type === 'BottleneckChanged') showBottleneckMove(e.bottleneck);
+        if (e.type === 'ProjectBurning') {
+          notices.push({ text: ja.notices.burning(getProject(e.projectId).name), icon: 'warning', tone: 'danger' });
+        }
+        if (e.type === 'ProjectCancelled') {
+          const name = getProject(e.projectId).name;
+          notices.push({ text: ja.notices.cancelled(name, e.reason), icon: 'failure', tone: 'danger' });
+        }
         if (e.type === 'IncidentResolved') {
           notices.push({ text: ja.notices.incidentResolved(ja.incidents[e.incident].name), icon: 'success' });
         }
@@ -331,7 +339,7 @@ export function PlayScreen(props: {
         if (e.type === 'InquiriesPosted' && e.projectIds.length > 0) {
           notices.push({ text: ja.board.posted(e.projectIds.length), icon: 'project', tone: 'neutral' });
         }
-        if (e.type === 'BidWon') {
+        if (e.type === 'OrderAccepted') {
           const projectId = e.projectId;
           const open = props.onSwitch;
           notices.push({
@@ -344,12 +352,6 @@ export function PlayScreen(props: {
                 ? { label: ja.board.openProject, run: () => open(projectId) }
                 : undefined,
           });
-        }
-        if (e.type === 'BidLost') {
-          notices.push({ text: ja.board.lost(getProject(e.projectId).name), icon: 'failure', tone: 'neutral' });
-        }
-        if (e.type === 'InquiryPassed') {
-          notices.push({ text: ja.board.passed(getProject(e.projectId).name), icon: 'clock', tone: 'neutral' });
         }
         // 直轄の案件の納品はモーダルで知らせる（app/App.tsx）ので、管理者に任せた案件だけ
         if (
@@ -424,6 +426,7 @@ export function PlayScreen(props: {
     setTeamOpen(false);
     setLibraryOpen(false);
     setBoardOpen(false);
+    setOverviewOpen(false);
   };
   /** シートを閉じてから、別の案件のフロアか振り返りへ移る（シートの中の「開く」「振り返り」のボタン） */
   const leaveTo = (go: ((projectId: string) => void) | undefined) =>
@@ -474,6 +477,16 @@ export function PlayScreen(props: {
       closeSheets();
       setTeamOpen(true);
       see('team');
+    });
+  };
+  // 進み具合の一覧（案件のガントチャートと社員の勤務状態）。案件ボードのある会社で、チュートリアルの後
+  const [overviewOpen, setOverviewOpen] = createSignal(false);
+  const overviewOn = () => props.store.state().board !== null && props.store.state().tutorial === null;
+  const openOverview = () => {
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setOverviewOpen(true);
     });
   };
   // 案件ボード（ホームとプレイの上に開くシート）。チュートリアルの間は開かない
@@ -570,13 +583,13 @@ export function PlayScreen(props: {
     focusCamera(advice.entityId);
   };
 
-  const assign = (taskId: string, mode: AssignModeId) => {
+  const assign = (taskId: string, mode: AssignModeId, workerId?: string) => {
     props.store.dispatch({
       type: 'AssignTask',
       projectId: pid(),
       taskId,
       mode,
-      workerId: defaultWorkerFor(mode, props.store.state(), pid()),
+      workerId: workerId ?? defaultWorkerFor(mode, props.store.state(), pid()),
     });
     notices.push({ text: ja.assign.assigned(getTask(pid(), taskId).name, ja.modes[mode]), icon: 'success' });
     if (!layout().flow.keepDetailAfterAssign) close();
@@ -607,7 +620,7 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
-        if (contextOpen() || harnessOpen() || teamOpen() || libraryOpen() || boardOpen()) {
+        if (contextOpen() || harnessOpen() || teamOpen() || libraryOpen() || boardOpen() || overviewOpen()) {
           e.preventDefault();
           closeSheets();
           return;
@@ -660,6 +673,7 @@ export function PlayScreen(props: {
       compact={form().form.controls !== 'labeled'}
       part={part}
       onBoard={boardOn() ? openBoard : undefined}
+      onOverview={overviewOn() ? openOverview : undefined}
       onTeam={teamOn() ? openTeam : undefined}
       teamWarning={usageWarning(props.store.state())}
       onHarness={harnessOn() ? openHarness : undefined}
@@ -861,6 +875,19 @@ export function PlayScreen(props: {
           />
         )}
       </Presence>
+      <Presence when={overviewOpen() && overviewOn()} enter={false} class="pointer-events-auto">
+        {() => (
+          <OverviewSheet
+            store={props.store}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            maxHeight={regions().sheet.height}
+            onClose={() => setOverviewOpen(false)}
+            onOpen={leaveTo(props.onSwitch)}
+          />
+        )}
+      </Presence>
       <Presence when={boardOpen() && boardOn()} enter={false} class="pointer-events-auto">
         {() => (
           <BoardSheet
@@ -870,8 +897,6 @@ export function PlayScreen(props: {
             viewHeight={view().height}
             maxHeight={regions().sheet.height}
             onClose={() => setBoardOpen(false)}
-            onOpen={leaveTo(props.onSwitch)}
-            onReview={leaveTo(props.onReview)}
           />
         )}
       </Presence>

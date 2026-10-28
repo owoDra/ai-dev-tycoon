@@ -35,12 +35,15 @@ export function profitPace(state: GameState, profit: number): number {
   return days > 0 ? ((profit - base.profit) / days) * v.businessDaysPerYear : 0;
 }
 
-/** 時価総額（円）= 資金 + 利益のペース（マイナスなら 0）× 倍率 × 評判の補正。0 を下回らない */
+/**
+ * 時価総額（円）= 資金 + 利益のペース（マイナスなら 0）× 倍率 × 評判の補正 − 期限切れ・打ち切りで失った分（core/contract.ts）。0 を下回らない
+ */
 export function valuationOf(state: GameState, profit: number = scoreCompany(state).profit): number {
   const v = balance.valuation;
   const r = balance.reputation;
   const reputation = 1 + ((state.reputation - r.initial) / (r.max - r.min)) * v.reputationWeight;
-  return Math.max(0, cashFromProfit(profit) + Math.max(0, profitPace(state, profit)) * v.multiple * reputation);
+  const value = cashFromProfit(profit) + Math.max(0, profitPace(state, profit)) * v.multiple * reputation;
+  return Math.max(0, value - state.valuationHit);
 }
 
 /** 推移に1点足す。上限を超えたら1つおきに間引いて（最新は残す）記録の間隔を倍にする */

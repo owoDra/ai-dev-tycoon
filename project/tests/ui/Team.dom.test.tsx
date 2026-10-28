@@ -5,10 +5,9 @@ import { getHuman, getProject } from '../../src/content/index';
 import { screenRegions, uiLayout } from '../../src/content/look/layout';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
-import { quoteBid } from '../../src/core/bidding';
 import { openInquiries } from '../../src/core/board';
 import { tierOf } from '../../src/core/company';
-import { hashSeed, next } from '../../src/core/rng';
+import { maxProjects, orderTerms } from '../../src/core/orders';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
@@ -133,12 +132,12 @@ describe('複数案件の同時進行', () => {
     expect(q('[data-project-tab]')).toBeNull();
   });
 
-  it('案件を進めている間に見積を出していない引き合いがあると、案件ボードのシートを開くボタンとオフィスのタブが出る', () => {
+  it('案件を進めている間に受注していない引き合いがあると、案件ボードのシートを開くボタンとオフィスのタブが出る', () => {
     const store = createGameStore(createInitialState('c', { board: true, tutorial: false }));
     store.dispatch({ type: 'StartProject', projectId: P });
     const s = store.state();
-    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 420, bid: null };
-    const offered: GameState = { ...s, board: { day: 0, inquiries: [inquiry], results: [] } };
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 420 };
+    const offered: GameState = { ...s, board: { day: 0, inquiries: [inquiry] } };
     const { q, homes } = mount(offered, P);
     const button = q<HTMLButtonElement>('[data-board-open]');
     expect(button?.textContent).toContain(ja.board.offers(1));
@@ -166,7 +165,7 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
     const sheet = q('[data-board-sheet]');
     expect(sheet).not.toBeNull();
     expect(sheet?.querySelectorAll('[data-inquiry]').length).toBeGreaterThan(0);
-    // ボードは「引き合い」と「コンペ結果」だけ（進行中の案件の一覧と「再開」はない）
+    // ボードは「引き合い」だけ（進行中の案件の一覧と「再開」はない）
     expect(sheet?.querySelector('[data-resume]')).toBeNull();
     expect(sheet?.querySelector('[data-board-project]')).toBeNull();
     q<HTMLButtonElement>('[data-board-close]')?.click();
@@ -202,21 +201,12 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
   });
 });
 
-/** 次の乱数で、勝率 chance の見積に勝つ乱数の状態にした state（勝敗の乱数は tests/unit/bidding.test.ts で確かめる） */
-function rigged(state: GameState, chance: number): GameState {
-  for (let n = 0; ; n++) {
-    const rng = hashSeed(`win-${n}`);
-    if (next(rng)[0] < chance) return { ...state, rng };
-  }
-}
-
-/** 見積を1件出して勝つ会社と、受注した案件の id。見積を出す直前（勝つ乱数にした）の state も返す */
+/** 引き合いを1件受注した会社と、受注した案件の id。受注する直前の state も返す */
 function wonCompany() {
-  const s = offeredCompany();
-  const id = openInquiries(s)[0] ?? '';
-  const before = rigged(s, quoteBid(s, id, 'base', 'standard').winChance);
+  const before = offeredCompany();
+  const id = openInquiries(before)[0] ?? '';
   const store = createGameStore(before);
-  store.dispatch({ type: 'SubmitBid', projectId: id, price: 'base', deadline: 'standard' });
+  store.dispatch({ type: 'AcceptOrder', projectId: id });
   return { id, before, after: store.state() };
 }
 
@@ -250,28 +240,12 @@ describe('受注・納品した案件への導線', () => {
     const store0 = createGameStore(before);
     store0.dispatch({ type: 'StartProject', projectId: P });
     const { store, q, switched } = mount(store0.state(), P);
-    store.dispatch({ type: 'SubmitBid', projectId: id, price: 'base', deadline: 'standard' });
+    store.dispatch({ type: 'AcceptOrder', projectId: id });
     expect(store.state().projects[id]).toBeDefined();
     const action = q<HTMLButtonElement>('[data-notice-action]');
     expect(action?.textContent).toBe(ja.board.openProject);
     action?.click();
     expect(switched).toEqual([id]);
-  });
-
-  it('案件ボードの結果の受注行から、進行中なら案件を開き、納品済みなら振り返りを開く', () => {
-    const { id, after } = wonCompany();
-    const open = mount(after, null);
-    open.q<HTMLButtonElement>('[data-board-open]')?.click();
-    open.q<HTMLButtonElement>('[data-bid-result-action="open"]')?.click();
-    expect(open.switched).toEqual([id]);
-    expect(open.q('[data-board-sheet]')).toBeNull();
-    dispose();
-    document.body.innerHTML = '';
-    const done = mount(delivered(after, id), null);
-    done.q<HTMLButtonElement>('[data-board-open]')?.click();
-    expect(done.q('[data-bid-result-action="open"]')).toBeNull();
-    done.q<HTMLButtonElement>('[data-bid-result-action="review"]')?.click();
-    expect(done.reviewed).toEqual([id]);
   });
 
   it('社員と Seat のシートの「実績」から、納品した案件の振り返りを開ける', () => {
@@ -286,25 +260,24 @@ describe('受注・納品した案件への導線', () => {
 });
 
 describe('案件ボードとタイトル', () => {
-  it('案件ボードで見積を出すとその場で結果が出て、コンペに勝って受注した案件がドックのタブに並ぶ', () => {
-    const base = step(createInitialState('c', { board: true, tutorial: false }), 1).state;
+  it('案件ボードで「受注する」を押すとその場で受注し、受注した案件がドックのタブに並ぶ', () => {
+    const base = offeredCompany();
     const id = openInquiries(base)[0] ?? '';
-    const quote = quoteBid(base, id, 'minus20', 'standard');
-    const { store, root } = mount(rigged(base, quote.winChance), null);
+    const terms = orderTerms(base, id);
+    const { store, root } = mount(base, null);
     root.querySelector<HTMLButtonElement>('[data-board-open]')?.click();
     const cards = [...root.querySelectorAll<HTMLElement>('[data-inquiry]')].map((e) => e.dataset.inquiry ?? '');
     expect(cards.length).toBe(tierOf(base).inquiries);
     expect(cards[0]).toBe(id);
     const card = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
-    card?.querySelector<HTMLButtonElement>('[data-price="minus20"]')?.click();
-    const shown = card?.querySelector('[data-win-after]')?.textContent;
-    card?.querySelector<HTMLButtonElement>('[data-submit]')?.click();
-    // 表示した勝率で見積を出し、その場で受注する（売上は見積額）
-    expect(shown).toBe(ja.score.percent(quote.winChance));
+    // カードには受注の条件（報酬・納期・契約）が出る
+    expect(card?.textContent).toContain(ja.board.amount(terms.revenue));
+    expect(card?.textContent).toContain(ja.board.deadlineDays(terms.deadlineDays));
+    expect(card?.querySelector('[data-contract]')).not.toBeNull();
+    card?.querySelector<HTMLButtonElement>('[data-accept]')?.click();
     const after = store.state();
-    expect(after.board?.results[0]).toMatchObject({ projectId: id, outcome: 'won', winChance: quote.winChance });
-    expect(after.projects[id]?.revenue).toBe(quote.amount);
-    // 結果の出た引き合いのカードは消え、結果の一覧に受注として並ぶ
+    expect(after.projects[id]).toMatchObject({ revenue: terms.revenue, deadlineDays: terms.deadlineDays });
+    // 受注した引き合いのカードは消える
     expect(root.querySelector(`[data-inquiry="${id}"]`)).toBeNull();
     // ホームのドックのタブに並んで開ける
     dispose?.();
@@ -312,6 +285,22 @@ describe('案件ボードとタイトル', () => {
     const home = mount(after, null);
     home.q<HTMLButtonElement>(`[data-project-tab="${id}"]`)?.click();
     expect(home.switched).toEqual([id]);
+  });
+
+  it('同時に進められる数に達していると、「受注する」を押しても受注せず、理由が出る', () => {
+    let s = offeredCompany();
+    const ids = openInquiries(s);
+    const store0 = createGameStore(s);
+    for (const id of ids.slice(0, maxProjects(s))) store0.dispatch({ type: 'AcceptOrder', projectId: id });
+    s = store0.state();
+    const rest = openInquiries(s)[0] ?? '';
+    expect(rest).not.toBe('');
+    const { store, q } = mount(s, null);
+    q<HTMLButtonElement>('[data-board-open]')?.click();
+    const card = q(`[data-inquiry="${rest}"]`);
+    expect(card?.querySelector('[data-blocked]')?.textContent).toContain(ja.board.full);
+    card?.querySelector<HTMLButtonElement>('[data-accept]')?.click();
+    expect(store.state()).toBe(s);
   });
 
   it('以前の形式のセーブが残っていれば、タイトルで読み込めないことを知らせる', () => {

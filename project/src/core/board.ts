@@ -2,10 +2,10 @@ import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import { tutorialScript } from '../content/tutorial';
 import type { CompanyTierDef, ProjectSize } from '../content/types';
-import { closeInquiries } from './bidding';
 import { businessDay } from './clock';
 import { tierOf } from './company';
 import type { GameEvent } from './events';
+import { expireInquiries } from './orders';
 import { generatedProjectId } from './projectGen';
 import { hashSeed, weighted } from './rng';
 import type { GameState } from './state';
@@ -13,7 +13,7 @@ import type { System } from './system';
 
 /*
  * 案件ボード。チュートリアルを終えた会社には、営業日ごとに引き合い（生成した案件）が届く。
- * 引き合いに見積を出すと、その場でコンペの結果が出る（core/bidding.ts）。見積を出さずに応募の締切（規模に応じて数営業日後の夕方）を迎えると見送りになる。
+ * 引き合いは選べば必ず受注できる（core/orders.ts）。受付の締切（規模に応じて数営業日後の夕方）を過ぎるとボードから消える。
  * 届く案件は、ゲームの seed と営業日から決まる（state の乱数は使わない）。
  */
 
@@ -57,13 +57,13 @@ export function activeProjects(state: GameState): string[] {
     .map((p) => p.projectId);
 }
 
-/** 案件を直接始められるか。案件ボードのある会社では、チュートリアルの間のチュートリアルの案件だけ（ほかはコンペで受注する） */
+/** 案件を直接始められるか。案件ボードのある会社では、チュートリアルの間のチュートリアルの案件だけ（ほかは引き合いから受注する。core/orders.ts） */
 export function canStartProject(state: GameState, projectId: string): boolean {
   if (state.projects[projectId]) return false;
   return state.board === null || (state.tutorial !== null && projectId === tutorialScript.projectId);
 }
 
-/** 応募の締切前で、まだ見積を出していない引き合い */
+/** 受付の締切前で、まだ受注していない引き合い */
 export function openInquiries(state: GameState): string[] {
   return (state.board?.inquiries ?? []).map((i) => i.projectId);
 }
@@ -85,5 +85,5 @@ export function postInquiries(state: GameState, emit: (e: GameEvent) => void): G
   return { ...state, board: { ...board, day, inquiries: [...board.inquiries, ...posted] } };
 }
 
-/** 見積を出さずに締切を迎えた引き合いを見送る */
-export const boardSystem: System = (state, ctx) => closeInquiries(state, ctx.emit);
+/** 受付の締切を過ぎた引き合いを消す */
+export const boardSystem: System = (state) => expireInquiries(state);

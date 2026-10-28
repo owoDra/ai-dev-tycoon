@@ -6,18 +6,18 @@ import { content, findProject, findWorker } from '../content/index';
 import { seats } from '../content/seats';
 import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
 import { modeFeature } from '../content/unlocks';
-import { type DeadlineStep, type PriceStep, submitBid } from './bidding';
 import { canStartProject } from './board';
 import { answerPoach } from './companyEvents';
 import { newSession, updateSession } from './context';
+import { cancelProject } from './contract';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
 import { isBankrupt } from './funds';
 import { applyPreset, equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
+import { acceptOrder } from './orders';
 import { settleProgress } from './progress';
-import { createRngCursor } from './rng';
 import type { ManagerRun } from './state';
 import { createProjectRun, type GameState, notePlayerAssigned, updateTask } from './state';
 import { hire, inTeam, release, setSeat } from './team';
@@ -38,17 +38,14 @@ import { isUnlocked, seeFeatures } from './unlocks';
 export type Command =
   /** 解放した機能を見た（メニューの入口を開いた）ことにして、「NEW」の印を外す */
   | { readonly type: 'SeeFeatures'; readonly features: readonly FeatureId[] }
+  /** 進行中の案件を会社側から打ち切る（入金なし。評判と企業価値が大きく下がる。core/contract.ts） */
+  | { readonly type: 'CancelProject'; readonly projectId: string }
   /**
-   * 案件を始める。案件ボードのある会社では、チュートリアルの案件だけ（ほかの案件はコンペで受注する）。進行中の案件と同時に進められる
+   * 案件を始める。案件ボードのある会社では、チュートリアルの案件だけ（ほかの案件は引き合いから受注する）。進行中の案件と同時に進められる
    */
   | { readonly type: 'StartProject'; readonly projectId: string }
-  /** 案件ボードの引き合いに見積を出す（その場で受注か失注が決まる）。価格と納期は選択肢から選ぶ（core/bidding.ts） */
-  | {
-      readonly type: 'SubmitBid';
-      readonly projectId: string;
-      readonly price: PriceStep;
-      readonly deadline: DeadlineStep;
-    }
+  /** 案件ボードの引き合いを受注する（必ず受注できる。同時に進められる数まで。core/orders.ts） */
+  | { readonly type: 'AcceptOrder'; readonly projectId: string }
   /** 採用市場の候補を採用する。契約金を払って入社する。人員の上限に達していたらできない */
   | { readonly type: 'Hire'; readonly staffId: string }
   /** 社員を退職させる。担当している Task が終わっていなければできない。最後の1人は退職できない */
@@ -150,20 +147,22 @@ function apply(state: GameState, command: Command): Transition {
   switch (command.type) {
     case 'SeeFeatures':
       return { state: seeFeatures(state, command.features), events: [] };
+    case 'CancelProject': {
+      if (state.tutorial || !state.board) return unchanged(state);
+      const events: GameEvent[] = [];
+      const next = cancelProject(state, command.projectId, 'cancelled', (e) => events.push(e));
+      return { state: next, events };
+    }
     case 'StartProject': {
       const def = findProject(command.projectId);
       if (!def || !canStartProject(state, def.id)) return unchanged(state);
       const run = createProjectRun(def.id, state.clock);
       return { state: { ...state, projects: { ...state.projects, [def.id]: run } }, events: [] };
     }
-    case 'SubmitBid': {
-      const { projectId, price, deadline } = command;
-      if (!(price in balance.bid.prices) || !(deadline in balance.bid.deadlines)) return unchanged(state);
-      const rng = createRngCursor(state.rng);
+    case 'AcceptOrder': {
       const events: GameEvent[] = [];
-      const next = submitBid(state, projectId, price, deadline, rng.next, (e) => events.push(e));
-      if (next === state) return unchanged(state);
-      return { state: { ...next, rng: rng.state }, events };
+      const next = acceptOrder(state, command.projectId, (e) => events.push(e));
+      return next === state ? unchanged(state) : { state: next, events };
     }
     case 'AssignTask': {
       const run = state.projects[command.projectId]?.tasks[command.taskId];

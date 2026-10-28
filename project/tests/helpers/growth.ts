@@ -149,7 +149,7 @@ export function growCompany(seed: string, days: number, manager: ManagerRun['kin
   const events: GameEvent[] = [];
   while (s.clock < days * DAY) {
     for (const projectId of openInquiries(s)) {
-      s = apply(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
+      s = apply(s, { type: 'AcceptOrder', projectId });
     }
     s = hireIfNeeded(s);
     s = organize(s, manager);

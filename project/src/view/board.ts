@@ -1,22 +1,9 @@
-import { balance } from '../content/balance';
 import { getProject } from '../content/index';
-import type { ClientFocus, IndustryId, ProjectSize } from '../content/types';
-import {
-  type BidOutcome,
-  type BidRun,
-  baseAmount,
-  bidDeadlineDays,
-  type DeadlineStep,
-  deadlineOffered,
-  deadlineSteps,
-  estimatePersonDays,
-  type PriceStep,
-  priceSteps,
-  proposalOf,
-  quoteBid,
-} from '../core/bidding';
+import type { ContractKind, IndustryId, ProjectSize } from '../content/types';
 import { activeProjects, openInquiries } from '../core/board';
 import { calendarDay, minuteOfDay } from '../core/clock';
+import { contractOf, isDelivered } from '../core/contract';
+import { maxProjects, orderBlock, orderTerms, runningProjects } from '../core/orders';
 import { scoreProject } from '../core/scoring';
 import type { GameState } from '../core/state';
 import { stalledProjects } from '../core/step';
@@ -40,7 +27,7 @@ export interface ProjectTabView {
 
 export interface ProjectTabsView {
   readonly tabs: readonly ProjectTabView[];
-  /** まだ見積を出していない引き合いの数 */
+  /** ボードに届いている引き合いの数 */
   readonly offers: number;
 }
 
@@ -82,50 +69,38 @@ export interface BoardProjectView {
   readonly profitPerPersonDay: number | null;
 }
 
-/** 引き合いの1件（コンペの前） */
+/** 引き合いの1件（受注の前） */
 export interface InquiryView {
   readonly projectId: string;
   readonly name: string;
   readonly client: string;
   readonly industry: IndustryId;
   readonly size: ProjectSize;
-  readonly focus: ClientFocus;
-  readonly budget: number;
-  readonly rivals: number;
+  readonly contract: ContractKind;
   readonly tasks: number;
-  /** 見積人日と、見積の基準額（見積人日 × 平均売値） */
-  readonly personDays: number;
-  /** 人間だけで進めたときの人件費の目安（円）。見積人日 × 平均の原価 */
-  readonly laborEstimate: number;
-  readonly base: number;
-  /** 標準の納期（営業日） */
+  /** 受注したときの売上（円。評判と競合の値下げで変わる） */
+  readonly revenue: number;
+  /** 納期（受注した日から数える営業日） */
   readonly deadlineDays: number;
-  /** 応募の締切（HUD の時計と同じ「N日目 HH:MM」の日付と時刻） */
+  /** 受付の締切（HUD の時計と同じ「N日目 HH:MM」の日付と時刻） */
   readonly closes: { readonly day: number; readonly time: string };
-}
-
-/** コンペの結果の1件（新しい順） */
-export interface BidResultView {
-  readonly projectId: string;
-  readonly name: string;
-  readonly outcome: BidOutcome;
-  readonly amount: number;
-  readonly winChance: number;
-  /** 受注した案件の今：進行中（フロアを開ける）・納品済み（振り返りを開ける）・記録に移した（どちらも開けない）か受注していない（null） */
-  readonly project: 'active' | 'delivered' | null;
+  /** 受注できない理由（同時に進められる数に達している）。受注できれば null */
+  readonly blocked: 'full' | null;
 }
 
 export interface BoardView {
   /** 会社の評判（0〜100） */
   readonly reputation: number;
+  /** 進めている案件の数と、同時に進められる数（会社の規模で決まる） */
+  readonly running: number;
+  readonly max: number;
   readonly inquiries: readonly InquiryView[];
-  readonly results: readonly BidResultView[];
 }
 
 /** 納品した案件（納品した順） */
 export function deliveredProjects(state: GameState): BoardProjectView[] {
   return Object.values(state.projects)
-    .filter((p) => p.completedAt !== null)
+    .filter(isDelivered)
     .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0))
     .map((run) => {
       const def = getProject(run.projectId);
@@ -142,14 +117,15 @@ export function deliveredProjects(state: GameState): BoardProjectView[] {
     });
 }
 
-/** 案件ボード：引き合い（締切の近い順）と最近のコンペの結果。進行中の案件はドックのタブ、納品した案件は社員と Seat のシートで見る */
+/** 案件ボード：引き合い（締切の近い順）。進行中の案件はドックのタブと案件一覧、納品した案件は社員と Seat のシートで見る */
 export function boardView(state: GameState): BoardView {
-  // 締切の近い順（規模で応募の期間が違うので、届いた順とは限らない）
+  // 締切の近い順（規模で受付の期間が違うので、届いた順とは限らない）
   const open = [...(state.board?.inquiries ?? [])].sort((a, b) => a.closesAt - b.closesAt);
   const inquiries = open.flatMap((i): InquiryView[] => {
     const def = getProject(i.projectId);
     const brief = def.brief;
     if (!brief) return [];
+    const terms = orderTerms(state, i.projectId);
     return [
       {
         projectId: i.projectId,
@@ -157,82 +133,14 @@ export function boardView(state: GameState): BoardView {
         client: brief.client,
         industry: brief.industry,
         size: brief.size,
-        focus: brief.focus,
-        budget: brief.budget,
-        rivals: brief.rivals,
+        contract: contractOf(i.projectId),
         tasks: def.tasks.length,
-        personDays: estimatePersonDays(def),
-        laborEstimate: estimatePersonDays(def) * balance.talent.rate.mean * balance.staff.costRatio,
-        base: baseAmount(def),
-        deadlineDays: def.deadlineDays,
+        revenue: terms.revenue,
+        deadlineDays: terms.deadlineDays,
         closes: { day: calendarDay(i.closesAt) + 1, time: hhmm(minuteOfDay(i.closesAt)) },
+        blocked: orderBlock(state, i.projectId) === 'full' ? 'full' : null,
       },
     ];
   });
-  return {
-    reputation: state.reputation,
-    inquiries,
-    results: (state.board?.results ?? []).map((r) => ({
-      projectId: r.projectId,
-      name: getProject(r.projectId).name,
-      outcome: r.outcome,
-      amount: r.amount,
-      winChance: r.winChance,
-      project: projectStatus(state, r.outcome === 'won' ? r.projectId : null),
-    })),
-  };
-}
-
-function projectStatus(state: GameState, projectId: string | null): BidResultView['project'] {
-  const run = projectId === null ? undefined : state.projects[projectId];
-  if (!run) return null;
-  return run.completedAt === null ? 'active' : 'delivered';
-}
-
-/** 見積の選択肢の1つ（価格か納期）と、それを選んだときの勝率 */
-export interface BidOptionView<K> {
-  readonly id: K;
-  /** 基準に対する倍率 */
-  readonly ratio: number;
-}
-
-export const priceOptions: readonly BidOptionView<PriceStep>[] = priceSteps.map((id) => ({
-  id,
-  ratio: balance.bid.prices[id],
-}));
-/** 納期の選択肢 */
-export interface DeadlineOptionView extends BidOptionView<DeadlineStep> {
-  /** 標準の納期から、この選択肢で提案する納期（営業日） */
-  readonly days: (standard: number) => number;
-  /** 標準の納期がこの長さの案件に出せるか（標準1日の案件に短縮は出さない） */
-  readonly offered: (standard: number) => boolean;
-}
-
-export const deadlineOptions: readonly DeadlineOptionView[] = deadlineSteps.map((id) => ({
-  id,
-  ratio: balance.bid.deadlines[id],
-  days: (standard: number) => bidDeadlineDays(standard, id),
-  offered: (standard: number) => deadlineOffered(standard, id),
-}));
-
-/** 見積の Before / After。Before は基準の価格・標準の納期の見積、After は選んでいる見積 */
-export interface BidPreview {
-  readonly before: BidRun;
-  readonly after: BidRun;
-  /** 予算の上限を超えている（選ばれない） */
-  readonly overBudget: boolean;
-  /** 提案力の内訳（0〜1） */
-  readonly proposal: { readonly reputation: number; readonly track: number; readonly ai: number };
-}
-
-export function bidPreview(state: GameState, projectId: string, price: PriceStep, deadline: DeadlineStep): BidPreview {
-  const def = getProject(projectId);
-  const after = quoteBid(state, projectId, price, deadline);
-  const { reputation, track, ai } = proposalOf(state, def);
-  return {
-    before: quoteBid(state, projectId, 'base', 'standard'),
-    after,
-    overBudget: after.amount > (def.brief?.budget ?? Number.POSITIVE_INFINITY),
-    proposal: { reputation, track, ai },
-  };
+  return { reputation: state.reputation, running: runningProjects(state), max: maxProjects(state), inquiries };
 }

@@ -7,14 +7,13 @@ import {
   type ActorProfile,
   aiCost,
   autoTestCatch,
-  deadlineMinutes,
-  delayLoss,
   escapedDefectCost,
   escapedQuality,
   evalLoop,
   expectedHumanMinutes,
   laborCost,
   modeOutcome,
+  multitaskShare,
   reviewCatch,
   reworkMinutes,
   stepMinutes,
@@ -75,6 +74,13 @@ describe('successProbability', () => {
 });
 
 describe('時間とコスト', () => {
+  it('掛け持ちすると1件あたりの進み方は件数で等分され、合計も切り替えの手間の分だけ減る', () => {
+    expect(multitaskShare(1)).toBe(1);
+    expect(multitaskShare(2)).toBeCloseTo(0.4);
+    expect(multitaskShare(3)).toBeCloseTo((1 - balance.human.switchLoss) / 3);
+    for (const n of [2, 3, 5]) expect(multitaskShare(n) * n).toBeLessThan(1);
+  });
+
   it('所要時間は作業量と割合に比例し、skill や速度に反比例する', () => {
     expect(stepMinutes(task, work, human)).toBe(120);
     expect(stepMinutes(task, { ...work, effortShare: 0.25 }, human)).toBe(30);
@@ -116,15 +122,6 @@ describe('品質と損失', () => {
   it('見逃した失敗の損害は作業量と品質要求に比例する', () => {
     expect(escapedDefectCost({ ...task, qualityReq: 0 })).toBe(0);
     expect(escapedDefectCost({ ...task, effort: 240 })).toBe(2 * escapedDefectCost(task));
-  });
-
-  it('遅延損失は納期までは 0、超過に比例して増える', () => {
-    const project = { id: 'p', name: 'p', revenue: 1_000_000, deadlineDays: 2, tasks: [task] };
-    const deadline = deadlineMinutes(project);
-    const day = balance.time.minutesPerDay;
-    expect(delayLoss(deadline, project)).toBe(0);
-    expect(delayLoss(deadline + day, project)).toBeCloseTo(project.revenue * balance.project.delayLossPerDay);
-    expect(delayLoss(deadline + 2 * day, project)).toBeCloseTo(2 * delayLoss(deadline + day, project));
   });
 });
 

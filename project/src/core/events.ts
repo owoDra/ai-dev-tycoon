@@ -8,6 +8,7 @@ import type {
   TermId,
 } from '../content/types';
 import type { BottleneckRef } from './bottleneck';
+import type { CancelReason } from './state';
 
 /**
  * core が出力する出来事。描画・UI・演出・音はこれを読んで反応する。
@@ -21,6 +22,10 @@ export type GameEvent =
   | { readonly type: 'ReworkDetected'; readonly projectId: string; readonly taskId: string; readonly humanId: string }
   /** AI の自動テストが失敗を見つけた（AI がそのまま修復する） */
   | { readonly type: 'EvalCaught'; readonly projectId: string; readonly taskId: string }
+  /** 期限が切れて炎上した（炎上しても続行の契約） */
+  | { readonly type: 'ProjectBurning'; readonly projectId: string }
+  /** 案件を打ち切った（期限厳守の期限切れか、会社側から） */
+  | { readonly type: 'ProjectCancelled'; readonly projectId: string; readonly reason: CancelReason }
   | { readonly type: 'ProjectCompleted'; readonly projectId: string }
   | { readonly type: 'BottleneckChanged'; readonly bottleneck: BottleneckRef | null }
   /** 機能が解放された（Tier 2 の演出と「NEW」バッジ） */
@@ -70,13 +75,8 @@ export type GameEvent =
   | { readonly type: 'StaffReleased'; readonly staffId: string }
   /** 案件ボードに引き合いが届いた（営業日ごと） */
   | { readonly type: 'InquiriesPosted'; readonly projectIds: readonly string[] }
-  /** 引き合いに見積を出した。続けて BidWon か BidLost が出る */
-  | { readonly type: 'BidSubmitted'; readonly projectId: string; readonly amount: number; readonly winChance: number }
-  /** コンペに勝って受注した。案件が始まる */
-  | { readonly type: 'BidWon'; readonly projectId: string; readonly amount: number }
-  | { readonly type: 'BidLost'; readonly projectId: string }
-  /** 見積を出さないまま、引き合いの締切が過ぎた（見送った） */
-  | { readonly type: 'InquiryPassed'; readonly projectId: string }
+  /** 引き合いを受注した。案件が始まる（amount は売上） */
+  | { readonly type: 'OrderAccepted'; readonly projectId: string; readonly amount: number }
   /** 納品で評判が変わった（delta は変化量、reputation は変化後の値） */
   | {
       readonly type: 'ReputationChanged';

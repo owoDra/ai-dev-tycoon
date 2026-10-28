@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bottleneckKey, bottleneckSystem, findBottleneck } from '../../src/core/bottleneck';
 import { reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
+import { multitaskShare } from '../../src/core/formulas';
 import { createRngCursor } from '../../src/core/rng';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 
@@ -32,7 +33,7 @@ describe('findBottleneck', () => {
     expect(findBottleneck(s)?.ref).toMatchObject({ taskId: 'implementation', stage: 'review' });
   });
 
-  it('待ち行列で待っている時間の合計が大きい人を返す', () => {
+  it('掛け持ちで遅れた時間の合計が大きい人を返す', () => {
     const s: GameState = {
       ...withLead(started, 'implementation', 50, 0),
       clock: 100,
@@ -45,8 +46,10 @@ describe('findBottleneck', () => {
         suzuki: [{ projectId: 'ecRenewal', taskId: 'research', queuedAt: 0 }],
       },
     };
-    // 先頭は処理中なので数えない：(100 - 40) + (100 - 60) = 100
-    expect(findBottleneck(s)).toEqual({ ref: { kind: 'human', humanId: 'sato' }, minutes: 100 });
+    // 3件の掛け持ちは、それぞれ経過時間 ×（1 − multitaskShare(3)）だけ遅れる：(100 + 60 + 40) × (1 − share)。1件だけの人は遅れない
+    const found = findBottleneck(s);
+    expect(found?.ref).toEqual({ kind: 'human', humanId: 'sato' });
+    expect(found?.minutes).toBeCloseTo(200 * (1 - multitaskShare(3)));
   });
 });
 

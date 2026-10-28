@@ -97,15 +97,16 @@ describe('worldView', () => {
     expect(island(arrived, 'requirements')?.queueLength).toBe(1);
   });
 
-  it('同じ人に仕事が重なると、待っている Task は「人間待ち」になって島の前に積まれ、その人は困った顔になる', () => {
+  it('同じ人に仕事が重なると、掛け持ちの Task は「掛け持ちで遅い」になって島の前に積まれ、その人は困った顔になる', () => {
     // 昼休み（始業から3時間後に1時間）は手を止めるので、その分だけ後で見る
     const lunch = balance.time.workday.lunchEnd - balance.time.workday.lunchStart;
     const vm = viewAt(90 + 120 + lunch + 5, [
       start,
       ...['hearing', 'requirements', 'uiDesign', 'research'].map((t) => assign(t, 'human', A)),
     ]);
+    // UI設計と競合調査を同時に掛け持ちしている
     const queued = vm.islands.filter((i) => i.status === 'queued');
-    expect(queued).toHaveLength(1);
+    expect(queued).toHaveLength(2);
     expect(queued[0]?.queueLength).toBeGreaterThanOrEqual(1);
     expect(vm.packets.some((p) => p.place.kind === 'stack' && p.place.islandId === queued[0]?.id)).toBe(true);
     expect(actor(vm, humanActorId(A))?.expression).toBe('trouble');

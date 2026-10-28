@@ -2,6 +2,7 @@ import { achievementDefs } from '../content/achievements';
 import { getProject } from '../content/index';
 import type { AchievementCondition, AchievementDef, ProjectSize } from '../content/types';
 import { tierAtLeast } from './companyEvents';
+import { isDelivered } from './contract';
 import type { GameEvent } from './events';
 import { deadlineMinutes } from './formulas';
 import { valuationOf } from './funds';
@@ -36,14 +37,14 @@ export function managedBy(run: ProjectRun): 'ai' | 'human' | 'player' | null {
 
 /** 失敗を見逃さず、納期内に納品したか */
 function flawless(run: ProjectRun): boolean {
-  if (run.completedAt === null) return false;
+  if (run.completedAt === null || !isDelivered(run) || run.burningAt !== null) return false;
   const onTime = run.completedAt - run.startedAt <= deadlineMinutes(run);
   return onTime && Object.values(run.tasks).every((t) => !t.escaped);
 }
 
 function holdsDelivery(state: GameState, c: Extract<AchievementCondition, { type: 'delivery' }>, projectId: string) {
   const run = state.projects[projectId];
-  if (!run || run.completedAt === null) return false;
+  if (!run || !isDelivered(run)) return false;
   const size = getProject(projectId).brief?.size;
   if (c.size !== undefined && (size === undefined || SIZES.indexOf(size) < SIZES.indexOf(c.size))) return false;
   if (c.manager !== undefined && managedBy(run) !== c.manager) return false;
@@ -69,9 +70,7 @@ export function achievementHolds(state: GameState, c: AchievementCondition, trig
       return ppd || growth;
     }
     case 'delivered':
-      return (
-        state.ledger.delivered + Object.values(state.projects).filter((p) => p.completedAt !== null).length >= c.count
-      );
+      return state.ledger.delivered + Object.values(state.projects).filter(isDelivered).length >= c.count;
     case 'tier':
       return tierAtLeast(state, c.tier);
     case 'rank':

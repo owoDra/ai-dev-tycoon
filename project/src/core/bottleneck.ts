@@ -1,4 +1,5 @@
 import type { Stage } from '../content/types';
+import { multitaskShare } from './formulas';
 import type { GameState } from './state';
 import type { System } from './system';
 
@@ -51,10 +52,12 @@ export function findBottleneck(state: GameState): Bottleneck | null {
   for (const projectId of Object.keys(state.projects)) {
     for (const s of stageTimes(state, projectId)) consider(s.ref, s.minutes);
   }
+  // 掛け持ちしている人間は、抱えている仕事それぞれが遅れる。遅れた分（経過時間 ×（1 − 1件あたりの進み方））を足す
   for (const [humanId, queue] of Object.entries(state.humanQueues)) {
+    const lost = 1 - multitaskShare(queue.length);
     consider(
       { kind: 'human', humanId },
-      queue.slice(1).reduce((sum, q) => sum + (state.clock - q.queuedAt), 0),
+      queue.reduce((sum, q) => sum + (state.clock - q.queuedAt) * lost, 0),
     );
   }
   return best;

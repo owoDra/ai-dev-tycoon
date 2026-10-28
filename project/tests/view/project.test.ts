@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { reduce } from '../../src/core/commands';
-import { createInitialState } from '../../src/core/state';
+import { createInitialState, createProjectRun } from '../../src/core/state';
 import { ja } from '../../src/i18n/ja';
-import { bottleneckLabel, defaultWorkerFor, taskRows, workerOptions } from '../../src/view/project';
+import { bottleneckLabel, defaultWorkerFor, humanChoices, taskRows, workerOptions } from '../../src/view/project';
 import { runHeadless } from '../helpers/headless';
 import { playProject, strategies } from '../helpers/strategies';
 
@@ -65,5 +65,24 @@ describe('bottleneckLabel', () => {
     expect(bottleneckLabel(createInitialState('v'))).toBeNull();
     const { state } = playProject(P, strategies.allHuman(P), 'label');
     expect(bottleneckLabel(state)).toBe(ja.score.stage(ja.tasks.ecRenewal.implementation, ja.stages.work));
+  });
+
+  it('人間に任せるときは、その会社の社員のうち掛け持ちの最も少ない人を指名する（創業メンバーがいない会社でも担当を決められる）', () => {
+    // チュートリアルなしで始めた会社の社員は seed から生成した人で、sato はいない
+    const company = createInitialState('pick', { board: true, talent: true, tutorial: false });
+    const s = { ...company, projects: { [P]: createProjectRun(P, 0) } };
+    const staff = Object.keys(s.team);
+    expect(staff).not.toContain('sato');
+    const first = defaultWorkerFor('human', s, P);
+    expect(staff).toContain(first);
+    const assigned = reduce(s, { type: 'AssignTask', projectId: P, taskId: 'hearing', mode: 'human', workerId: first });
+    expect(assigned.state.projects[P]?.tasks.hearing?.assignment?.workerId).toBe(first);
+    // 掛け持ちしている人は後ろに回る
+    const busy = {
+      ...s,
+      humanQueues: { ...s.humanQueues, [first]: [{ projectId: P, taskId: 'hearing', queuedAt: 0 }] },
+    };
+    expect(humanChoices(busy).at(-1)).toMatchObject({ id: first, load: 1 });
+    expect(defaultWorkerFor('human', busy, P)).not.toBe(first);
   });
 });

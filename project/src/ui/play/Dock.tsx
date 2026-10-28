@@ -278,8 +278,8 @@ function HudItem(props: {
       </Match>
       <Match when={props.id === 'remaining'}>
         <Figure
-          icon={props.hud.remaining.overdue ? 'warning' : 'clock'}
-          label={props.hud.remaining.overdue ? t.overdue : t.remaining}
+          icon={props.hud.remaining.overdue || props.hud.remaining.strict ? 'warning' : 'clock'}
+          label={props.hud.remaining.overdue ? t.overdue : props.hud.remaining.strict ? t.remainingStrict : t.remaining}
           value={t.remainingValue(props.hud.remaining.days, props.hud.remaining.time)}
           dense={props.dense}
           danger={props.hud.remaining.overdue}

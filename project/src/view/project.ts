@@ -5,7 +5,7 @@ import type { AssignModeId, Stage } from '../content/types';
 import { findBottleneck } from '../core/bottleneck';
 import type { GameState } from '../core/state';
 import { currentStep } from '../core/taskFlow';
-import { teamAgents, teamOfProject } from '../core/teams';
+import { isManager, teamAgents, teamOfProject } from '../core/teams';
 import { ja } from '../i18n/ja';
 
 export type TaskStatusView = keyof typeof ja.project.status;
@@ -29,8 +29,8 @@ export function taskRows(state: GameState, projectId: string): TaskRowView[] {
   return getProject(projectId).tasks.map((task) => {
     const t = run.tasks[task.id];
     const onHuman = t?.status === 'running' && (t.phase === 'rework' || currentStep(t)?.actor === 'human');
-    const head = t?.humanId ? state.humanQueues[t.humanId]?.[0] : undefined;
-    const queued = onHuman && !(head?.projectId === projectId && head.taskId === task.id);
+    // 担当の人間が掛け持ちしていると、1件ずつの進みが遅い（core/formulas.ts の multitaskShare）
+    const queued = onHuman && (t?.humanId ? (state.humanQueues[t.humanId]?.length ?? 0) : 0) > 1;
     return {
       id: task.id,
       name: task.name,
@@ -49,12 +49,23 @@ function statusOf(status: string | undefined, assigned: boolean, queued: boolean
   return assigned ? 'waiting' : 'unassigned';
 }
 
-/** モードを選んだときに既定で指名する Worker（モードの主な担い手の種類で最初の人） */
+/** 人間の担当の候補（会社の社員のうち人間 PM を除く）と、いま掛け持ちしている仕事の数。少ない順（同じなら社員の順） */
+export function humanChoices(state: GameState): { id: string; name: string; load: number }[] {
+  return Object.keys(state.team)
+    .filter((id) => !isManager(state, id))
+    .map((id) => ({ id, name: findWorker(id)?.name ?? id, load: state.humanQueues[id]?.length ?? 0 }))
+    .sort((a, b) => a.load - b.load);
+}
+
+/**
+ * モードを選んだときに既定で指名する Worker。AI が主な担い手のモードは案件のチームの AI Worker（いなければ会社の最初の AI Worker）、
+ * 人間が主な担い手のモードは、会社の社員のうち掛け持ちの最も少ない人（state がなければ、その種類で最初の人）
+ */
 export function defaultWorkerFor(mode: AssignModeId, state?: GameState, projectId?: string): string {
   const kind = primaryActor(getAssignMode(mode));
-  // AI が関わるモードは、案件のチームの AI Worker（いなければ会社の最初の AI Worker）
   if (kind === 'ai' && state && projectId !== undefined) return projectAgent(state, projectId);
-  return content.workers.find((w) => w.kind === kind)?.id ?? '';
+  const human = kind === 'human' && state ? humanChoices(state)[0]?.id : undefined;
+  return human ?? content.workers.find((w) => w.kind === kind)?.id ?? '';
 }
 
 /** 案件のチームの AI Worker（いなければ会社の最初の AI Worker）。Harness と Context の画面もこの AI Worker を見る */

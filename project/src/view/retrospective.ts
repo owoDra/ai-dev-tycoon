@@ -204,14 +204,6 @@ export function retrospective(
       value: score.accidentCost,
     });
   }
-  if (score.delayLoss >= min) {
-    losses.push({
-      title: ja.retro.delay,
-      body: ja.retro.lostCost(score.delayLoss),
-      factor: null,
-      value: score.delayLoss,
-    });
-  }
   const worst = losses.sort((a, b) => b.value - a.value)[0];
   const waste: RetroCard = worst
     ? { kind: 'waste', title: worst.title, body: worst.body, factor: worst.factor }

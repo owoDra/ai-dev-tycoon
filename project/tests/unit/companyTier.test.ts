@@ -51,6 +51,8 @@ function emptyProject(projectId: string) {
     deadlineDays: 1,
     tasks: {},
     management: { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0 },
+    burningAt: null,
+    cancelled: null,
   };
 }
 

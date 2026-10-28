@@ -39,7 +39,6 @@ describe('案件の生成（core/projectGen.ts）', () => {
     const briefs = SEEDS.map((s) => getProject(generatedProjectId(s, 'M')).brief);
     expect(new Set(briefs.map((b) => b?.templateId)).size).toBe(projectTemplates.length);
     expect(new Set(briefs.map((b) => b?.industry)).size).toBe(5);
-    expect(new Set(briefs.map((b) => b?.focus)).size).toBe(3);
     expect(new Set(briefs.map((b) => b?.client)).size).toBeGreaterThan(10);
   });
 
@@ -60,7 +59,6 @@ describe('案件の生成（core/projectGen.ts）', () => {
         tasks: mean(ps.map((p) => p.tasks.length)),
         effort: mean(ps.map(effort)),
         revenue: mean(ps.map((p) => p.revenue)),
-        budget: mean(ps.map((p) => p.brief?.budget ?? 0)),
         deadline: mean(ps.map((p) => p.deadlineDays)),
         qualityReq: mean(ps.flatMap((p) => p.tasks.map((t) => t.qualityReq))),
       };
@@ -71,7 +69,7 @@ describe('案件の生成（core/projectGen.ts）', () => {
           .map(
             (r) =>
               `  ${r.size}：Task ${r.tasks.toFixed(1)}件・作業量 ${fmt(r.effort)}分・標準価格 ${fmt(r.revenue)}円` +
-              `・予算の上限 ${fmt(r.budget)}円・納期 ${r.deadline.toFixed(1)}日・品質要求 ${r.qualityReq.toFixed(2)}`,
+              `・納期 ${r.deadline.toFixed(1)}日・品質要求 ${r.qualityReq.toFixed(2)}`,
           )
           .join('\n'),
     );
@@ -94,12 +92,12 @@ describe('案件の生成（core/projectGen.ts）', () => {
     }
   });
 
-  it('規模の例：型ごとの S / M / L / XL の Task 数・作業量・予算', () => {
+  it('規模の例：型ごとの S / M / L / XL の Task 数・作業量・標準価格', () => {
     const lines = projectTemplates.map((t) => {
       const seed = SEEDS.find((s) => getProject(generatedProjectId(s, 'M')).brief?.templateId === t.id) ?? '';
       const cells = SIZES.map((size) => {
         const p = getProject(generatedProjectId(seed, size));
-        return `${size} ${p.tasks.length}件/${fmt(effort(p))}分/予算${fmt(p.brief?.budget ?? 0)}円`;
+        return `${size} ${p.tasks.length}件/${fmt(effort(p))}分/${fmt(p.revenue)}円`;
       });
       return `  ${getProject(generatedProjectId(seed, 'M')).name}：${cells.join(' | ')}`;
     });

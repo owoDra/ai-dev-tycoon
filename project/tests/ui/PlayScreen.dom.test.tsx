@@ -62,6 +62,19 @@ describe('プレイ画面', () => {
     expect(sheet(root)).toBeNull();
   });
 
+  it('人間に任せるときは、選んだ社員を担当にする（既定は掛け持ちの最も少ない人）', () => {
+    const { store, root, select } = mount();
+    select('hearing');
+    const pick = root.querySelector<HTMLSelectElement>('select[data-human-pick]');
+    expect(pick?.value).toBe('sato');
+    if (pick) {
+      pick.value = 'suzuki';
+      pick.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    root.querySelector<HTMLButtonElement>('button[data-mode="human"]')?.click();
+    expect(store.state().projects[P]?.tasks.hearing?.assignment).toEqual({ mode: 'human', workerId: 'suzuki' });
+  });
+
   it('カードにフォーカスすると変更後の見込みを Before → After で出し、Enter で決定できる', () => {
     const { store, root, select } = mount();
     store.dispatch({

@@ -53,6 +53,8 @@ function delivered(
     deadlineDays: def.deadlineDays,
     tasks,
     management: { minutes: 0, laborCost: 0, aiCost: 0, playerAssigned: 0, ...management },
+    burningAt: null,
+    cancelled: null,
   };
   return { state: { ...company(), projects: { [projectId]: run } }, projectId };
 }

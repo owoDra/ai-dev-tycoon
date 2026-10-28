@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clearCompany, loadCompany, loadSavedAt, saveCompany } from '../../src/app/save';
 import { reduce } from '../../src/core/commands';
+import { deserialize, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createInitialState } from '../../src/core/state';
 
 /** localStorage の代わり */
@@ -64,5 +65,40 @@ describe('キャンペーンの自動セーブ（app/save.ts）', () => {
     expect(loadSavedAt(storage)).toBeNull();
     clearCompany(storage);
     expect(storage.data.size).toBe(0);
+  });
+});
+
+describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15）', () => {
+  it('旧形式のセーブの Tool は MCP に、権限は権限モードに読み替え、なくなった部品は外す', () => {
+    const base = JSON.parse(serialize(createInitialState('old')));
+    const old = {
+      saveVersion: 14,
+      state: {
+        ...base.state,
+        harnesses: {
+          agent: {
+            modelId: 'standard',
+            parts: ['toolGit', 'permRead', 'permWrite', 'permDeploy', 'humanGate', 'skillReport'],
+          },
+        },
+        ownedParts: ['toolGit', 'toolFiles', 'permRead', 'permWrite', 'permDeploy', 'humanGate'],
+        library: [
+          {
+            id: 'custom1',
+            name: 'w',
+            mode: 'ai',
+            modelId: 'standard',
+            context: 'needed',
+            parts: ['toolBrowser', 'permExecute'],
+          },
+        ],
+      },
+    };
+    expect(SAVE_VERSION).toBe(15);
+    const s = deserialize(JSON.stringify(old));
+    // 権限モードは1つだけ（後のものが残る）
+    expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
+    expect(s.ownedParts).toEqual(['mcpGit', 'mcpFilesystem', 'permAcceptEdits', 'permAuto']);
+    expect(s.library[0]?.parts).toEqual(['mcpBrowser', 'permAuto']);
   });
 });

@@ -1,7 +1,9 @@
+import { migratePartIds } from '../content/harness/legacy';
+import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -62,6 +64,29 @@ export const MIGRATIONS: readonly Migration[] = [
         achievements: [],
         companyEvents: { offers: [], priceWarUntil: null, outages: 0, poached: 0 },
       };
+    },
+  },
+  // v14 → v15：Harness の部品を Claude Code の分類に移す（Phase 26）。Tool は MCP に、権限は権限モードに読み替え、
+  // なくなった部品（READ・Human Gate）は外す。導入済みの記録も読み替える（払った導入コストの記録はそのまま残す）
+  {
+    from: 14,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.harnesses)) return state;
+      const groupOf = (id: string) => getHarnessPart(id).group;
+      const harnesses = Object.fromEntries(
+        Object.entries(state.harnesses).map(([id, h]) => [
+          id,
+          isRecord(h) && Array.isArray(h.parts) ? { ...h, parts: migratePartIds(h.parts as string[], groupOf) } : h,
+        ]),
+      );
+      const owned = Array.isArray(state.ownedParts) ? (state.ownedParts as string[]) : [];
+      const ownedParts = [...new Set(migratePartIds(owned, () => undefined))];
+      const library = Array.isArray(state.library)
+        ? state.library.map((w) =>
+            isRecord(w) && Array.isArray(w.parts) ? { ...w, parts: migratePartIds(w.parts as string[], groupOf) } : w,
+          )
+        : state.library;
+      return { ...state, harnesses, ownedParts, library };
     },
   },
 ];

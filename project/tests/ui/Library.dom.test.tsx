@@ -113,7 +113,7 @@ describe('Workflow Library の UI（企画書25章）', () => {
       mode: 'aiThenEval',
       modelId: 'lite',
       context: 'needed',
-      parts: ['toolGit', 'subQa'],
+      parts: ['mcpGit', 'subQa'],
     });
     input(q<HTMLInputElement>('[data-import-code]'), 'ZZZZ-ZZZZ');
     q<HTMLFormElement>('[data-import-workflow]')?.requestSubmit();

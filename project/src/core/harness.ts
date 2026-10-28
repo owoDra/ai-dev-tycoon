@@ -1,6 +1,13 @@
 import { balance } from '../content/balance';
 import { content, findWorker, getAiWorker, getHarnessPart, getModel } from '../content/index';
-import type { HarnessModifierKey, HarnessModifiers, HarnessPartDef, ModelDef, TaskDef } from '../content/types';
+import type {
+  HarnessCategory,
+  HarnessModifierKey,
+  HarnessModifiers,
+  HarnessPartDef,
+  ModelDef,
+  TaskDef,
+} from '../content/types';
 import { getSession, updateSession } from './context';
 import type { GameState, HarnessRun } from './state';
 
@@ -108,8 +115,9 @@ export interface PartsModifierOptions {
 }
 
 /**
- * 部品の組が task の作業に与える補正。部品の burden（どの Task にも）と、task に効く modifiers を、
+ * 部品の組が task の作業に与える補正。部品の burden（どの Task にも）と、task に効く modifiers（効かなければ offTarget）を、
  * 同じカテゴリの組ごとの調整コスト（balance.harness.pairs）と合わせて合算する。
+ * 書いた量（size）がカテゴリの目安（balance.harness.budgets）を超えると、そのカテゴリの modifiers は 目安 ÷ 合計 に薄まる。
  * ゲームの AI Worker（harnessModifiers）と実務モードの工程（core/practice.ts）が同じ式を使う
  */
 export function partsModifiers(
@@ -121,18 +129,38 @@ export function partsModifiers(
   const entries: ModifierEntry[] = [];
   for (const p of parts) {
     entries.push({ mods: p.burden });
-    if (!appliesTo(p, task) || options.skipped?.includes(p.id)) continue;
+    if (!appliesTo(p, task)) {
+      if (p.offTarget) entries.push({ mods: p.offTarget });
+      continue;
+    }
+    if (options.skipped?.includes(p.id)) continue;
     const weight = options.expected && p.enforcement === 'request' ? balance.harness.requestCompliance : 1;
-    entries.push({ mods: p.modifiers, weight });
+    entries.push({ mods: p.modifiers, weight: weight * budgetShare(parts, p.category) });
   }
   for (const [category, mods] of Object.entries(balance.harness.pairs)) {
-    const n = parts.filter((p) => p.category === category).length;
+    const n = parts.filter((p) => p.category === category && p.pairRelief === undefined).length;
+    const relief = Math.min(
+      1,
+      parts.reduce((sum, p) => sum + (p.pairRelief?.[category as HarnessCategory] ?? 0), 0),
+    );
     let pairs = 0;
     for (let i = 1; i < n; i++) pairs += i;
-    entries.push({ mods, times: pairs });
+    entries.push({ mods, times: pairs * (1 - relief) });
   }
   return combineModifiers(entries);
 }
+
+/** カテゴリの書いた量が目安を超えたときに効く割合（目安 ÷ 合計。目安のないカテゴリと目安内は 1） */
+export function budgetShare(parts: readonly HarnessPartDef[], category: HarnessCategory): number {
+  const budget = (balance.harness.budgets as Partial<Record<HarnessCategory, number>>)[category];
+  if (budget === undefined) return 1;
+  const total = writtenSize(parts, category);
+  return total > budget ? budget / total : 1;
+}
+
+/** カテゴリの部品の書いた量の合計（CLAUDE.md の長さ） */
+export const writtenSize = (parts: readonly HarnessPartDef[], category: HarnessCategory) =>
+  parts.filter((p) => p.category === category).reduce((sum, p) => sum + (p.size ?? 0), 0);
 
 /** 今回の作業で守られるかを確率で決める、お願いの部品（task に効くもの） */
 export function requestParts(state: GameState, workerId: string, task: TaskDef): HarnessPartDef[] {
@@ -229,4 +257,21 @@ export function setModel(state: GameState, workerId: string, modelId: string): G
   if (!isAi(workerId) || !content.models.some((m) => m.id === modelId)) return state;
   if (harnessOf(state, workerId).modelId === modelId) return state;
   return updateHarness(state, workerId, (h) => ({ ...h, modelId }));
+}
+
+/**
+ * 部品を parts に入れ替える（おすすめ構成）。Context Router 以外の今の部品を外し、parts のうち付けられるものを順に付ける。
+ * 初めての部品は導入コストを払う
+ */
+export function applyPreset(
+  state: GameState,
+  workerId: string,
+  parts: readonly string[],
+  isUnlocked: (part: HarnessPartDef) => boolean,
+): GameState {
+  if (!isAi(workerId)) return state;
+  let next = updateHarness(state, workerId, (h) => ({ ...h, parts: [] }));
+  for (const id of parts) next = equipPart(next, workerId, id, isUnlocked);
+  const same = harnessOf(next, workerId).parts.join() === harnessOf(state, workerId).parts.join();
+  return same ? state : next;
 }

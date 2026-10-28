@@ -11,7 +11,7 @@ import {
 } from 'solid-js';
 import { loadPracticeJob, savePracticeJob } from '../../app/practiceStore';
 import { balance } from '../../content/balance';
-import { content } from '../../content/index';
+import { content, getHarnessPart } from '../../content/index';
 import { layoutFormFor, uiLayout } from '../../content/look/layout';
 import { practiceAptitudeOrder, practiceFrequencies, practiceTemplates } from '../../content/practice/index';
 import type {
@@ -22,6 +22,7 @@ import type {
   PracticeStepInput,
   TaskKind,
 } from '../../content/types';
+import { exportClaudeConfig } from '../../core/harnessExport';
 import { estimatePractice, newPracticeStep, type PracticeEstimate, usesAi } from '../../core/practice';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -139,6 +140,7 @@ export function PracticeScreen(props: { onBack: () => void }) {
         </section>
 
         <ResultPanel job={job()} estimate={estimate()} />
+        <ExportPanel job={job()} />
 
         <section class="grid gap-3 sm:grid-cols-2" aria-label={t.job.name}>
           <Field label={t.job.name}>
@@ -452,6 +454,61 @@ function ResultPanel(props: { job: PracticeJobInput; estimate: PracticeEstimate 
           data="markdown"
         />
       </div>
+    </section>
+  );
+}
+
+/**
+ * Claude Code の設定の書き出し（core/harnessExport.ts）。ファイルごとに中身を出し、コピーできるようにする。
+ * Builder には設定ファイルを出さず、ここでだけ実際の書き方を扱う
+ */
+function ExportPanel(props: { job: PracticeJobInput }) {
+  const x = t.export;
+  const result = createMemo(() => exportClaudeConfig(props.job));
+  const hasAi = () => props.job.steps.some(usesAi);
+  return (
+    <section
+      class="flex flex-col gap-2 rounded-lg border-[3px] border-line bg-surface p-3"
+      aria-label={x.title}
+      data-practice-export
+    >
+      <h2 class="font-heading text-base">{x.title}</h2>
+      <p class="text-xs text-ink-muted">{x.hint}</p>
+      <Show when={hasAi()} fallback={<p class="text-xs">{x.empty}</p>}>
+        <For each={result().files}>
+          {(file) => (
+            <details class="rounded-md border-2 border-line/30 bg-sunken" data-export-file={file.path}>
+              <summary class="flex cursor-pointer flex-wrap items-center gap-2 px-2 py-1.5">
+                <span class="font-mono text-xs font-bold break-all">{file.path}</span>
+                <Show when={file.path.startsWith('~/')}>
+                  <span class="text-[11px] text-ink-muted">{x.userSettings}</span>
+                </Show>
+              </summary>
+              <div class="flex flex-col gap-1.5 px-2 pb-2">
+                <pre class="max-h-60 overflow-auto rounded bg-surface p-2 font-mono text-[11px] leading-snug whitespace-pre-wrap">
+                  {file.content}
+                </pre>
+                <CopyButton
+                  text={() => file.content}
+                  label={x.copy}
+                  copied={x.copied}
+                  failed={x.failed}
+                  data={file.path}
+                />
+              </div>
+            </details>
+          )}
+        </For>
+        <Show when={result().manual.length > 0}>
+          <p class="text-xs text-ink-muted">
+            {x.manual(
+              result()
+                .manual.map((id) => getHarnessPart(id).name)
+                .join('・'),
+            )}
+          </p>
+        </Show>
+      </Show>
     </section>
   );
 }

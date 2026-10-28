@@ -62,7 +62,7 @@ describe('補正の合算のルール（balance.harness.combine）', () => {
   });
 
   it('modifiers は効く種類の Task だけに、burden はどの Task にも効く', () => {
-    const s = withParts(['toolGit']);
+    const s = withParts(['mcpGit']);
     expect(harnessModifiers(s, AGENT, code).success).toBeCloseTo(0.03);
     expect(harnessModifiers(s, AGENT, planning).success).toBe(0);
     expect(harnessModifiers(s, AGENT, planning).risk).toBeGreaterThan(0);
@@ -91,11 +91,11 @@ describe('補正の合算のルール（balance.harness.combine）', () => {
   });
 
   it('実効の Model は速度・費用の補正とランニングコストを入れる', () => {
-    const s = withParts(['permWrite', 'toolFiles']);
+    const s = withParts(['permAcceptEdits', 'mcpFilesystem']);
     const mods = harnessModifiers(s, AGENT, code);
     const model = harnessModel(s, AGENT, mods);
     expect(model.speed).toBeCloseTo(24 * mods.speed);
-    expect(model.costPerMinute).toBeCloseTo(40 * mods.aiCost + getHarnessPart('toolFiles').runningCost);
+    expect(model.costPerMinute).toBeCloseTo(40 * mods.aiCost + getHarnessPart('mcpFilesystem').runningCost);
   });
 });
 
@@ -208,7 +208,7 @@ describe('Harness がシミュレーションに与える影響', () => {
     for (let i = 0; i < 20; i++) {
       const seed = `acc-${i}`;
       const initial = reduce(
-        withParts(['permDeploy', 'toolDatabase', 'toolCommunication'], seed),
+        withParts(['permAuto', 'mcpDatabase', 'mcpChat'], seed),
         assign('aiThenHumanReview'),
       ).state;
       const { state } = runHeadless({ seed, initial, until: 600 });

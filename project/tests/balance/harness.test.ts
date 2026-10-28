@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { mcpParts } from '../../src/content/harness/mcp';
 import { subagentParts } from '../../src/content/harness/subagents';
-import { toolParts } from '../../src/content/harness/tools';
 import { getProject } from '../../src/content/index';
 import { type Command, reduce } from '../../src/core/commands';
 import { deadlineMinutes } from '../../src/core/formulas';
@@ -54,14 +54,14 @@ const FITTED = [
   'evalUnitTest',
   'evalAcceptance',
   'evalUiReq',
-  'toolFiles',
-  'toolGit',
-  'permRead',
-  'permWrite',
+  'mcpFilesystem',
+  'mcpGit',
+  'mdOverview',
+  'permAcceptEdits',
 ];
 const RULES = ['Formatter', 'Linter', 'UnitTest'];
 const EVALS = ['evalUnitTest', 'evalAcceptance', 'evalUiReq', 'evalA11y', 'evalCodingRules'];
-const MINIMAL_TOOLS = ['toolFiles', 'toolGit', 'toolBrowser'];
+const MINIMAL_TOOLS = ['mcpFilesystem', 'mcpGit', 'mcpBrowser'];
 
 describe('Harness のバランス（コーポレートサイト制作）', () => {
   it('高いモデルを買えば勝ちにならない：最上位モデル＋Harness なし ＜ 標準モデル＋適切な Harness（企画書7章）', () => {
@@ -165,7 +165,7 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
           play(
             seed,
             'standard',
-            toolParts.map((p) => p.id),
+            mcpParts.map((p) => p.id),
           ),
         minimal: (seed) => play(seed, 'standard', MINIMAL_TOOLS),
       },
@@ -177,5 +177,61 @@ describe('Harness のバランス（コーポレートサイト制作）', () =>
     );
     expect(r.all.accidentRate).toBeGreaterThan(r.minimal.accidentRate);
     expect(r.minimal.profitPerPersonDay).toBeGreaterThan(r.all.profitPerPersonDay);
+  });
+
+  it('ルールは仕分けるほうが良い：全部 CLAUDE.md に詰めると長すぎて読み落とし、関係ない仕事で Noise になる（Phase 26）', () => {
+    const cards = ['Overview', 'Coding', 'Design', 'Testing', 'Release', 'Learnings', 'OldSpec'];
+    const sorted = ['mdOverview', ...cards.slice(1, -1).map((c) => `rule${c}`)];
+    const r = compare(
+      {
+        allMd: (seed) =>
+          play(
+            seed,
+            'standard',
+            cards.map((c) => `md${c}`),
+          ),
+        sorted: (seed) => play(seed, 'standard', sorted),
+        none: (seed) => play(seed, 'standard', []),
+      },
+      SEEDS,
+    );
+    console.log(
+      `[Phase 26] Profit/Person-Day：全部 CLAUDE.md ${fmt(r.allMd.profitPerPersonDay)} vs 仕分け ${fmt(r.sorted.profitPerPersonDay)}` +
+        `（参考：渡さない ${fmt(r.none.profitPerPersonDay)}）円/人日 / 手戻り率 ${pct(r.allMd.reworkRate)} vs ${pct(r.sorted.reworkRate)}`,
+    );
+    expect(r.sorted.profitPerPersonDay).toBeGreaterThan(r.allMd.profitPerPersonDay);
+    expect(r.sorted.profitPerPersonDay).toBeGreaterThan(r.none.profitPerPersonDay);
+  });
+
+  it('全部の仕事に必要な「案件の概要とコマンド」は Rules より CLAUDE.md が正解（Rules に分けるほど良いわけではない）', () => {
+    const r = compare(
+      {
+        md: (seed) => play(seed, 'standard', ['mdOverview']),
+        rule: (seed) => play(seed, 'standard', ['ruleOverview']),
+      },
+      SEEDS,
+    );
+    console.log(
+      `[Phase 26] 案件の概要：CLAUDE.md ${fmt(r.md.profitPerPersonDay)} vs Rules ${fmt(r.rule.profitPerPersonDay)} 円/人日` +
+        ` / 人間時間 ${fmt(r.md.humanMinutes)} vs ${fmt(r.rule.humanMinutes)} 分`,
+    );
+    expect(r.md.humanMinutes).toBeLessThan(r.rule.humanMinutes);
+    expect(r.md.profitPerPersonDay).toBeGreaterThan(r.rule.profitPerPersonDay);
+  });
+
+  it('worktree があれば Subagent どうしが衝突しない：多めの Subagent でも成果が落ちにくい（Phase 26）', () => {
+    const four = subagentParts.slice(0, 4).map((p) => p.id);
+    const r = compare(
+      {
+        plain: (seed) => play(seed, 'standard', four),
+        worktree: (seed) => play(seed, 'standard', [...four, 'worktree']),
+      },
+      SEEDS,
+    );
+    console.log(
+      `[Phase 26] Subagent 4体：worktree なし ${fmt(r.plain.profitPerPersonDay)} vs あり ${fmt(r.worktree.profitPerPersonDay)} 円/人日` +
+        ` / 手戻り率 ${pct(r.plain.reworkRate)} vs ${pct(r.worktree.reworkRate)}`,
+    );
+    expect(r.worktree.profitPerPersonDay).toBeGreaterThan(r.plain.profitPerPersonDay);
   });
 });

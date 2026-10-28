@@ -52,7 +52,8 @@ export type GameEvent =
   | {
       readonly type: 'HarnessChanged';
       readonly workerId: string;
-      readonly change: 'equip' | 'remove' | 'model';
+      /** preset のとき id はおすすめ構成の id */
+      readonly change: 'equip' | 'remove' | 'model' | 'preset';
       readonly id: string;
       readonly savedHumanHours?: number;
     }

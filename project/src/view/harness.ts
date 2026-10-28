@@ -1,20 +1,42 @@
 import type { IconName } from '../assets/icons';
+import { balance } from '../content/balance';
+import { harnessPresets, type MistakeStopper, mistakes } from '../content/harness/guide';
 import { content, getAiWorker, getModel } from '../content/index';
-import type { ContextFeed, FeatureId, HarnessCategory, HarnessModifiers, HarnessPartDef } from '../content/types';
+import type {
+  ContextFeed,
+  FeatureId,
+  HarnessCategory,
+  HarnessModifiers,
+  HarnessPartDef,
+  HookTiming,
+  TaskKind,
+} from '../content/types';
 import { type Command, reduce } from '../core/commands';
 import { contextApplies, getSession } from '../core/context';
 import { expectWorker, type WorkerExpectation } from '../core/expectation';
-import { equippedParts, harnessOf } from '../core/harness';
+import { equippedParts, harnessOf, writtenSize } from '../core/harness';
 import type { GameState } from '../core/state';
 import { isUnlocked } from '../core/unlocks';
 import { ja } from '../i18n/ja';
 
 /*
- * Harness Builder（企画書35章）の表示用データ（純粋関数）。AI Worker のカードの行と、行を押したときの選択肢。
- * 選択肢はそれぞれ確定したときの Command を持ち、Before → After の予測はその Command を適用した state の見込みで出す。
+ * Harness Builder（企画書35章）の表示用データ（純粋関数）。作業の流れの道（受け取る → 計画 → 道具を使う → 書き換える →
+ * 確かめる → 渡す）に、地点ごとのスロット・道の上の盾（Hook）・道の下の鍵（権限モード）と時計（Routine）を置く。
+ * スロットや盾を押すと、その選択肢のパネル（rows）を開く。選択肢はそれぞれ確定したときの Command を持ち、
+ * Before → After の予測はその Command を適用した state の見込みで出す。
  */
 
-export type HarnessRowId = 'model' | 'context' | 'tools' | 'automation' | 'validation' | 'permissions' | 'split';
+export type HarnessRowId =
+  | 'model'
+  | 'receive'
+  | 'skill'
+  | 'tools'
+  | 'split'
+  | 'validation'
+  | 'mod'
+  | 'routine'
+  | 'permissions'
+  | `hook:${HookTiming}`;
 
 export interface HarnessOptionView {
   readonly id: string;
@@ -44,42 +66,173 @@ export interface ModifierLine {
 }
 
 export interface HarnessGroupView {
-  /** 見出し。1つの行に複数のまとまりがあるとき（渡す情報：資料の渡し方と Skill、自動化：ルールごと）だけ付ける */
+  /** 見出し。1つのパネルに複数のまとまりがあるとき（盾のルールごと・資料の渡し方）だけ付ける */
   readonly title: string | null;
   readonly options: readonly HarnessOptionView[];
+}
+
+/** ルールのカード1枚の置き場所。claudeMd: 毎回読む / rules: 関係する仕事のときだけ / none: 渡さない */
+export type RulePlace = 'claudeMd' | 'rules' | 'none';
+
+export interface RuleCardView {
+  readonly key: string;
+  readonly name: string;
+  readonly size: number;
+  /** 役に立つ仕事の種類の名前（全部の仕事・どれにも役立たないはまとめた1語） */
+  readonly kinds: readonly string[];
+  readonly place: RulePlace;
+  /** ほかの置き場所へ移す Command（置き場所ごと） */
+  readonly moves: readonly { readonly place: RulePlace; readonly id: string; readonly command: Command }[];
+}
+
+/** 受け取る：ルールの仕分け。CLAUDE.md の長さと目安 */
+export interface RuleSortView {
+  readonly cards: readonly RuleCardView[];
+  readonly claudeMdSize: number;
+  readonly budget: number;
 }
 
 export interface HarnessRowView {
   readonly id: HarnessRowId;
   readonly icon: IconName;
   readonly label: string;
-  /** 今の設定の要約（カードの行に出す） */
+  /** 今の設定の要約 */
   readonly summary: string;
   readonly groups: readonly HarnessGroupView[];
+  /** 受け取るのパネルだけ：ルールの仕分け */
+  readonly sort?: RuleSortView;
+}
+
+/** 道の地点のスロット（パネルを開くボタン） */
+export interface SlotView {
+  readonly row: HarnessRowId;
+  readonly icon: IconName;
+  /** スロットの下の小さなラベル（CLAUDE.md・Skill など） */
+  readonly chip: string;
+  /** 付けている部品の要約（空なら空き） */
+  readonly summary: string;
+  readonly count: number;
+  readonly locked: boolean;
+}
+
+export type LaneItem =
+  | {
+      readonly kind: 'station';
+      readonly id: string;
+      readonly no: number;
+      readonly title: string;
+      readonly slots: readonly SlotView[];
+    }
+  | {
+      readonly kind: 'shield';
+      readonly row: HarnessRowId;
+      readonly title: string;
+      /** hook: 強制する Hook がある / request: お願いだけ / none: 何もない */
+      readonly state: 'hook' | 'request' | 'none';
+      readonly locked: boolean;
+    };
+
+/** 道の下の鍵（権限モード）と時計（Routine） */
+export interface UnderLaneView {
+  readonly row: HarnessRowId;
+  readonly icon: IconName;
+  readonly label: string;
+  readonly summary: string;
+  readonly locked: boolean;
+}
+
+export interface MistakeView {
+  readonly id: string;
+  readonly label: string;
+  /** ok: Harness で止まる / maybe: お願いで止まるかも / human: 人間が止める / escape: 止まらない */
+  readonly tone: 'ok' | 'maybe' | 'human' | 'escape';
+  readonly where: string;
+}
+
+export interface PresetView {
+  readonly id: string;
+  readonly label: string;
+  readonly aim: string;
+  readonly command: Command;
 }
 
 export interface HarnessView {
   readonly workerId: string;
   readonly workerName: string;
+  /** 解放済みのパネル（Harness が未解放なら空） */
   readonly rows: readonly HarnessRowView[];
+  readonly lane: readonly LaneItem[];
+  readonly under: readonly UnderLaneView[];
+  readonly mistakes: readonly MistakeView[];
+  readonly presets: readonly PresetView[];
 }
 
 const t = ja.harness;
+const ALL_KINDS: readonly TaskKind[] = ['planning', 'research', 'design', 'content', 'code', 'test', 'release'];
 
-/** 行ごとのアイコン・解放の条件・部品のカテゴリ */
-const ROWS: readonly {
-  readonly id: HarnessRowId;
-  readonly icon: IconName;
-  readonly feature: FeatureId;
-  readonly category: HarnessCategory | null;
-}[] = [
-  { id: 'model', icon: 'model', feature: 'harness', category: null },
-  { id: 'context', icon: 'context', feature: 'harness', category: 'skill' },
-  { id: 'tools', icon: 'tool', feature: 'harness:tool', category: 'tool' },
-  { id: 'automation', icon: 'hook', feature: 'harness:hook', category: 'hook' },
-  { id: 'validation', icon: 'eval', feature: 'harness:eval', category: 'eval' },
-  { id: 'permissions', icon: 'permission', feature: 'harness:permission', category: 'permission' },
-  { id: 'split', icon: 'subagent', feature: 'harness:subagent', category: 'subagent' },
+/** パネルごとのアイコン・解放の条件・部品のカテゴリ */
+const ROWS: Readonly<
+  Record<
+    HarnessRowId,
+    { readonly icon: IconName; readonly feature: FeatureId; readonly categories: readonly HarnessCategory[] }
+  >
+> = {
+  model: { icon: 'model', feature: 'harness', categories: [] },
+  receive: { icon: 'requirements', feature: 'harness', categories: ['claudeMd', 'rules'] },
+  skill: { icon: 'skill', feature: 'harness', categories: ['skill'] },
+  tools: { icon: 'tool', feature: 'harness:tool', categories: ['mcp'] },
+  split: { icon: 'subagent', feature: 'harness:subagent', categories: ['subagent'] },
+  validation: { icon: 'eval', feature: 'harness:eval', categories: ['eval'] },
+  mod: { icon: 'board', feature: 'harness:mod', categories: ['mod'] },
+  routine: { icon: 'night', feature: 'harness:routine', categories: ['routine'] },
+  permissions: { icon: 'permission', feature: 'harness:permission', categories: ['permission'] },
+  'hook:SessionStart': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
+  'hook:PreToolUse': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
+  'hook:PostToolUse': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
+  'hook:Stop': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
+};
+
+/** パネルの並び（rows の順） */
+const ROW_ORDER: readonly HarnessRowId[] = [
+  'model',
+  'hook:SessionStart',
+  'receive',
+  'skill',
+  'hook:PreToolUse',
+  'tools',
+  'split',
+  'hook:PostToolUse',
+  'validation',
+  'hook:Stop',
+  'mod',
+  'permissions',
+  'routine',
+];
+
+/** 道の並び。地点のスロットと、地点の間の盾 */
+const LANE: readonly (
+  | {
+      readonly station: keyof typeof t.lane.stations;
+      readonly slots: readonly { row: HarnessRowId; chip: keyof typeof t.lane.chips; category?: HarnessCategory }[];
+    }
+  | { readonly shield: HookTiming }
+)[] = [
+  { shield: 'SessionStart' },
+  {
+    station: 'receive',
+    slots: [
+      { row: 'receive', chip: 'claudeMd', category: 'claudeMd' },
+      { row: 'receive', chip: 'rules', category: 'rules' },
+    ],
+  },
+  { station: 'plan', slots: [{ row: 'skill', chip: 'skill' }] },
+  { shield: 'PreToolUse' },
+  { station: 'tools', slots: [{ row: 'tools', chip: 'tools' }] },
+  { station: 'edit', slots: [{ row: 'split', chip: 'split' }] },
+  { shield: 'PostToolUse' },
+  { station: 'verify', slots: [{ row: 'validation', chip: 'validation' }] },
+  { shield: 'Stop' },
+  { station: 'deliver', slots: [{ row: 'mod', chip: 'mod' }] },
 ];
 
 const sign = (v: number) => (v > 0 ? `+${v}` : `${v}`);
@@ -90,7 +243,11 @@ function modifierLines(mods: Partial<HarnessModifiers>): ModifierLine[] {
   return (Object.entries(mods) as [keyof HarnessModifiers, number][]).map(([key, v]) => ({
     label: t.modifierNames[key],
     value:
-      key === 'speed' || key === 'humanTime' || key === 'aiCost' ? `×${v}` : key === 'noise' ? sign(v) : percent(v),
+      key === 'speed' || key === 'humanTime' || key === 'aiCost'
+        ? `×${Math.round(v * 1000) / 1000}`
+        : key === 'noise'
+          ? sign(Math.round(v * 1000) / 1000)
+          : percent(v),
   }));
 }
 
@@ -129,7 +286,7 @@ function partView(src: HarnessSource, part: HarnessPartDef): HarnessPartView {
     owned: src.owned(part.id),
     runningCost: part.runningCost,
     modifiers: modifierLines(part.modifiers),
-    burden: modifierLines(part.burden),
+    burden: modifierLines({ ...part.burden, ...part.offTarget }),
     appliesTo: part.appliesTo.map((k) => t.kinds[k]),
   };
 }
@@ -137,7 +294,7 @@ function partView(src: HarnessSource, part: HarnessPartDef): HarnessPartView {
 const isOn = (src: HarnessSource, partId: string) => src.equipped.includes(partId);
 
 /** 部品を付け外しする選択肢 */
-function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | null = null) {
+function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | null = null): HarnessOptionView {
   const on = isOn(src, part.id);
   const workerId = src.workerId;
   return {
@@ -145,7 +302,7 @@ function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | n
     label: part.name,
     hint,
     selected: on,
-    command: { type: on ? 'RemovePart' : 'EquipPart', workerId, partId: part.id } as Command,
+    command: { type: on ? 'RemovePart' : 'EquipPart', workerId, partId: part.id },
     part: partView(src, part),
   };
 }
@@ -153,12 +310,18 @@ function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | n
 const partsOf = (src: HarnessSource, category: HarnessCategory) =>
   content.harnessParts.filter((p) => p.category === category && src.isUnlocked(p.unlock));
 
-/** 自動化の行：ルールごとに「なし / お願い / Hook」 */
-function ruleGroups(src: HarnessSource): HarnessGroupView[] {
+const equippedOf = (src: HarnessSource, categories: readonly HarnessCategory[]) =>
+  src.equipped
+    .map((id) => content.harnessParts.find((p) => p.id === id))
+    .filter((p): p is HarnessPartDef => p !== undefined && categories.includes(p.category));
+
+/** 盾のパネル：そのタイミングのルールごとに「なし / お願い / Hook」 */
+function shieldGroups(src: HarnessSource, timing: HookTiming): HarnessGroupView[] {
   const workerId = src.workerId;
-  const groups = [...new Set(partsOf(src, 'hook').map((p) => p.group ?? p.id))];
+  const hooks = partsOf(src, 'hook').filter((p) => p.timing === timing);
+  const groups = [...new Set(hooks.map((p) => p.group ?? p.id))];
   return groups.map((group) => {
-    const parts = partsOf(src, 'hook').filter((p) => (p.group ?? p.id) === group);
+    const parts = hooks.filter((p) => (p.group ?? p.id) === group);
     const on = parts.find((p) => isOn(src, p.id));
     const none: HarnessOptionView = {
       id: `${group}:none`,
@@ -178,81 +341,186 @@ function ruleGroups(src: HarnessSource): HarnessGroupView[] {
   });
 }
 
-/** 渡す情報の行：資料の渡し方（資料のある案件で Context が解放済みのとき）と Skill */
-function contextGroups(src: HarnessSource): HarnessGroupView[] {
-  const groups: HarnessGroupView[] = [];
+/** 権限モードのパネル：既定の「毎回確認」と、モード（1つだけ） */
+function permissionGroups(src: HarnessSource): HarnessGroupView[] {
+  const modes = partsOf(src, 'permission');
+  const on = modes.find((p) => isOn(src, p.id));
+  const ask: HarnessOptionView = {
+    id: 'permission:default',
+    label: t.lane.defaultMode,
+    hint: t.lane.defaultModeHint,
+    selected: on === undefined,
+    command: on ? { type: 'RemovePart', workerId: src.workerId, partId: on.id } : null,
+    part: null,
+  };
+  return [{ title: null, options: [ask, ...modes.map((p) => toggleOption(src, p))] }];
+}
+
+/** 資料の渡し方（資料のある案件で Context が解放済みのとき） */
+function feedGroups(src: HarnessSource): HarnessGroupView[] {
   const feed = src.feed;
+  if (feed === null) return [];
   const workerId = src.workerId;
-  if (feed !== null) {
-    const options: HarnessOptionView[] = (['needed', 'all'] as const).map((mode) => ({
-      id: `feed:${mode}`,
-      label: ja.context.feed[mode],
-      hint: ja.context.feedHint[mode],
-      selected: feed === mode,
-      command: feed === mode ? null : { type: 'SetContextFeed', workerId, feed: { mode } },
-      part: null,
-    }));
-    if (feed === 'pick') {
-      options.push({ id: 'feed:pick', label: t.feedPick, hint: null, selected: true, command: null, part: null });
-    }
-    for (const p of partsOf(src, 'contextRouter')) options.push(toggleOption(src, p, ja.context.feedHint.router));
-    groups.push({ title: t.feedGroup, options });
+  const options: HarnessOptionView[] = (['needed', 'all'] as const).map((mode) => ({
+    id: `feed:${mode}`,
+    label: ja.context.feed[mode],
+    hint: ja.context.feedHint[mode],
+    selected: feed === mode,
+    command: feed === mode ? null : { type: 'SetContextFeed', workerId, feed: { mode } },
+    part: null,
+  }));
+  if (feed === 'pick') {
+    options.push({ id: 'feed:pick', label: t.feedPick, hint: null, selected: true, command: null, part: null });
   }
-  groups.push({ title: t.skillGroup, options: partsOf(src, 'skill').map((p) => toggleOption(src, p)) });
-  return groups;
+  for (const p of partsOf(src, 'contextRouter')) options.push(toggleOption(src, p, ja.context.feedHint.router));
+  return [{ title: t.sort.feed, options }];
+}
+
+const kindNames = (kinds: readonly TaskKind[]) =>
+  kinds.length === ALL_KINDS.length
+    ? [t.sort.allKinds]
+    : kinds.length === 0
+      ? [t.sort.noKinds]
+      : kinds.map((k) => t.kinds[k]);
+
+/** 受け取る：ルールのカードの仕分け。カードは CLAUDE.md と Rules の部品の組（同じ group） */
+function ruleSort(src: HarnessSource): RuleSortView {
+  const workerId = src.workerId;
+  const md = partsOf(src, 'claudeMd');
+  const cards = md.map((m): RuleCardView => {
+    const rule = partsOf(src, 'rules').find((r) => r.group === m.group);
+    const place: RulePlace = isOn(src, m.id) ? 'claudeMd' : rule && isOn(src, rule.id) ? 'rules' : 'none';
+    const current = place === 'claudeMd' ? m : place === 'rules' ? rule : undefined;
+    const target = (p: RulePlace): Command | null => {
+      if (p === 'claudeMd') return { type: 'EquipPart', workerId, partId: m.id };
+      if (p === 'rules') return rule ? { type: 'EquipPart', workerId, partId: rule.id } : null;
+      return current ? { type: 'RemovePart', workerId, partId: current.id } : null;
+    };
+    const moves = (['claudeMd', 'rules', 'none'] as const)
+      .filter((p) => p !== place)
+      .flatMap((p) => {
+        const command = target(p);
+        return command ? [{ place: p, id: `${m.group}:${p}`, command }] : [];
+      });
+    return { key: m.group ?? m.id, name: m.name, size: m.size ?? 0, kinds: kindNames(m.appliesTo), place, moves };
+  });
+  return {
+    cards,
+    claudeMdSize: writtenSize(equippedOf(src, ['claudeMd']), 'claudeMd'),
+    budget: balance.harness.budgets.claudeMd,
+  };
 }
 
 function summaryOf(row: HarnessRowId, src: HarnessSource): string {
   if (row === 'model') return getModel(src.modelId).name;
-  const category = ROWS.find((r) => r.id === row)?.category;
-  const names = src.equipped
-    .map((id) => content.harnessParts.find((p) => p.id === id))
-    .filter((p): p is HarnessPartDef => p?.category === category)
-    .map((p) => p.name);
-  if (row === 'context') {
-    const feedName = src.feed !== null ? [ja.context.feed[src.feed]] : [];
-    return [...feedName, ...names].join(' / ') || t.none;
-  }
+  if (row === 'permissions') return equippedOf(src, ['permission'])[0]?.name ?? t.lane.defaultMode;
+  const parts = equippedOf(src, ROWS[row].categories);
+  const timing = row.startsWith('hook:') ? row.slice(5) : null;
+  const names = parts.filter((p) => timing === null || p.timing === timing).map((p) => p.name);
   return names.join(' / ') || t.none;
 }
 
-/** Harness Builder のカード。解放されていない行は出さない（必要になってから見せる） */
+function groupsOf(row: HarnessRowId, src: HarnessSource): HarnessGroupView[] {
+  const workerId = src.workerId;
+  if (row === 'model') {
+    const current = src.modelId;
+    return [
+      {
+        title: null,
+        options: content.models.map((m) => ({
+          id: m.id,
+          label: m.name,
+          // Model は費用だけでなく、運用者の Seat の使用量の減り方も違う（企画書7章 Model × Harness × Seat）
+          hint: `${t.running(m.costPerMinute)}・${ja.team.modelUsage(m.usagePerMinute)}`,
+          selected: m.id === current,
+          command: m.id === current ? null : { type: 'SetModel', workerId, modelId: m.id },
+          part: null,
+        })),
+      },
+    ];
+  }
+  if (row === 'receive') return feedGroups(src);
+  if (row === 'permissions') return permissionGroups(src);
+  if (row.startsWith('hook:')) return shieldGroups(src, row.slice(5) as HookTiming);
+  const parts = ROWS[row].categories.flatMap((c) => partsOf(src, c));
+  return [{ title: null, options: parts.map((p) => toggleOption(src, p)) }];
+}
+
+/** ミスのカード。止めるものが付いていれば「〜で止まる」、お願いだけなら「止まるかも」、なければ人間か納品後 */
+function mistakeViews(src: HarnessSource): MistakeView[] {
+  const parts = equippedOf(src, [...new Set(Object.values(ROWS).flatMap((r) => r.categories))]);
+  const matches = (s: MistakeStopper, p: HarnessPartDef) =>
+    'part' in s
+      ? p.id === s.part || (p.group !== undefined && p.group === groupOfPart(s.part))
+      : p.category === s.category;
+  return mistakes.map((m) => {
+    // どの仕事にも役立たないルール（去年の仕様メモ）は何も止めない
+    const hits = parts.filter((p) => p.appliesTo.length > 0 && m.stoppedBy.some((s) => matches(s, p)));
+    const label = t.mistakes[m.id];
+    const sure = hits.find((p) => p.enforcement === 'system');
+    if (sure) return { id: m.id, label, tone: 'ok', where: t.stopAt(sure.name) };
+    const maybe = hits.find((p) => p.enforcement === 'request');
+    if (maybe) return { id: m.id, label, tone: 'maybe', where: t.stopMaybe(maybe.name) };
+    if (m.escapeWith?.some((id) => isOn(src, id))) return { id: m.id, label, tone: 'escape', where: t.escaped };
+    return { id: m.id, label, tone: m.fallback, where: t.fallback[m.fallback] };
+  });
+}
+
+const groupOfPart = (id: string) => content.harnessParts.find((p) => p.id === id)?.group;
+
+/** Harness Builder。解放されていないパネルは出さず、道のスロットと盾は「まだ使えません」にする */
 export function harnessView(state: GameState, projectId: string, workerId: string): HarnessView {
   return harnessCard(harnessSource(state, projectId, workerId), getAiWorker(workerId).name);
 }
 
-/** 構成から Harness Builder のカードを作る（ゲームと実務モードで共通） */
+/** 構成から Harness Builder を作る（ゲームと実務モードで共通） */
 export function harnessCard(src: HarnessSource, title: string): HarnessView {
-  const rows: HarnessRowView[] = [];
-  const workerId = src.workerId;
-  for (const row of ROWS) {
-    if (!src.isUnlocked(row.feature)) continue;
-    let groups: HarnessGroupView[];
-    if (row.id === 'model') {
-      const current = src.modelId;
-      groups = [
-        {
-          title: null,
-          options: content.models.map((m) => ({
-            id: m.id,
-            label: m.name,
-            // Model は費用だけでなく、運用者の Seat の使用量の減り方も違う（企画書7章 Model × Harness × Seat）
-            hint: `${t.running(m.costPerMinute)}・${ja.team.modelUsage(m.usagePerMinute)}`,
-            selected: m.id === current,
-            command: m.id === current ? null : { type: 'SetModel', workerId, modelId: m.id },
-            part: null,
-          })),
-        },
-      ];
-    } else if (row.id === 'context') groups = contextGroups(src);
-    else if (row.id === 'automation') groups = ruleGroups(src);
-    else {
-      const category = row.category as HarnessCategory;
-      groups = [{ title: null, options: partsOf(src, category).map((p) => toggleOption(src, p)) }];
+  const unlocked = (row: HarnessRowId) => src.isUnlocked(ROWS[row].feature);
+  const rows: HarnessRowView[] = ROW_ORDER.filter(unlocked).map((id) => ({
+    id,
+    icon: ROWS[id].icon,
+    label: t.rows[id],
+    summary: summaryOf(id, src),
+    groups: groupsOf(id, src),
+    ...(id === 'receive' ? { sort: ruleSort(src) } : {}),
+  }));
+  const lane: LaneItem[] = LANE.map((item, i) => {
+    if ('shield' in item) {
+      const row: HarnessRowId = `hook:${item.shield}`;
+      const on = equippedOf(src, ['hook']).filter((p) => p.timing === item.shield);
+      const state = on.some((p) => p.enforcement === 'system') ? 'hook' : on.length > 0 ? 'request' : 'none';
+      return { kind: 'shield', row, title: t.lane.shields[item.shield], state, locked: !unlocked(row) };
     }
-    rows.push({ id: row.id, icon: row.icon, label: t.rows[row.id], summary: summaryOf(row.id, src), groups });
-  }
-  return { workerId, workerName: title, rows };
+    const no = LANE.slice(0, i + 1).filter((x) => 'station' in x).length;
+    const slots = item.slots.map((s): SlotView => {
+      const parts = equippedOf(src, s.category ? [s.category] : ROWS[s.row].categories);
+      return {
+        row: s.row,
+        icon: s.category === 'rules' ? 'context' : ROWS[s.row].icon,
+        chip: t.lane.chips[s.chip],
+        summary: parts.length === 0 ? '' : parts.length === 1 ? (parts[0]?.name ?? '') : t.lane.count(parts.length),
+        count: parts.length,
+        locked: !unlocked(s.row),
+      };
+    });
+    return { kind: 'station', id: item.station, no, title: t.lane.stations[item.station], slots };
+  });
+  const under: UnderLaneView[] = (['permissions', 'routine'] as const).map((row) => ({
+    row,
+    icon: ROWS[row].icon,
+    label: row === 'permissions' ? t.lane.keys : t.lane.clock,
+    summary: summaryOf(row, src),
+    locked: !unlocked(row),
+  }));
+  const presets: PresetView[] = src.isUnlocked('harness')
+    ? harnessPresets.map((p) => ({
+        id: p.id,
+        label: t.presets[p.id].label,
+        aim: t.presets[p.id].aim,
+        command: { type: 'ApplyHarnessPreset', workerId: src.workerId, presetId: p.id },
+      }))
+    : [];
+  return { workerId: src.workerId, workerName: title, rows, lane, under, mistakes: mistakeViews(src), presets };
 }
 
 /** Before → After の予測（企画書48章）。今の設定と、選択肢を確定した後の、案件の AI の仕事の見込み */

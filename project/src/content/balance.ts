@@ -156,12 +156,25 @@ export const balance = {
     },
     /**
      * 同じカテゴリの部品の組ごとにかかる補正（n 個付けると n(n−1)/2 組）。数の2乗で増える調整コスト。
-     * subagent: Agent 間の通信と Coordination Cost（企画書15章）/ tool: Tool の組み合わせによる複雑さ（企画書16章）
+     * subagent: Agent 間の通信と Coordination Cost（企画書15章）/ mcp: MCP の組み合わせによる複雑さ（企画書16章）。
+     * 部品の pairRelief（worktree）があれば、その割合だけ組の数を減らして数える
      */
     pairs: {
       subagent: { success: -0.06, aiCost: 1.08 },
-      tool: { noise: 0.012, risk: 0.004 },
+      mcp: { noise: 0.012, risk: 0.004 },
     },
+    /**
+     * カテゴリごとの書いた量（HarnessPartDef.size の合計）の目安。超えると、そのカテゴリの部品の補正は 目安 ÷ 合計 の割合でしか効かない。
+     * claudeMd: CLAUDE.md は毎回すべて読むので、長すぎると読み落とす
+     */
+    budgets: { claudeMd: 12 },
+    /** CLAUDE.md に書いたルールが、役に立たない仕事で Noise になる量（書いた量 1 あたり） */
+    claudeMdNoisePerSize: 0.012,
+    /**
+     * Rules（パスで読み込むルール）の補正が効く割合。関係するファイルを触ったときに初めて読むので、
+     * 読む前に判断してしまう分だけ CLAUDE.md より弱い（全部の仕事に必要なものは CLAUDE.md が正解になる）
+     */
+    rulesRecall: 0.75,
     /** AI へのお願い（指示文に書いたルール）が1回の作業で守られる確率（企画書14章） */
     requestCompliance: 0.5,
     /** Eval の自動検証1回にかかる AI の時間（effort に対する割合） */

@@ -20,13 +20,13 @@ function started(commands: readonly Command[] = [], options = {}): GameState {
 
 describe('Harness Builder の表示用データ（view/harness.ts）', () => {
   it('解放されていない行は出さない（Harness が未解放なら行がない）', () => {
-    expect(harnessView(started(), P, AGENT).rows).toHaveLength(7);
+    expect(harnessView(started(), P, AGENT).rows).toHaveLength(13);
     expect(harnessView(started([], { tutorial: true }), P, AGENT).rows).toEqual([]);
   });
 
   it('行の要約は今の設定を表し、選択肢は確定時の Command を持つ', () => {
     const s = started([{ type: 'EquipPart', workerId: AGENT, partId: 'hookLinter' }]);
-    const automation = harnessView(s, P, AGENT).rows.find((r) => r.id === 'automation');
+    const automation = harnessView(s, P, AGENT).rows.find((r) => r.id === 'hook:PostToolUse');
     expect(automation?.summary).toBe('Linter Hook');
     const linter = automation?.groups.find((g) => g.options.some((o) => o.id === 'hookLinter'));
     expect(linter?.options.map((o) => o.selected)).toEqual([false, false, true]);

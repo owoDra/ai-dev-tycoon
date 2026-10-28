@@ -189,9 +189,11 @@ export function PlayScreen(props: {
           const text =
             e.change === 'model'
               ? ja.notices.modelChanged(getModel(e.id).name)
-              : e.change === 'equip'
-                ? ja.notices.equipped(getHarnessPart(e.id).name)
-                : ja.notices.removed(getHarnessPart(e.id).name);
+              : e.change === 'preset'
+                ? ja.notices.presetApplied(ja.harness.presets[e.id as keyof typeof ja.harness.presets].label)
+                : e.change === 'equip'
+                  ? ja.notices.equipped(getHarnessPart(e.id).name)
+                  : ja.notices.removed(getHarnessPart(e.id).name);
           notices.push({
             text,
             icon: e.change === 'remove' ? 'tool' : 'success',

@@ -224,13 +224,18 @@ export type FeatureId =
   /** session: New Session と Handoff / session:artifacts: Artifact Driven Work */
   | 'session'
   | 'session:artifacts'
-  /** harness: Harness Builder（Model と Skill）/ harness:*: 部品のカテゴリごとの解放 */
+  /**
+   * harness: Harness Builder（Model・CLAUDE.md と Rules・Skill）/ harness:*: 部品のカテゴリごとの解放。
+   * harness:tool は MCP・コネクタ（カテゴリ mcp。セーブの解放の記録と合わせるため id は変えない）
+   */
   | 'harness'
   | 'harness:hook'
   | 'harness:tool'
   | 'harness:permission'
   | 'harness:eval'
   | 'harness:subagent'
+  | 'harness:mod'
+  | 'harness:routine'
   /** team: 社員と Seat の画面（Seat の変更） / hire: 社員の画面と採用・退職 */
   | 'team'
   | 'hire';
@@ -262,6 +267,8 @@ export type UnlockMessageId =
   | 'harnessPermission'
   | 'harnessEval'
   | 'harnessSubagent'
+  | 'harnessMod'
+  | 'harnessRoutine'
   | 'team'
   | 'hire';
 
@@ -437,8 +444,27 @@ export interface IncidentDef {
   readonly icon: 'context' | 'warning' | 'session' | 'eval' | 'hook' | 'subagent' | 'review' | 'bottleneck';
 }
 
-/** Harness 部品のカテゴリ（企画書13〜18章・10章の Context Router） */
-export type HarnessCategory = 'skill' | 'hook' | 'tool' | 'permission' | 'eval' | 'subagent' | 'contextRouter';
+/**
+ * Harness 部品のカテゴリ（企画書13〜18章・10章の Context Router）。いまの Claude Code で実際にできるカスタマイズに対応させる。
+ * claudeMd: CLAUDE.md・メモリ（毎回読む）/ rules: .claude/rules（関係するファイルを触るときだけ読む）/ skill: Skill・スラッシュコマンド /
+ * hook: Hook（タイミング別）と、同じ内容の「お願い」/ mcp: MCP・コネクタ / subagent: Subagent・worktree /
+ * permission: 権限モード / mod: Mod（人間が見張る画面）/ routine: Routine・定期実行 / eval: Eval / contextRouter: Context Router
+ */
+export type HarnessCategory =
+  | 'claudeMd'
+  | 'rules'
+  | 'skill'
+  | 'hook'
+  | 'mcp'
+  | 'subagent'
+  | 'permission'
+  | 'mod'
+  | 'routine'
+  | 'eval'
+  | 'contextRouter';
+
+/** Hook が動くタイミング（Claude Code の hooks のイベント） */
+export type HookTiming = 'SessionStart' | 'PreToolUse' | 'PostToolUse' | 'Stop';
 
 /**
  * Harness 部品が AI Worker の作業に与える補正。合算のしかたはカテゴリに関係なく項目ごとに balance.harness.combine で決める
@@ -483,8 +509,19 @@ export interface HarnessPartDef {
    * request: AI へのお願い（指示文に書く。作業ごとに balance.harness.requestCompliance の確率でしか守られない）
    */
   readonly enforcement: 'system' | 'request';
-  /** 同じ group の部品は同時に1つしか付けられない（同じ内容の「お願い」と「Hook」） */
+  /** 同じ group の部品は同時に1つしか付けられない（同じ内容の「お願い」と「Hook」・同じルールの CLAUDE.md と Rules・権限モード） */
   readonly group?: string;
+  /** 効かない Task の作業にだけかかる補正。CLAUDE.md に書いたルールは毎回読むので、役に立たない仕事では Noise になる */
+  readonly offTarget?: Partial<HarnessModifiers>;
+  /**
+   * 書いた量。カテゴリの合計が balance.harness.budgets の目安を超えると、そのカテゴリの部品の補正は
+   * 目安 ÷ 合計 の割合でしか効かない（長すぎる CLAUDE.md の読み落とし）
+   */
+  readonly size?: number;
+  /** 同じカテゴリの組ごとの調整コスト（balance.harness.pairs）を、この割合だけ打ち消す（worktree で Subagent どうしが衝突しない） */
+  readonly pairRelief?: Partial<Record<HarnessCategory, number>>;
+  /** Hook の動くタイミング（hook のみ）。Builder で盾を置く場所と、書き出す settings.json のイベント */
+  readonly timing?: HookTiming;
   /** この機能が解放されると選べる */
   readonly unlock: FeatureId;
 }

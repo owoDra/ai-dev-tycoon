@@ -40,7 +40,7 @@ function savedInProjectA() {
     { type: 'StartProject', projectId: 'corporateSite' },
     { type: 'SetModel', workerId: AGENT, modelId: 'frontier' },
     { type: 'EquipPart', workerId: AGENT, partId: 'skillFrontend' },
-    { type: 'EquipPart', workerId: AGENT, partId: 'toolFiles' },
+    { type: 'EquipPart', workerId: AGENT, partId: 'mcpFilesystem' },
     { type: 'EquipPart', workerId: AGENT, partId: 'hookFormatter' },
     { type: 'EquipPart', workerId: AGENT, partId: 'evalUiReq' },
     { type: 'EquipPart', workerId: AGENT, partId: 'contextRouter' },
@@ -158,7 +158,7 @@ describe('Workflow Library（core/library.ts）', () => {
       { ...ok, mode: 'human' },
       { ...ok, modelId: 'gpt-x' },
       { ...ok, parts: ['nope'] },
-      { ...ok, parts: ['toolGit', 'toolGit'] },
+      { ...ok, parts: ['mcpGit', 'mcpGit'] },
       { ...ok, parts: ['hookFormatter', 'requestFormatter'] },
     ];
     for (const workflow of bad) expect(reduce(state, { type: 'SaveLibraryWorkflow', workflow }).state).toBe(state);

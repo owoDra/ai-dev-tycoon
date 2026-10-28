@@ -317,11 +317,11 @@ describe('格付け（大手の後も続く昇格）', () => {
 });
 
 describe('セーブと閉じている間の進行', () => {
-  it('v12 のセーブを v13 に変換できる（記録は空・期は次の営業日から・資金は開業資金から）。時計の単位が違うので今の形式（v14）には読み込まない', () => {
+  it('v12 のセーブを v13 に変換できる（記録は空・期は次の営業日から・資金は開業資金から）。時計の単位が違うのでv14 以降の形式には読み込まない', () => {
     const s = company('migrate');
     const { rank, eventCost, ledger, fiscal, funds, achievements, companyEvents, ...v12 } = s;
     const json = JSON.stringify({ saveVersion: 12, state: v12 });
-    expect(SAVE_VERSION).toBe(14);
+    expect(SAVE_VERSION).toBe(15);
     expect(() => deserialize(json)).toThrow(OutdatedSaveError);
     const loaded = deserialize(json, MIGRATIONS, 13);
     expect(loaded).toMatchObject({ rank: 0, eventCost: 0, achievements: [] });

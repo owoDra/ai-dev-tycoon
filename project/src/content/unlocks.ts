@@ -64,7 +64,7 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'templateCompleted', templateId: 'paymentFix' },
     message: 'contextRouter',
   },
-  // Harness Builder（企画書35章）。AI に任せる経験を積んで「Harness Engineering」の名前を知った後に、Model と Skill から
+  // Harness Builder（企画書35章）。AI に任せる経験を積んで「Harness Engineering」の名前を知った後に、Model・CLAUDE.md と Rules・Skill から
   { id: 'harness', feature: 'harness', when: { type: 'projectsCompleted', count: 1 }, message: 'harness' },
   // Builder と一緒に「お願い」と「Hook」を渡す（同じルールの2つの守らせ方を最初に比べさせる）
   {
@@ -73,7 +73,7 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'unlocked', feature: 'harness' },
     message: 'harnessHook',
   },
-  // Workflow で AI に工程をまとめて任せた後に、Tool と権限を渡す
+  // Workflow で AI に工程をまとめて任せた後に、MCP と権限モードを渡す
   {
     id: 'harnessTool',
     feature: 'harness:tool',
@@ -99,6 +99,14 @@ export const unlockDefs: readonly UnlockDef[] = [
     feature: 'harness:subagent',
     when: { type: 'projectsCompleted', count: 2 },
     message: 'harnessSubagent',
+  },
+  // 3つ目の案件を納品したら、人間が見張る時間を減らす Mod と、夜も AI を働かせる Routine を渡す
+  { id: 'harnessMod', feature: 'harness:mod', when: { type: 'projectsCompleted', count: 3 }, message: 'harnessMod' },
+  {
+    id: 'harnessRoutine',
+    feature: 'harness:routine',
+    when: { type: 'unlocked', feature: 'harness:mod' },
+    message: 'harnessRoutine',
   },
   // チュートリアルの案件を納品したら、採用市場で人を増やせるようにする（社員の画面もここから開ける）
   { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 1 }, message: 'hire' },

@@ -27,3 +27,23 @@ export const subagentParts: readonly HarnessPartDef[] = [
   { ...base, id: 'subReview', name: n.subReview },
   { ...base, id: 'subDocs', name: n.subDocs },
 ];
+
+/**
+ * worktree。Subagent ごとに別の作業場所（git worktree）で作業するので、分担先どうしが同じファイルで衝突しない。
+ * Subagent の組ごとの調整コスト（balance.harness.pairs.subagent）の一部を打ち消す。Subagent がいなければ何も起きない
+ */
+export const worktreeParts: readonly HarnessPartDef[] = [
+  {
+    id: 'worktree',
+    category: 'subagent',
+    name: n.worktree,
+    installCost: 15_000,
+    runningCost: 0,
+    modifiers: {},
+    burden: {},
+    pairRelief: { subagent: 0.6 },
+    appliesTo: [],
+    enforcement: 'system',
+    unlock: 'harness:subagent',
+  },
+];

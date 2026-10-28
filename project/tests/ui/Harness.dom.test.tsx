@@ -39,12 +39,27 @@ function mount(options: { tutorial?: boolean } = {}) {
 }
 
 describe('Harness Builder の UI（企画書35章・48章）', () => {
-  it('ドックから開くと AI Worker のカードに7つの行が並び、行を押すと選択肢のシートになる', () => {
+  it('ドックから開くと作業の流れの道（地点のスロット・盾・鍵）が並び、押すと選択肢のパネルになる', () => {
     const { q, root } = mount();
     q<HTMLButtonElement>('[data-harness-open]')?.click();
     const rows = [...root.querySelectorAll<HTMLElement>('[data-harness-row]')].map((r) => r.dataset.harnessRow);
-    expect(rows).toEqual(['model', 'context', 'tools', 'automation', 'validation', 'permissions', 'split']);
-    q<HTMLButtonElement>('[data-harness-row="automation"]')?.click();
+    expect(rows).toEqual([
+      'model',
+      'hook:SessionStart',
+      'receive',
+      'receive',
+      'skill',
+      'hook:PreToolUse',
+      'tools',
+      'split',
+      'hook:PostToolUse',
+      'validation',
+      'hook:Stop',
+      'mod',
+      'permissions',
+      'routine',
+    ]);
+    q<HTMLButtonElement>('[data-harness-row="hook:PostToolUse"]')?.click();
     expect(q('[data-harness-card]')).toBeNull();
     expect(q('[data-harness-option="hookUnitTest"]')?.textContent).toContain(ja.harness.ruleHook);
     expect(q('[data-harness-option="requestUnitTest"]')?.textContent).toContain(ja.harness.ruleRequest);
@@ -55,7 +70,7 @@ describe('Harness Builder の UI（企画書35章・48章）', () => {
   it('選択肢にフォーカスするたびに Before → After の予測が即座に出て、押すと部品を付け外しできる', () => {
     const { store, q, root } = mount();
     q<HTMLButtonElement>('[data-harness-open]')?.click();
-    q<HTMLButtonElement>('[data-harness-row="context"]')?.click();
+    q<HTMLButtonElement>('[data-harness-row="skill"]')?.click();
     expect(q('[data-harness-preview]')).toBeNull();
     const skill = q<HTMLButtonElement>('[data-harness-option="skillFrontend"]');
     skill?.dispatchEvent(new FocusEvent('focus'));

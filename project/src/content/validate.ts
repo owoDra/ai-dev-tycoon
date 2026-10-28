@@ -93,15 +93,19 @@ export function validateTemplates(templates: readonly ProjectTemplateDef[]): str
   return errors;
 }
 
-/** Harness 部品の ID の重複と、group の部品どうしのカテゴリの一致を検査する（値の範囲は tests/content/harness.test.ts） */
+/** Harness 部品の ID の重複と、group の部品どうしのカテゴリの一致（CLAUDE.md と Rules は同じとみなす）を検査する（値の範囲は tests/content/harness.test.ts） */
 function validateHarness(c: Content): string[] {
   const errors = duplicates(
     'Harness 部品',
     c.harnessParts.map((p) => p.id),
   );
+  // 同じルールのカードを CLAUDE.md に書くか Rules に分けるかは、カテゴリが違っても同じ group（どちらか1つ）
+  const family = (category: string) => (category === 'rules' ? 'claudeMd' : category);
   for (const p of c.harnessParts) {
     const mates = c.harnessParts.filter((o) => p.group !== undefined && o.group === p.group);
-    if (mates.some((o) => o.category !== p.category)) errors.push(`Harness 部品 ${p.id}: group のカテゴリが違う`);
+    if (mates.some((o) => family(o.category) !== family(p.category))) {
+      errors.push(`Harness 部品 ${p.id}: group のカテゴリが違う`);
+    }
   }
   return errors;
 }

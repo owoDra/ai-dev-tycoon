@@ -10,6 +10,7 @@ import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
 import { ghostButton, panel } from '../parts';
 import { type Direction, MorphValue, Trend } from './ForecastPreview';
+import { HarnessLane, RuleSort } from './HarnessLane';
 
 const t = ja.harness;
 const f = ja.forecast;
@@ -38,8 +39,8 @@ function direction(row: MetricRow, before: number, after: number): Direction {
 }
 
 /**
- * Harness Builder（企画書35章）。ノードエディタにせず、AI Worker のカードに「モデル / 渡す情報 / ツール / 自動化 / 検証 / 権限 / 分担」の行を並べる。
- * 行を押すと選択肢のシートに替わり、選択肢にフォーカスするたびに Before → After の予測を出す（企画書48章）。
+ * Harness Builder（企画書35章・D6 案D）。ノードエディタにせず、作業の流れの道（HarnessLane）にスロット・盾・鍵を並べる。
+ * スロットや盾を押すと選択肢のパネルに替わり、選択肢にフォーカスするたびに Before → After の予測を出す（企画書48章）。
  * 押すと確定（Command を発行）し、トーストと演出は PlayScreen と FxHost が events から出す。
  * 補正の内部値は「詳しく見る」を開いたときだけ出す。
  */
@@ -68,7 +69,8 @@ export function HarnessSheet(props: {
     enter(el, 'below');
   });
   const [rowId, setRowId] = createSignal<HarnessRowId | null>(null);
-  const [focused, setFocused] = createSignal<HarnessOptionView | null>(null);
+  /** 予測を出している選択肢（部品の選択肢・ルールの移動・おすすめ構成） */
+  const [focused, setFocused] = createSignal<{ label: string; command: Command | null } | null>(null);
   const row = () => props.view.rows.find((r) => r.id === rowId()) ?? null;
   const preview = createMemo(() => {
     const option = focused();
@@ -120,29 +122,33 @@ export function HarnessSheet(props: {
         when={row()}
         fallback={
           <>
-            <ul class="flex flex-col gap-1.5" aria-label={props.view.workerName} data-harness-card>
-              <Keyed each={props.view.rows} by={(r) => r.id}>
-                {(r) => (
-                  <li>
-                    <button
-                      type="button"
-                      data-harness-row={r.id}
-                      class="flex min-h-12 w-full items-center gap-3 rounded-lg border-[3px] border-line bg-surface px-3 py-1.5 text-left shadow-pop"
-                      onClick={() => open(r.id)}
-                    >
-                      <Icon name={r.icon} class="text-xl" />
-                      <span class="flex min-w-0 flex-1 flex-col leading-tight">
-                        <span class="text-[11px] font-bold text-ink-muted">{r.label}</span>
-                        <span class="truncate font-heading text-sm">{r.summary}</span>
-                      </span>
-                      <span aria-hidden="true" class="font-heading text-ink-muted">
-                        ›
-                      </span>
-                    </button>
-                  </li>
-                )}
-              </Keyed>
-            </ul>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-xs text-ink-muted">{t.lane.hint}</p>
+              <Show when={props.view.rows.some((r) => r.id === 'model')}>
+                <button
+                  type="button"
+                  data-harness-row="model"
+                  class="flex min-h-9 items-center gap-1.5 rounded-full border-[3px] border-line bg-surface px-3 text-xs shadow-pop"
+                  onClick={() => open('model')}
+                >
+                  <Icon name="model" />
+                  <span class="text-ink-muted">{t.lane.model}</span>
+                  <span class="font-heading">{props.view.rows.find((r) => r.id === 'model')?.summary}</span>
+                </button>
+              </Show>
+            </div>
+            <HarnessLane
+              view={props.view}
+              onOpen={open}
+              onPresetFocus={(p) => setFocused(p ? { label: p.label, command: p.command } : null)}
+              onPreset={(p) => {
+                props.dispatch(p.command);
+                setFocused(null);
+              }}
+            />
+            <Show when={focused()}>
+              <ForecastMetrics preview={preview()} title={t.preview} />
+            </Show>
             {props.footer}
           </>
         }
@@ -150,6 +156,20 @@ export function HarnessSheet(props: {
         {(r) => (
           <>
             <p class="text-xs text-ink-muted">{t.rowHints[r().id]}</p>
+            <Show when={r().sort}>
+              {(sort) => (
+                <div class="@container">
+                  <RuleSort
+                    sort={sort()}
+                    onFocus={(command, label) => setFocused({ label, command })}
+                    onMove={(command) => {
+                      props.dispatch(command);
+                      setFocused(null);
+                    }}
+                  />
+                </div>
+              )}
+            </Show>
             <Keyed each={r().groups} by={(g) => g.title ?? g.options[0]?.id ?? ''}>
               {(group) => (
                 <fieldset class="flex flex-col gap-1.5">

@@ -43,7 +43,7 @@ export const weeklyAnalytics: PracticeTemplateDef = {
         aptitude: 'high',
         mode: 'agentWorkflow',
         modelId: 'standard',
-        parts: ['toolAnalytics'],
+        parts: ['mcpAnalytics'],
       },
       {
         name: w.analysis,
@@ -52,7 +52,7 @@ export const weeklyAnalytics: PracticeTemplateDef = {
         aptitude: 'high',
         mode: 'agentWorkflow',
         modelId: 'standard',
-        parts: ['toolAnalytics', 'subResearch'],
+        parts: ['mcpAnalytics', 'subResearch'],
       },
       {
         name: w.report,

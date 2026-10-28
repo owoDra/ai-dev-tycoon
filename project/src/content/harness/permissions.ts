@@ -1,59 +1,48 @@
 import { ja } from '../../i18n/ja';
-import type { HarnessPartDef } from '../types';
+import type { HarnessPartDef, TaskKind } from '../types';
 
 const n = ja.harness.parts;
+const ALL: readonly TaskKind[] = ['planning', 'research', 'design', 'content', 'code', 'test', 'release'];
 
 const base = {
   category: 'permission',
   installCost: 0,
   runningCost: 0,
   enforcement: 'system',
+  group: 'permissionMode',
   unlock: 'harness:permission',
 } as const;
 
 /**
- * Permissions（企画書17章）。強い権限ほど仕事は速くなるが、どの Task でも事故の確率（risk）が上がる。
- * Human Gate は人間の承認を挟んで事故を抑える代わりに、人間の介入が少し重くなる
+ * 権限モード（企画書17章）。何も付けないのが「毎回確認」（人間が承認のたびに呼ばれるが、事故は人間が止める）。
+ * モードは1つだけ選べる。中断が減るほど速くなるが、どの Task でも事故の確率（risk）が上がる。
+ * sandbox は隔離して動かすので、導入に手間（コスト）がかかる代わりに危ない操作が外へ届きにくい
  */
 export const permissionParts: readonly HarnessPartDef[] = [
   {
     ...base,
-    id: 'permRead',
-    name: n.permRead,
-    modifiers: { success: 0.02 },
-    burden: {},
-    appliesTo: ['planning', 'research', 'test'],
-  },
-  {
-    ...base,
-    id: 'permWrite',
-    name: n.permWrite,
+    id: 'permAcceptEdits',
+    name: n.permAcceptEdits,
     modifiers: { speed: 1.2 },
     burden: { risk: 0.02 },
     appliesTo: ['design', 'content', 'code'],
   },
   {
     ...base,
-    id: 'permExecute',
-    name: n.permExecute,
-    modifiers: { success: 0.04 },
-    burden: { risk: 0.04 },
-    appliesTo: ['code', 'test'],
+    id: 'permAuto',
+    name: n.permAuto,
+    modifiers: { speed: 1.3, humanTime: 0.8 },
+    burden: { risk: 0.06 },
+    appliesTo: ALL,
   },
   {
     ...base,
-    id: 'permDeploy',
-    name: n.permDeploy,
-    modifiers: { speed: 1.5, humanTime: 0.7 },
-    burden: { risk: 0.12 },
-    appliesTo: ['release'],
-  },
-  {
-    ...base,
-    id: 'humanGate',
-    name: n.humanGate,
-    modifiers: {},
-    burden: { risk: -0.1, humanTime: 1.05 },
-    appliesTo: [],
+    id: 'permSandbox',
+    name: n.permSandbox,
+    installCost: 20_000,
+    runningCost: 1,
+    modifiers: { speed: 1.2, humanTime: 0.85 },
+    burden: { risk: 0.005 },
+    appliesTo: ALL,
   },
 ];

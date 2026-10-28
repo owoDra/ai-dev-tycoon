@@ -13,7 +13,7 @@ import { type PlayConfig, playConfigured } from '../helpers/configured';
 const EVAL_PLAY: PlayConfig = {
   projectId: 'corporateSite',
   mode: 'aiThenHumanReview',
-  parts: ['evalAcceptance', 'toolFiles', 'skillReport'],
+  parts: ['evalAcceptance', 'mcpFilesystem', 'skillReport'],
 };
 /** すべての資料を渡したまま（不要な資料を大量に渡す）、Harness は Eval だけ */
 const CLUTTERED_PLAY: PlayConfig = {

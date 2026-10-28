@@ -95,15 +95,21 @@ describe('実務モードの Harness Builder（ゲームと共通の UI）', () 
     const model = view?.rows.find((r) => r.id === 'model');
     expect(view?.rows.map((r) => r.id)).toEqual([
       'model',
-      'context',
+      'hook:SessionStart',
+      'receive',
+      'skill',
+      'hook:PreToolUse',
       'tools',
-      'automation',
-      'validation',
-      'permissions',
       'split',
+      'hook:PostToolUse',
+      'validation',
+      'hook:Stop',
+      'mod',
+      'permissions',
+      'routine',
     ]);
     // 実務モードには案件の資料がないので、資料の渡し方と Context Router は出さない
-    const contextIds = view?.rows.find((r) => r.id === 'context')?.groups.flatMap((g) => g.options.map((o) => o.id));
+    const contextIds = view?.rows.find((r) => r.id === 'receive')?.groups.flatMap((g) => g.options.map((o) => o.id));
     expect(contextIds).not.toContain('contextRouter');
     const frontier = model?.groups[0]?.options.find((o) => o.id === 'frontier')?.command;
     if (!frontier) throw new Error('Model の選択肢がない');
@@ -140,8 +146,8 @@ describe('実務モードの入力の保存と結果のコピー', () => {
     expect(parsePracticeJob({ ...job, steps: [{ ...job.steps[0], mode: 'magic' }] })).toBeNull();
     const tooMany = parsePracticeJob({ ...job, steps: Array.from({ length: 20 }, () => job.steps[0]) });
     expect(tooMany?.steps).toHaveLength(8);
-    const unknownPart = parsePracticeJob({ ...job, steps: [{ ...job.steps[0], parts: ['toolGit', 'nope'] }] });
-    expect(unknownPart?.steps[0]?.parts).toEqual(['toolGit']);
+    const unknownPart = parsePracticeJob({ ...job, steps: [{ ...job.steps[0], parts: ['mcpGit', 'nope'] }] });
+    expect(unknownPart?.steps[0]?.parts).toEqual(['mcpGit']);
   });
 
   it('結果は数字が主役の「2.0h → 0.3h / −88%」で、テキストと Markdown でコピーできる', () => {

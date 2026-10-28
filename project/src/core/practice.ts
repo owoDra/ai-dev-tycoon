@@ -1,5 +1,7 @@
 import { getAssignMode } from '../content/assignModes';
 import { balance } from '../content/balance';
+import { harnessPresets } from '../content/harness/guide';
+import { migratePartIds } from '../content/harness/legacy';
 import { content, getHarnessPart, getModel } from '../content/index';
 import { practiceAptitudes } from '../content/practice/index';
 import type { AssignModeDef, HarnessPartDef, PracticeJobInput, PracticeStepInput, TaskDef } from '../content/types';
@@ -181,6 +183,10 @@ export function applyToStep(step: PracticeStepInput, command: Command): Practice
         : { ...step, parts: withPart(step.parts, command.partId) };
     case 'RemovePart':
       return { ...step, parts: step.parts.filter((id) => id !== command.partId) };
+    case 'ApplyHarnessPreset': {
+      const preset = harnessPresets.find((p) => p.id === command.presetId);
+      return preset ? { ...step, parts: preset.parts.reduce<string[]>((acc, id) => withPart(acc, id), []) } : step;
+    }
     default:
       return step;
   }
@@ -216,7 +222,10 @@ function parseStep(v: unknown): PracticeStepInput | null {
   ) {
     return null;
   }
-  const parts = v.parts.filter(
+  const parts = migratePartIds(
+    v.parts.filter((id): id is string => typeof id === 'string'),
+    () => undefined,
+  ).filter(
     (id): id is string =>
       typeof id === 'string' && content.harnessParts.some((p) => p.id === id && p.category !== 'contextRouter'),
   );

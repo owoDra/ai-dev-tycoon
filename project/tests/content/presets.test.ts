@@ -35,7 +35,7 @@ describe('同梱の Workflow プリセット（content/library.ts）', () => {
     const pr = libraryPresets.find((w) => w.id === 'presetPrReview');
     const categories = pr?.parts.map((id) => content.harnessParts.find((p) => p.id === id)?.category);
     expect(pr?.context).toBe('needed');
-    expect(new Set(categories)).toEqual(new Set(['skill', 'tool', 'subagent', 'hook', 'eval']));
+    expect(new Set(categories)).toEqual(new Set(['skill', 'mcp', 'subagent', 'hook', 'eval']));
   });
 });
 

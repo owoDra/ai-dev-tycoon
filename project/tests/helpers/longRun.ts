@@ -41,10 +41,10 @@ const FITTED = [
   'hookUnitTest',
   'evalUnitTest',
   'evalAcceptance',
-  'toolFiles',
-  'toolGit',
-  'permRead',
-  'permWrite',
+  'mcpFilesystem',
+  'mcpGit',
+  'mdOverview',
+  'permAcceptEdits',
 ];
 
 export interface LongStrategy {

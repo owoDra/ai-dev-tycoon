@@ -1,6 +1,7 @@
 import { primaryActor } from '../content/assignModes';
 import { balance, type GameSpeed } from '../content/balance';
 import { findDocument } from '../content/documents';
+import { harnessPresets } from '../content/harness/guide';
 import { content, findProject, findWorker } from '../content/index';
 import { seats } from '../content/seats';
 import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
@@ -12,7 +13,7 @@ import { newSession, updateSession } from './context';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
 import { isBankrupt } from './funds';
-import { equipPart, removePart, setModel } from './harness';
+import { applyPreset, equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
@@ -97,6 +98,8 @@ export type Command =
   /** Harness 部品を装着する。同じ group の部品は付け替える。初めての部品は導入コストを払う */
   | { readonly type: 'EquipPart'; readonly workerId: string; readonly partId: string }
   | { readonly type: 'RemovePart'; readonly workerId: string; readonly partId: string }
+  /** おすすめ構成（content/harness/guide.ts）に入れ替える。今の部品を外し、解放済みの部品だけを付ける（Model と資料の渡し方は変えない） */
+  | { readonly type: 'ApplyHarnessPreset'; readonly workerId: string; readonly presetId: string }
   /**
    * 複数の Task を1つの Workflow にまとめて AI Worker に任せる（企画書5章）。どれも Agent Workflow の担当になり、
    * 前の Task から指示出しなしで続けて実行する。まだ始まっていない Task が2件以上必要
@@ -296,6 +299,12 @@ function apply(state: GameState, command: Command): Transition {
       const next = removePart(state, command.workerId, command.partId);
       return harnessChanged(state, next, command.workerId, 'remove', command.partId);
     }
+    case 'ApplyHarnessPreset': {
+      const preset = harnessPresets.find((p) => p.id === command.presetId);
+      if (!preset || !isUnlocked(state, 'harness')) return unchanged(state);
+      const next = applyPreset(state, command.workerId, preset.parts, (p) => isUnlocked(state, p.unlock));
+      return harnessChanged(state, next, command.workerId, 'preset', preset.id);
+    }
     case 'AssignWorkflow': {
       const { projectId, workerId } = command;
       const taskIds = [...new Set(command.taskIds)];
@@ -349,7 +358,7 @@ function harnessChanged(
   before: GameState,
   after: GameState,
   workerId: string,
-  change: 'equip' | 'remove' | 'model',
+  change: 'equip' | 'remove' | 'model' | 'preset',
   id: string,
 ): Transition {
   if (after === before) return unchanged(before);

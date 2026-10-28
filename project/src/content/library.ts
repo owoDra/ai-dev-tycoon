@@ -16,7 +16,7 @@ export const libraryPresets: readonly LibraryWorkflowDef[] = [
     mode: 'aiThenHumanReview',
     modelId: 'standard',
     context: 'needed',
-    parts: ['skillPrReview', 'toolGit', 'subReview', 'hookUnitTest', 'evalCodingRules'],
+    parts: ['skillPrReview', 'mcpGit', 'subReview', 'hookUnitTest', 'evalCodingRules'],
   },
   {
     // 企画書24章の週次アクセス解析を、ゲームの調査・企画の Task に持ち込んだもの
@@ -25,7 +25,7 @@ export const libraryPresets: readonly LibraryWorkflowDef[] = [
     mode: 'aiThenEval',
     modelId: 'standard',
     context: 'needed',
-    parts: ['skillReport', 'toolAnalytics', 'subResearch', 'permRead', 'evalAcceptance'],
+    parts: ['skillReport', 'mcpAnalytics', 'subResearch', 'evalAcceptance'],
   },
   {
     id: 'presetFrontend',
@@ -33,7 +33,7 @@ export const libraryPresets: readonly LibraryWorkflowDef[] = [
     mode: 'aiThenHumanReview',
     modelId: 'standard',
     context: 'router',
-    parts: ['skillFrontend', 'toolFiles', 'permWrite', 'hookFormatter', 'evalUiReq', 'evalA11y'],
+    parts: ['skillFrontend', 'mcpFilesystem', 'permAcceptEdits', 'hookFormatter', 'evalUiReq', 'evalA11y'],
   },
   {
     id: 'presetSafeRelease',
@@ -41,6 +41,6 @@ export const libraryPresets: readonly LibraryWorkflowDef[] = [
     mode: 'agentWorkflow',
     modelId: 'lite',
     context: 'needed',
-    parts: ['toolGit', 'permDeploy', 'hookUnitTest', 'evalSecurity'],
+    parts: ['mcpGit', 'permAuto', 'hookUnitTest', 'evalSecurity'],
   },
 ];

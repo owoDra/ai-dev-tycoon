@@ -1,5 +1,6 @@
 import { assignModes, primaryActor } from '../content/assignModes';
 import { balance } from '../content/balance';
+import { migratePartId } from '../content/harness/legacy';
 import { content, findWorker, getProject } from '../content/index';
 import { libraryPresets } from '../content/library';
 import type { FeatureId, LibraryWorkflowDef, WorkflowContext } from '../content/types';
@@ -223,7 +224,8 @@ export function decodeWorkflowCode(code: string): WorkflowCodeResult {
     const context = CONTEXTS[r.byte()];
     const count = r.uint();
     if (!context || count > content.harnessParts.length) return { ok: false, error: 'invalid' };
-    const parts = Array.from({ length: count }, () => r.text());
+    // Phase 26 より前のコードの部品は今の id に読み替える（重複や同じ group の検査は読み替えた後の並びで行う）
+    const parts = Array.from({ length: count }, () => migratePartId(r.text())).filter((id) => id !== null);
     if (!r.done()) return { ok: false, error: 'format' };
     const workflow: WorkflowDraft = { name, mode, modelId, context, parts };
     return validateWorkflow(workflow).length > 0 ? { ok: false, error: 'invalid' } : { ok: true, workflow };

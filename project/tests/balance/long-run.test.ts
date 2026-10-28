@@ -177,10 +177,10 @@ const FITTED = [
   'hookUnitTest',
   'evalUnitTest',
   'evalAcceptance',
-  'toolFiles',
-  'toolGit',
-  'permRead',
-  'permWrite',
+  'mcpFilesystem',
+  'mcpGit',
+  'mdOverview',
+  'permAcceptEdits',
 ];
 const SMART_APTITUDE = 0.6;
 

@@ -1,4 +1,3 @@
-import type { GameSpeed } from '../../content/balance';
 import type { GameEvent } from '../../core/events';
 
 /** これ以上操作がなかった区間を「迷った時間」として数える（秒） */
@@ -33,8 +32,6 @@ export interface PlayLogJson {
   readonly ended: 'completed' | 'skipped' | null;
   readonly steps: readonly PlayLogStep[];
   readonly misclicks: readonly PlayLogMisclick[];
-  readonly speedChanges: readonly { readonly at: number; readonly speed: GameSpeed }[];
-  readonly pauses: number;
 }
 
 interface OpenStep {
@@ -64,8 +61,6 @@ export interface PlayLog {
 export function createPlayLog(firstStep: string): PlayLog {
   const steps: PlayLogStep[] = [];
   const misclicks: PlayLogMisclick[] = [];
-  const speedChanges: { at: number; speed: GameSpeed }[] = [];
-  let pauses = 0;
   let ended: PlayLogJson['ended'] = null;
   let endedAt = 0;
   let open: OpenStep | null = openStep(firstStep, 0);
@@ -105,9 +100,7 @@ export function createPlayLog(firstStep: string): PlayLog {
     events(at, events) {
       for (const e of events) {
         if (!open) return;
-        if (e.type === 'SpeedChanged') speedChanges.push({ at: round(at), speed: e.speed });
-        else if (e.type === 'PauseToggled' && e.paused) pauses++;
-        else if (e.type === 'TutorialStepChanged') {
+        if (e.type === 'TutorialStepChanged') {
           steps.push(close(open, at));
           open = openStep(e.stepId, at);
         } else if (e.type === 'TutorialEnded') {
@@ -129,8 +122,6 @@ export function createPlayLog(firstStep: string): PlayLog {
         ended,
         steps: current ? [...steps, current] : [...steps],
         misclicks: [...misclicks],
-        speedChanges: [...speedChanges],
-        pauses,
       };
     },
   };

@@ -29,5 +29,5 @@ export function layoutScene(): { state: GameState; projectId: string | null } {
     }
     s = step(s, 60).state;
   }
-  return { state: { ...s, paused: true }, projectId };
+  return { state: s, projectId };
 }

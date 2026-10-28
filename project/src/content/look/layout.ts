@@ -134,6 +134,10 @@ export interface LayoutFlow {
   deliveryCardMs: number;
   /** Task の詳細に出す、おすすめの Workflow の数（view/library.ts の recommendWorkflows） */
   workflowPicks: number;
+  /** 「次の日へ」で1日の作業を見せる実時間（ms） */
+  dayMs: number;
+  /** 「判断が必要になるまで進める」で1日あたりにかける実時間（ms）。何日も続くので短くする */
+  skipDayMs: number;
 }
 
 export interface UiLayout {
@@ -218,6 +222,8 @@ export const uiLayout: UiLayout = {
     deliveryCards: 3,
     deliveryCardMs: 10000,
     workflowPicks: 3,
+    dayMs: 2400,
+    skipDayMs: 700,
   },
 };
 

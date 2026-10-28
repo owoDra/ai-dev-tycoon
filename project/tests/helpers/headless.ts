@@ -28,7 +28,6 @@ export interface HeadlessResult {
 
 /**
  * 画面なしでゲームを進める。Command は指定時刻に到達した時点で適用する。
- * 一時停止したままだと時計が進まないため、その時点で打ち切る。
  */
 export function runHeadless({
   seed,
@@ -48,7 +47,7 @@ export function runHeadless({
       state = r.state;
       events.push(...r.events);
     }
-    if (state.clock >= until || state.paused) break;
+    if (state.clock >= until) break;
     const nextAt = queue[q]?.at ?? until;
     const r = step(state, Math.min(nextAt, until) - state.clock, systems);
     state = r.state;

@@ -1,7 +1,6 @@
 import { type Accessor, createSignal, onCleanup } from 'solid-js';
 import type { GameStore } from '../../../app/store';
 import type { IconName } from '../../../assets/icons';
-import { balance } from '../../../content/balance';
 import { getProject } from '../../../content/index';
 import type { AssignModeId } from '../../../content/types';
 import { type Command, reduce } from '../../../core/commands';
@@ -11,6 +10,9 @@ import { MINUTES_PER_HOUR } from '../../../core/units';
 import { ja } from '../../../i18n/ja';
 import { taskRows } from '../../../view/project';
 import { describeEntity, islandId, type WorldViewModel } from '../../../view/world';
+
+/** デモで実時間1秒に進めるゲーム内の分（本編は1日ずつ進めるので、デモだけの速さ） */
+const DEMO_MINUTES_PER_SECOND = 24;
 
 /**
  * D3 の比較ページの遊び場（プロトタイプ用）。ECサイト案件を、最初の2つの Task だけ人間に割り当てた状態で始め、
@@ -55,7 +57,7 @@ export interface Sandbox {
   reset(): void;
 }
 
-/** requestAnimationFrame で時間を進める。一時停止は state.paused（HUD の操作）に従う */
+/** requestAnimationFrame で時間を進める */
 export function createSandbox(): Sandbox {
   const [state, setState] = createSignal<GameState>(sandboxInitialState());
   const [boost, setBoost] = createSignal<SandboxBoost>(8);
@@ -66,14 +68,16 @@ export function createSandbox(): Sandbox {
     state,
     dispatch: (command) => setState(reduce(state(), command).state),
     advance: (minutes) => setState(step(state(), minutes).state),
+    run: () => null,
+    play: () => {},
+    stop: () => {},
     onEvents: () => () => {},
   };
 
   const tick = (now: number) => {
     const dt = last === undefined ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
     last = now;
-    const s = state();
-    if (!s.paused && dt > 0) store.advance(dt * balance.time.minutesPerRealSecond * s.speed * boost());
+    if (dt > 0) store.advance(dt * DEMO_MINUTES_PER_SECOND * boost());
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);

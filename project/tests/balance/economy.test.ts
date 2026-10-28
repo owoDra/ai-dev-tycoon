@@ -3,8 +3,7 @@ import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import type { ProjectSize } from '../../src/content/types';
 import { estimatePersonDays, type PriceStep, priceSteps, quoteBid } from '../../src/core/bidding';
-import { openInquiries } from '../../src/core/board';
-import { reduce } from '../../src/core/commands';
+import { openInquiries, postInquiries } from '../../src/core/board';
 import { dailyCost, laborCost } from '../../src/core/formulas';
 import { generatedProjectId } from '../../src/core/projectGen';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -94,8 +93,8 @@ describe('見積の最善は評判で変わる', () => {
 /** 引き合いが届いた、評判 reputation の会社 */
 function withInquiries(seed: string, reputation: number): GameState {
   const s = createInitialState(seed, { board: true, tutorial: false, talent: true });
-  const started = reduce(reduce({ ...s, paused: true }, { type: 'TogglePause' }).state, { type: 'TogglePause' }).state;
-  const posted = step({ ...started, paused: false }, 1).state;
+  const started = postInquiries(s, () => {});
+  const posted = step(started, 1).state;
   if (posted.clock >= DAY) throw new Error('引き合いが届く前に営業日が終わった');
   return { ...posted, reputation };
 }

@@ -98,7 +98,7 @@ describe('プレイ画面', () => {
     expect(store.state().projects[P]?.tasks.hearing?.assignment?.mode).toBe('human');
   });
 
-  it('矢印キーで島を移り、Space で一時停止する', () => {
+  it('矢印キーで島を移り、Space で次の日へ進め始める', () => {
     const { store, root, selection } = mount();
     key('ArrowRight');
     expect(selection.selected()).toBe(islandId('hearing'));
@@ -106,7 +106,10 @@ describe('プレイ画面', () => {
     expect(selection.selected()).toBe(islandId('requirements'));
     expect(sheet(root)?.textContent).toContain(ja.tasks.ecRenewal.requirements);
     key(' ');
-    expect(store.state().paused).toBe(true);
+    expect(store.run()).toMatchObject({ untilDecision: false });
+    // 進めている最中にもう一度押すと止まる
+    key(' ');
+    expect(store.run()).toBeNull();
   });
 
   it('担当を決めてシートが閉じても、矢印キーは最後に選んだ島の隣へ進む', () => {

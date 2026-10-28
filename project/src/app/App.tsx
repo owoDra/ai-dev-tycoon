@@ -2,9 +2,7 @@ import { createEffect, createMemo, createSignal, lazy, Match, on, onCleanup, Sho
 import { screenRegions, uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { tutorialScript } from '../content/tutorial';
-import { catchUp, dayEnd, runsUnattended } from '../core/away';
 import { activeProjects } from '../core/board';
-import { businessDay } from '../core/clock';
 import { isBankrupt } from '../core/funds';
 import { createInitialState, type GameState } from '../core/state';
 import type { FxDirector } from '../fx/director';
@@ -16,7 +14,6 @@ import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
-import { DayBreakCard, RecapCard, type SessionLinks } from '../ui/play/SessionCards';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
 import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
@@ -28,16 +25,14 @@ import { createSelection } from '../ui/selection';
 import { createSafeBox } from '../ui/viewport';
 import { WorldCanvas } from '../ui/WorldCanvas';
 import { type DeliveryView, deliveryView } from '../view/fiscal';
-import { daySummary, recapView } from '../view/session';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
 import { createMilestones } from './milestones';
 import { markTutorialDone, progress } from './progress';
-import { clearCompany, hasOutdatedSave, loadCompany, loadSavedAt, saveCompany } from './save';
+import { clearCompany, hasOutdatedSave, loadCompany, saveCompany } from './save';
 import { afterDelivery, createScreens } from './screens';
-import { settings } from './settings';
 import { createGameStore, type GameStore } from './store';
 
 // 開発用の調整パネル。本番ビルドでは条件が定数 false になり、コードごと取り除かれる
@@ -62,8 +57,7 @@ const AUTOSAVE_MS = 5000;
  * 会社1つごとに新しい GameStore を作り、ゲームループを回す。会社はチュートリアル案件から始まり、終えると案件ボード（ホームの上のシート）に引き合いが届く。
  * 進み具合（解放・社員・Harness・案件・評判）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
  * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したらホーム（会社のオフィス）へ戻る。
- * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
- * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
+ * 時間はプレイヤーが「次の日へ」を押したときだけ進む（app/store.ts の play）。閉じている間には進まない。
  */
 export function App(props: {
   tweak: boolean;
@@ -83,12 +77,10 @@ export function App(props: {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   /** 案件ボードを開いているか（見積を考えている間は時間を止める） */
   const [boardOpen, setBoardOpen] = createSignal(false);
-  /** 区切りとあらすじのカード・決算・倒産（設定を開いている間は、カードを Space で閉じない） */
-  const milestones = createMilestones(game, settingsOpen);
-  const { dayCard, recap, fiscal, bankrupt, resume } = milestones;
+  /** 納品・決算・倒産（設定を開いている間は、納品の結果を Space で閉じない） */
+  const milestones = createMilestones(settingsOpen);
+  const { fiscal, bankrupt } = milestones;
   const [deliveries, setDeliveries] = createSignal<readonly DeliveryView[]>([]);
-  /** 今の営業日が始まったときの state（その日の成果の比較に使う） */
-  let dayStart = game().state();
   const openSettings = () => setSettingsOpen(true);
   let director: FxDirector | undefined;
   // 画面の領域（content/look/layout.ts）。セーフエリアの内側の大きさから求め、回転やブラウザのバーの出し入れに追従する
@@ -96,7 +88,7 @@ export function App(props: {
   const safe = createSafeBox(safeEl);
   const regions = createMemo(() => screenRegions(uiLayout, safe()));
   /**
-   * 時間を止める画面（決算・倒産・区切りとあらすじのカード・設定）を開いているか。開いている間はプレイ画面のキー操作を効かせない
+   * 時間を止める画面（決算・倒産・納品の結果・設定）を開いているか。開いている間はプレイ画面のキー操作を効かせない
    */
   const modal = () => settingsOpen() || milestones.open();
   /**
@@ -126,12 +118,8 @@ export function App(props: {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
     milestones.reset(isBankrupt(state));
     setDeliveries([]);
-    dayStart = state;
     setGame(createGameStore(state));
   };
-
-  /** 営業日の終わりで区切るか（設定・会社の進行中の案件か結果待ちの見積・プレイ画面（ホームを含む）） */
-  const breaksAtDayEnd = () => settings().dayBreak && screens.screen().id === 'play' && runsUnattended(game().state());
 
   const closeDelivery = (projectId: string) => setDeliveries((cards) => cards.filter((c) => c.projectId !== projectId));
 
@@ -166,52 +154,18 @@ export function App(props: {
     screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
 
-  /**
-   * 保存した会社を読み込んでホームへ進む（進行中の案件はドックのタブから開く）。閉じていた間の進行を適用し、一時停止したままあらすじを出す
-   * （チュートリアル中はあらすじを出さずにそのまま続ける）
-   */
+  /** 保存した会社を読み込んでホームへ進む（進行中の案件はドックのタブから開く）。閉じていた間には時間は進んでいない */
   const continueCampaign = () => {
     const state = loadCompany();
     if (!state) return newCampaign();
-    if (isBankrupt(state)) {
-      useState(state);
-      screens.go({ type: 'Open' });
-      return;
-    }
-    const savedAt = loadSavedAt();
-    const awaySeconds = settings().awayProgress && savedAt !== null ? Math.max(0, (Date.now() - savedAt) / 1000) : 0;
-    const { state: after, events } = catchUp(state, awaySeconds);
-    const withRecap = after.tutorial === null && !isBankrupt(after);
-    useState({ ...after, paused: withRecap || after.paused });
-    const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1) ?? null;
-    if (withRecap) milestones.showRecap(recapView(state, after, events), closed);
+    useState(state);
     screens.go({ type: 'Open' });
-    save();
   };
 
   /** 納品した案件の振り返り（結果画面）を開く */
   const review = (projectId: string) => {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
     screens.go({ type: 'Review', projectId });
-  };
-
-  /** 案件ボードを開く頼み（区切りとあらすじのカードから。ボードはプレイ画面のシートなので、回数を渡して開いてもらう） */
-  const [boardCall, setBoardCall] = createSignal(0);
-  /** 区切りとあらすじのカードから飛ぶ先。カードを閉じて再開してから移る */
-  const sessionLinks: SessionLinks = {
-    onOpen: (projectId) => {
-      resume();
-      selection.dispatch({ type: 'SelectEntity', entityId: null });
-      screens.go({ type: 'Switch', projectId });
-    },
-    onReview: (projectId) => {
-      resume();
-      review(projectId);
-    },
-    onBoard: () => {
-      resume();
-      setBoardCall((n) => n + 1);
-    },
   };
 
   const toTitle = () => {
@@ -229,29 +183,10 @@ export function App(props: {
 
   createEffect(
     on(game, (store) => {
-      onCleanup(
-        startLoop(
-          store,
-          undefined,
-          () => (breaksAtDayEnd() ? dayEnd(store.state().clock) : null),
-          // 結果（振り返り）・決算・倒産・区切りとあらすじのカード・設定・案件ボードを見ている間は、ゲーム内の時間を止める
-          held,
-        ),
-      );
-      // 営業日の終わり：一時停止して、その日の成果を出す（区切らない設定でも、成果の起点は進める）
-      let day = businessDay(store.state().clock);
-      createEffect(() => {
-        const state = store.state();
-        const now = businessDay(state.clock);
-        if (now <= day) return;
-        day = now;
-        if (breaksAtDayEnd()) {
-          milestones.showDay(daySummary(dayStart, state));
-          if (!state.paused) store.dispatch({ type: 'TogglePause' });
-          save();
-        }
-        dayStart = state;
-      });
+      // 結果（振り返り）・決算・倒産・納品の結果・設定・案件ボードを見ている間は、進めている日を止めておく
+      onCleanup(startLoop(store, undefined, held));
+      // 1日進め終えたら保存する
+      createEffect(on(store.run, (run) => run === null && save(), { defer: true }));
       if (store.state().board) {
         const timer = setInterval(save, AUTOSAVE_MS);
         onCleanup(() => clearInterval(timer));
@@ -266,11 +201,11 @@ export function App(props: {
           if (won !== undefined && at.id === 'play' && at.projectId === undefined) {
             screens.go({ type: 'Switch', projectId: won });
           }
-          // 期の終わり：一時停止して決算を出す（その日の区切りのカードの代わり）
+          // 期の終わり：決算を出す（まとめ送りもそこで止める）
           const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
           if (closed !== undefined && store.state().board) {
             milestones.showFiscal(closed);
-            if (!store.state().paused) store.dispatch({ type: 'TogglePause' });
+            store.stop();
             save();
           }
           if (events.some((e) => e.type === 'CompanyBankrupt')) {
@@ -280,7 +215,7 @@ export function App(props: {
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;
           save();
-          // 納品は全画面の結果画面に切り替えずに知らせる。直轄の案件は一時停止してモーダルで、
+          // 納品は全画面の結果画面に切り替えずに知らせる。直轄の案件はモーダルで（見ている間は時間が進まない）、
           // 管理者に任せた案件はカードで（操作を止めない）。振り返りはどちらからも開ける
           if (store.state().board) {
             const views = done.flatMap((id) => {
@@ -376,7 +311,6 @@ export function App(props: {
                 screens.go({ type: 'Home' });
               }}
               onReview={review}
-              boardCall={boardCall}
             />
           </Match>
           <Match when={screens.screen().id === 'result'}>
@@ -424,12 +358,8 @@ export function App(props: {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
-      <Show when={dayCard() && fiscal() === null && !bankrupt() ? dayCard() : null}>
-        {(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} links={sessionLinks} />}
-      </Show>
-      <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} links={sessionLinks} />}</Show>
-      <Show when={fiscal() !== null && recap() === null && !bankrupt() ? fiscal() : null}>
-        {(no) => <FiscalScreen store={game()} no={no()} onNext={resume} onTitle={toTitle} />}
+      <Show when={fiscal() !== null && !bankrupt() ? fiscal() : null}>
+        {(no) => <FiscalScreen store={game()} no={no()} onNext={milestones.closeFiscal} onTitle={toTitle} />}
       </Show>
       <Show when={milestones.delivery()} keyed>
         {(d) => (

@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(19);
+    expect(SAVE_VERSION).toBe(20);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -133,5 +133,16 @@ describe('結果待ちの見積の取り下げ（core/serialize.ts の v18 → v
       { projectId: 'p~1~S', postedDay: 0, closesAt: 900 },
       { projectId: 'p~2~S', postedDay: 0, closesAt: 900 },
     ]);
+  });
+});
+
+describe('速度と一時停止をなくす（core/serialize.ts の v19 → v20）', () => {
+  it('速度と一時停止を落とし、ほかはそのまま読み込む（日の途中のセーブは、次に進めたときにその日の終わりまで進む）', () => {
+    const state = { ...createInitialState('v19', { board: true }), clock: 300 };
+    const old = { saveVersion: 19, state: { ...state, speed: 3, paused: true } };
+    const s = deserialize(JSON.stringify(old));
+    expect(s).toEqual(state);
+    expect(s).not.toHaveProperty('speed');
+    expect(s).not.toHaveProperty('paused');
   });
 });

@@ -1,23 +1,19 @@
 import { createRoot, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { startLoop } from '../../src/app/loop';
 import { createMilestones } from '../../src/app/milestones';
 import { createGameStore, type EventListener, type GameStore } from '../../src/app/store';
-import { balance } from '../../src/content/balance';
 import { glossary } from '../../src/content/glossary';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
-import { catchUp } from '../../src/core/away';
 import { createInitialState } from '../../src/core/state';
-import { step } from '../../src/core/step';
 import { createNotices } from '../../src/ui/notices';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createTermCards } from '../../src/ui/play/TermCards';
 import { createSelection } from '../../src/ui/selection';
 import { deliveryView } from '../../src/view/fiscal';
-import { daySummary, recapView } from '../../src/view/session';
 import { islandId, worldView } from '../../src/view/world';
 import { growCompany } from '../helpers/growth';
-import { campaignInProgress } from '../helpers/session';
 
 const P = 'ecRenewal';
 const LAYOUT = { max: 5, durationMs: 1000 } as const;
@@ -120,11 +116,10 @@ describe('時間を止める画面の間のキー操作', () => {
   it('決算などを出している間は、矢印・Esc・Space が裏のプレイ画面に効かない。閉じたら効く', () => {
     const [held, setHeld] = createSignal(true);
     const { store, selection } = mount(held);
-    const paused = store.state().paused;
     key('ArrowRight');
     expect(selection.selected()).toBeNull();
     key(' ');
-    expect(store.state().paused).toBe(paused);
+    expect(store.run()).toBeNull();
     selection.dispatch({ type: 'SelectEntity', entityId: islandId('hearing') });
     key('Escape');
     expect(selection.selected()).toBe(islandId('hearing'));
@@ -133,69 +128,30 @@ describe('時間を止める画面の間のキー操作', () => {
     expect(selection.selected()).toBeNull();
     key('ArrowRight');
     expect(selection.selected()).not.toBeNull();
+    key(' ');
+    expect(store.run()).not.toBeNull();
+  });
+
+  it('Space で最後の納品の結果を閉じても、同じキーで日を進め始めない', () => {
+    const [views, setViews] = createSignal<readonly string[]>(['done']);
+    // 納品の結果（app/milestones.ts）と同じく、プレイ画面より先に Space を受けて閉じる
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || views().length === 0) return;
+      e.preventDefault();
+      setViews([]);
+    };
+    window.addEventListener('keydown', onKey);
+    const { store } = mount(() => views().length > 0);
+    key(' ');
+    window.removeEventListener('keydown', onKey);
+    expect(views()).toEqual([]);
+    expect(store.run()).toBeNull();
+    key(' ');
+    expect(store.run()).not.toBeNull();
   });
 });
 
-describe('節目の画面を閉じて再開する（app/milestones.ts）', () => {
-  /** 閉じていた間に期を締めた会社を「続きから」開いたところ（あらすじを出し、決算を保留している） */
-  function resumed() {
-    const before = campaignInProgress('modal-recap');
-    const { state: after, events } = catchUp(before, 24 * 60 * 60);
-    const store = createGameStore({ ...after, paused: true });
-    const [settingsOpen, setSettingsOpen] = createSignal(false);
-    const m = createRoot((d) => {
-      dispose = d;
-      return createMilestones(() => store, settingsOpen);
-    });
-    m.showRecap(recapView(before, after, events), 1);
-    return { store, m, setSettingsOpen };
-  }
-
-  it('あらすじの表示中に Space で再開すると、保留していた決算を一時停止したまま出す', () => {
-    const { store, m } = resumed();
-    expect(m.open()).toBe(true);
-    key(' ');
-    expect(m.recap()).toBeNull();
-    expect(m.fiscal()).toBe(1);
-    expect(store.state().paused).toBe(true);
-    // 決算を閉じたら再開する
-    m.resume();
-    expect(m.fiscal()).toBeNull();
-    expect(m.open()).toBe(false);
-    expect(store.state().paused).toBe(false);
-  });
-
-  it('HUD の再開（TogglePause）であらすじを閉じても、保留していた決算を出して止めたままにする', () => {
-    const { store, m } = resumed();
-    store.dispatch({ type: 'TogglePause' });
-    expect(m.recap()).toBeNull();
-    expect(m.fiscal()).toBe(1);
-    expect(store.state().paused).toBe(true);
-  });
-
-  it('設定を開いている間は、Space であらすじを閉じない', () => {
-    const { store, m, setSettingsOpen } = resumed();
-    setSettingsOpen(true);
-    key(' ');
-    expect(m.recap()).not.toBeNull();
-    expect(store.state().paused).toBe(true);
-  });
-
-  it('区切りのカードは Space で閉じて再開する（保留した決算がなければそのまま進む）', () => {
-    const start = campaignInProgress('modal-day', 1);
-    const end = step(start, balance.time.minutesPerDay).state;
-    const store = createGameStore({ ...end, paused: true });
-    const m = createRoot((d) => {
-      dispose = d;
-      return createMilestones(() => store);
-    });
-    m.showDay(daySummary(start, end));
-    key(' ');
-    expect(m.dayCard()).toBeNull();
-    expect(m.fiscal()).toBeNull();
-    expect(store.state().paused).toBe(false);
-  });
-
+describe('節目の画面（app/milestones.ts）', () => {
   /** 直轄の案件を納品した会社（時間が進んでいる）と、納品の結果2件 */
   function delivered() {
     const state = growCompany('delivery-ui', 3).state;
@@ -204,41 +160,97 @@ describe('節目の画面を閉じて再開する（app/milestones.ts）', () =>
     if (!view) throw new Error('納品した案件がない');
     // 2件目は同じ結果を別の案件として出す（milestones は中身を見ない）
     const views = [view, { ...view, projectId: `${id}-2` }];
-    const store = createGameStore({ ...state, paused: false });
+    const store = createGameStore(state);
+    const [settingsOpen, setSettingsOpen] = createSignal(false);
     const m = createRoot((d) => {
       dispose = d;
-      return createMilestones(() => store);
+      return createMilestones(settingsOpen);
     });
-    return { store, m, views };
+    return { store, m, views, setSettingsOpen };
   }
 
-  it('直轄の納品の結果は一時停止して順に出し、最後の1件を閉じたら再開する（Space でも閉じる）', () => {
-    const { store, m, views } = delivered();
+  it('直轄の納品の結果は順に出し、最後の1件を閉じたら節目の画面を閉じる（Space でも閉じる）', () => {
+    const { m, views } = delivered();
     expect(views.every((v) => v.direct)).toBe(true);
     m.showDeliveries(views);
-    expect(store.state().paused).toBe(true);
     expect(m.open()).toBe(true);
     expect(m.delivery()?.projectId).toBe(views[0]?.projectId);
     m.closeDelivery();
     expect(m.delivery()?.projectId).toBe(views[1]?.projectId);
-    expect(store.state().paused).toBe(true);
+    expect(m.open()).toBe(true);
     key(' ');
     expect(m.delivery()).toBeNull();
     expect(m.open()).toBe(false);
-    expect(store.state().paused).toBe(false);
   });
 
-  it('決算と同時に納品したら、決算を閉じた後も一時停止したまま納品の結果を出す', () => {
-    const { store, m, views } = delivered();
+  it('設定を開いている間は、Space で納品の結果を閉じない', () => {
+    const { m, views, setSettingsOpen } = delivered();
+    m.showDeliveries(views.slice(0, 1));
+    setSettingsOpen(true);
+    key(' ');
+    expect(m.delivery()?.projectId).toBe(views[0]?.projectId);
+    setSettingsOpen(false);
+    key(' ');
+    expect(m.delivery()).toBeNull();
+  });
+
+  it('決算と同時に納品したら、決算を閉じた後に納品の結果を出す', () => {
+    const { m, views } = delivered();
     m.showDeliveries(views.slice(0, 1));
     m.showFiscal(1);
     // 決算の下には納品の結果を出さない
     expect(m.delivery()).toBeNull();
-    m.resume();
+    expect(m.open()).toBe(true);
+    m.closeFiscal();
     expect(m.fiscal()).toBeNull();
     expect(m.delivery()?.projectId).toBe(views[0]?.projectId);
-    expect(store.state().paused).toBe(true);
+    expect(m.open()).toBe(true);
     m.closeDelivery();
-    expect(store.state().paused).toBe(false);
+    expect(m.open()).toBe(false);
+  });
+
+  it('倒産を出したら決算を閉じ、reset で倒産の有無を読み込み直す', () => {
+    const { m, views } = delivered();
+    m.showDeliveries(views);
+    m.showFiscal(1);
+    m.showBankrupt();
+    expect(m.fiscal()).toBeNull();
+    expect(m.bankrupt()).toBe(true);
+    expect(m.delivery()).toBeNull();
+    m.reset(false);
+    expect(m.bankrupt()).toBe(false);
+    expect(m.open()).toBe(false);
+  });
+
+  it('節目の画面を開いている間は（App の held）、進めている日があってもゲームループは時間を進めず、閉じたら続きから進む', () => {
+    let frames: FrameRequestCallback[] = [];
+    let now = 0;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+    vi.stubGlobal('cancelAnimationFrame', () => {
+      frames = [];
+    });
+    const frame = () => {
+      now += 100;
+      const current = frames;
+      frames = [];
+      for (const cb of current) cb(now);
+    };
+    try {
+      const { store, m, views } = delivered();
+      const stop = startLoop(store, undefined, m.open);
+      frame();
+      store.play(false);
+      m.showDeliveries(views.slice(0, 1));
+      const at = store.state().clock + store.state().carryMinutes;
+      for (let i = 0; i < 5; i++) frame();
+      expect(store.state().clock + store.state().carryMinutes).toBe(at);
+      expect(store.run()).not.toBeNull();
+      m.closeDelivery();
+      frame();
+      expect(store.state().clock + store.state().carryMinutes).toBeGreaterThan(at);
+      stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

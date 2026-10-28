@@ -34,7 +34,7 @@ export interface ProjectTabView {
   readonly selected: boolean;
   /** 案件のチームと管理者の札（チームが直轄だけなら null） */
   readonly team: string | null;
-  /** 担当が決まっていない Task で止まっている（core/step.ts の stalledProjects。時間も止まる） */
+  /** 担当が決まっていない Task で止まっている（core/step.ts の stalledProjects） */
   readonly stalled: boolean;
 }
 

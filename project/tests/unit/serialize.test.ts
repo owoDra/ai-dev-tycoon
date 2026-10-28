@@ -9,13 +9,13 @@ describe('serialize', () => {
   it('保存して復元すると等価になる', () => {
     const { state } = runHeadless({
       seed: 'save',
-      commands: [{ at: 3, command: { type: 'SetSpeed', speed: 3 } }],
+      commands: [{ at: 3, command: { type: 'StartProject', projectId: 'ecRenewal' } }],
       until: 90,
     });
     const withPending: GameState = {
       ...state,
       carryMinutes: 0.5,
-      pendingEvents: [{ at: 120, event: { type: 'PauseToggled', paused: true } }],
+      pendingEvents: [{ at: 120, event: { type: 'FiscalClosed', no: 1 } }],
     };
     expect(deserialize(serialize(withPending))).toEqual(withPending);
   });
@@ -36,7 +36,7 @@ describe('serialize', () => {
   });
 
   it('旧バージョンのデータがマイグレーションで現在の形に変換される', () => {
-    // v1: 時計を「時間」単位で持っていた / v2: paused がなかった、という架空の履歴
+    // v1: 時計を「時間」単位で持っていた / v2: carryMinutes がなかった、という架空の履歴
     const migrations: Migration[] = [
       {
         from: 1,
@@ -45,12 +45,12 @@ describe('serialize', () => {
           return { ...rest, clock: hours * 60 };
         },
       },
-      { from: 2, migrate: (s) => ({ ...(s as object), paused: false }) },
+      { from: 2, migrate: (s) => ({ ...(s as object), carryMinutes: 0 }) },
     ];
     const current = createInitialState('old');
-    const { clock: _, paused: __, ...v1State } = current;
+    const { clock: _, carryMinutes: __, ...v1State } = current;
     const v1 = JSON.stringify({ saveVersion: 1, state: { ...v1State, hours: 2 } });
-    expect(deserialize(v1, migrations, 3)).toEqual({ ...current, clock: 120, paused: false });
+    expect(deserialize(v1, migrations, 3)).toEqual({ ...current, clock: 120, carryMinutes: 0 });
   });
 
   it('マイグレーションが欠けている・未来のバージョン・壊れたデータは例外にする', () => {

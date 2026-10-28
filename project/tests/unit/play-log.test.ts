@@ -17,13 +17,10 @@ describe('プレイログ（?dev=log）', () => {
     ]);
   });
 
-  it('誤って押した操作・速度の変更・一時停止・スキップを記録し、終わった後の操作は記録しない', () => {
+  it('誤って押した操作・スキップを記録し、終わった後の操作は記録しない', () => {
     const log = createPlayLog('choose');
     log.misclick(1, 'human');
-    log.events(2, [
-      { type: 'SpeedChanged', speed: 10 },
-      { type: 'PauseToggled', paused: true },
-    ]);
+    log.events(2, [{ type: 'TaskStarted', projectId: 'p', taskId: 't', mode: 'ai' }]);
     expect(log.currentStep()).toBe('choose');
     log.events(3, [{ type: 'TutorialEnded', skipped: true }]);
     log.misclick(4, 'ai');
@@ -31,8 +28,6 @@ describe('プレイログ（?dev=log）', () => {
     expect(log.currentStep()).toBeNull();
     expect(json.ended).toBe('skipped');
     expect(json.misclicks).toEqual([{ at: 1, step: 'choose', target: 'human' }]);
-    expect(json.speedChanges).toEqual([{ at: 2, speed: 10 }]);
-    expect(json.pauses).toBe(1);
   });
 
   it('終わる前に書き出しても、今のステップを今の時刻で締めた形で出し、記録は続ける', () => {

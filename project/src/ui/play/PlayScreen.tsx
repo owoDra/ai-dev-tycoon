@@ -600,7 +600,9 @@ export function PlayScreen(props: {
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
-      // 時間を止める画面（決算・あらすじなど）の裏では、島の選択やシートの開閉を動かさない
+      // 時間を止める画面（決算・納品の結果など）の裏では、島の選択やシートの開閉を動かさない。
+      // そこで先に処理したキー（納品の結果を Space で閉じた）は、日を進める操作にしない
+      if (e.defaultPrevented) return;
       if (props.held?.() && !(boardOpen() && boardOn())) return;
       const action = keyAction(e);
       if (!action) return;
@@ -613,9 +615,9 @@ export function PlayScreen(props: {
         if (selected() === null) return;
         e.preventDefault();
         close();
-      } else if (action.type === 'pause') {
+      } else if (action.type === 'nextDay') {
         e.preventDefault();
-        props.store.dispatch({ type: 'TogglePause' });
+        props.store.play(false);
       } else {
         e.preventDefault();
         moveIsland(action.dir);

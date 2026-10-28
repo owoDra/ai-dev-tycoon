@@ -14,7 +14,7 @@ import type { AssignModeId, FeatureId, ModeFeatureId, UnlockDef } from './types'
 export const unlockDefs: readonly UnlockDef[] = [
   { id: 'human', feature: 'mode:human', when: { type: 'start' }, message: 'basic' },
   { id: 'ai', feature: 'mode:ai', when: { type: 'start' }, message: 'basic' },
-  { id: 'speed', feature: 'dock:speed', when: { type: 'tasksStarted', count: 1 }, message: 'speed' },
+  { id: 'skip', feature: 'dock:skip', when: { type: 'tasksStarted', count: 1 }, message: 'skip' },
   {
     id: 'utilization',
     feature: 'dock:utilization',
@@ -232,7 +232,7 @@ export const dockFeature: Partial<Record<HudItemId, FeatureId>> = {
 export const basicFeatures: readonly FeatureId[] = [
   'mode:human',
   'mode:ai',
-  'dock:speed',
+  'dock:skip',
   'dock:utilization',
   'mode:aiThenHumanReview',
   'mode:aiThenEval',

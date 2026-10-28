@@ -15,7 +15,7 @@ import {
   submitBid,
   winChance,
 } from '../../src/core/bidding';
-import { openInquiries } from '../../src/core/board';
+import { openInquiries, postInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { generatedProjectId } from '../../src/core/projectGen';
@@ -36,7 +36,7 @@ const SEEDS = Array.from({ length: 40 }, (_, i) => `bid-${i}`);
 /** チュートリアルなしで始め、最初の引き合いが届いた会社 */
 function company(seed = 'bid'): GameState {
   const s = createInitialState(seed, { board: true, tutorial: false });
-  return reduce({ ...s, paused: true }, { type: 'TogglePause' }).state;
+  return postInquiries(s, () => {});
 }
 
 const projects = SEEDS.map((s) => generatedProjectId(s, 'M'));
@@ -227,7 +227,7 @@ describe('評判', () => {
   });
 
   it('ヘッドレスで通す：見積 → 受注 → 担当を決めて納品 → 評判の変化', () => {
-    let s = { ...company('record'), paused: false };
+    let s = company('record');
     const log: string[] = [];
     const events: GameEvent[] = [];
     let won: string | null = null;

@@ -1,4 +1,3 @@
-import type { GameSpeed } from '../content/balance';
 import type {
   AssignModeId,
   CompanyTierId,
@@ -15,8 +14,6 @@ import type { BottleneckRef } from './bottleneck';
  * 後続の Phase で種類を追加していく。
  */
 export type GameEvent =
-  | { readonly type: 'SpeedChanged'; readonly speed: GameSpeed }
-  | { readonly type: 'PauseToggled'; readonly paused: boolean }
   | { readonly type: 'TaskStarted'; readonly projectId: string; readonly taskId: string; readonly mode: AssignModeId }
   | { readonly type: 'TaskCompleted'; readonly projectId: string; readonly taskId: string; readonly quality: number }
   /** 作業が失敗した（この時点では誰も気付いていない。レビューがあれば後で ReworkDetected になる） */

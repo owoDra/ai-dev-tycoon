@@ -14,7 +14,7 @@ export const tutorialScript: TutorialScript = {
   seed: 'tutorial',
   // 最初の AI は成功させて速さを見せ、2つ目でミスさせる。レビューと自動テストでは、それぞれが失敗を見つける場面を必ず見せる
   forcedAiOutcomes: { wireframe: true, coding: false, form: false, responsive: false },
-  alwaysAllowed: ['SetSpeed', 'TogglePause', 'SeeFeatures', 'StartProject', 'SkipTutorial'],
+  alwaysAllowed: ['SeeFeatures', 'StartProject', 'SkipTutorial'],
   steps: [
     {
       id: 'choose',
@@ -26,7 +26,7 @@ export const tutorialScript: TutorialScript = {
     {
       id: 'firstWork',
       when: { type: 'taskAssigned', projectId: P, taskId: 'wireframe' },
-      highlight: null,
+      highlight: { kind: 'nextDay' },
       say: {
         if: { type: 'taskAssigned', projectId: P, taskId: 'wireframe', mode: 'ai' },
         yes: 'aiWorking',
@@ -48,7 +48,7 @@ export const tutorialScript: TutorialScript = {
     {
       id: 'aiAgain',
       when: { type: 'taskAssigned', projectId: P, taskId: 'coding' },
-      highlight: null,
+      highlight: { kind: 'nextDay' },
       say: 'aiAgain',
       allow: [],
     },
@@ -62,7 +62,7 @@ export const tutorialScript: TutorialScript = {
     {
       id: 'reviewing',
       when: { type: 'taskAssigned', projectId: P, taskId: 'form' },
-      highlight: null,
+      highlight: { kind: 'nextDay' },
       say: 'reviewing',
       allow: [],
     },
@@ -76,7 +76,7 @@ export const tutorialScript: TutorialScript = {
     {
       id: 'evaluating',
       when: { type: 'taskAssigned', projectId: P, taskId: 'responsive' },
-      highlight: null,
+      highlight: { kind: 'nextDay' },
       say: 'evaluating',
       allow: [],
     },

@@ -96,8 +96,6 @@ describe('採用の経営判断', () => {
   it('人を増やすとキャンペーンを早く納品できるが、契約金と待機中の給与がかかる（採用は無料の上位互換ではない）', () => {
     // 採用市場を開いた会社どうしで比べる（採用市場が開く時期は tests/unit/unlocks.test.ts）
     const options = {
-      thinkSeconds: 20,
-      tutorialThinkSeconds: 5,
       limitMinutes: 20_000,
       unlocked: ['hire'] as const,
     };

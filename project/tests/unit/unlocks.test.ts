@@ -9,6 +9,7 @@ import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
 import { autoTestCatch, expectedHumanMinutes, repairMinutes } from '../../src/core/formulas';
+import { settleProgress } from '../../src/core/progress';
 import { deserialize, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 import { step } from '../../src/core/step';
@@ -80,7 +81,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('解放の進み具合はセーブを通っても残り、v2 などキャンペーン以前の形式のセーブは読み込めない（OutdatedSaveError）', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     expect(() => deserialize(JSON.stringify({ saveVersion: 2, state: v2 }))).toThrow(OutdatedSaveError);
-    expect(SAVE_VERSION).toBe(19);
+    expect(SAVE_VERSION).toBe(20);
     const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
     const loaded = deserialize(serialize(s));
     expect(loaded.unlocked).toEqual(s.unlocked);
@@ -168,7 +169,8 @@ describe('段階的な解放（Phase 29。企画書50章「必要になる前に
     const run = s.projects.tutorialLp;
     if (!run) throw new Error('チュートリアルの案件が始まっていない');
     const projects = { ...s.projects, tutorialLp: { ...run, completedAt: s.clock } };
-    return reduce({ ...s, projects }, { type: 'TogglePause' }).state;
+    // 納品は Command の適用後の判定で見る（状態を変えない Command では判定が走らないので直接呼ぶ）
+    return settleProgress({ ...s, projects }, () => {});
   };
   const DAY = 1440;
 
@@ -247,7 +249,7 @@ describe('解放のカードの「開く」の行き先（content/unlocks.ts の
     expect(menuSpotOf('hire')).toBe('team');
     expect(menuSpotOf('context:pick')).toBe('context');
     expect(menuSpotOf('mode:aiThenHumanReview')).toBeUndefined();
-    expect(menuSpotOf('dock:speed')).toBeUndefined();
+    expect(menuSpotOf('dock:skip')).toBeUndefined();
   });
 });
 
@@ -273,7 +275,6 @@ describe('チュートリアルを遊んでも飛ばしても、進め方は変�
           workerId,
         }).state;
       }
-      if (s.paused) s = reduce(s, { type: 'TogglePause' }).state;
       s = step(s, 5).state;
     }
     return s;
@@ -308,7 +309,7 @@ describe('チュートリアルを遊んでも飛ばしても、進め方は変�
       projectId: tutorialScript.projectId,
     }).state;
     const skipped = reduce(started, { type: 'SkipTutorial' }).state;
-    // 最初の仕事を始めて終えると、同じ営業日のうちに早送りと稼働の表示が届く（1日1つの順番待ちにしない）
+    // 最初の仕事を始めて終えると、同じ営業日のうちに「まとめて進める」と稼働の表示が届く（1日1つの順番待ちにしない）
     const assigned = reduce(skipped, {
       type: 'AssignTask',
       projectId: tutorialScript.projectId,
@@ -317,7 +318,7 @@ describe('チュートリアルを遊んでも飛ばしても、進め方は変�
       workerId: skipped.agents[0] ?? '',
     }).state;
     const s = step(assigned, 120).state;
-    expect(isUnlocked(s, 'dock:speed')).toBe(true);
+    expect(isUnlocked(s, 'dock:skip')).toBe(true);
     expect(isUnlocked(s, 'dock:utilization')).toBe(true);
     for (const f of ['mode:agentWorkflow', 'harness', 'hire', 'context'] as const)
       expect(isUnlocked(s, f), f).toBe(false);

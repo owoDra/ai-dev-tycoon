@@ -126,7 +126,6 @@ export interface WorldViewModel {
   /** 映している案件（フロア）。null は案件を開いていないホーム（会社のオフィス） */
   readonly projectId: string | null;
   readonly started: boolean;
-  readonly paused: boolean;
   readonly islands: readonly IslandView[];
   readonly actors: readonly ActorView[];
   readonly packets: readonly PacketView[];
@@ -250,7 +249,6 @@ export function officeView(state: GameState): WorldViewModel {
   return {
     projectId: null,
     started: false,
-    paused: state.paused,
     islands: [],
     actors,
     packets: [],
@@ -405,7 +403,6 @@ export function worldView(state: GameState, projectId: string | null, look: Worl
   return {
     projectId,
     started: run !== undefined,
-    paused: state.paused,
     islands,
     actors,
     packets,

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { keyAction, nextIsland } from '../../src/ui/keyboard';
 
 describe('キーボード操作の対応', () => {
-  it('Esc は閉じる、Space は一時停止、矢印キーは島の移動', () => {
+  it('Esc は閉じる、Space は次の日へ、矢印キーは島の移動', () => {
     expect(keyAction({ key: 'Escape', target: null })).toEqual({ type: 'close' });
-    expect(keyAction({ key: ' ', target: null })).toEqual({ type: 'pause' });
+    expect(keyAction({ key: ' ', target: null })).toEqual({ type: 'nextDay' });
     expect(keyAction({ key: 'ArrowUp', target: null })).toEqual({ type: 'move', dir: 'up' });
     expect(keyAction({ key: 'a', target: null })).toBeNull();
     expect(keyAction({ key: 'ArrowUp', target: null, ctrlKey: true })).toBeNull();

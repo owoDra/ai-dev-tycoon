@@ -1,10 +1,12 @@
 import { type Accessor, createSignal, onCleanup } from 'solid-js';
 import type { GameStore } from '../../../app/store';
-import { balance } from '../../../content/balance';
 import type { AssignModeId } from '../../../content/types';
 import { type Command, reduce } from '../../../core/commands';
 import { createInitialState, type GameState } from '../../../core/state';
 import { step } from '../../../core/step';
+
+/** デモで実時間1秒に進めるゲーム内の分（本編は1日ずつ進めるので、デモだけの速さ） */
+const DEMO_MINUTES_PER_SECOND = 24;
 
 /**
  * 比較ページのデモ再生。ECサイト案件を、決まった配置の Command で自動進行させる（core の reduce / step をそのまま使う）。
@@ -106,17 +108,15 @@ export function createDemoPlayer(): DemoPlayer {
     state,
     dispatch: (command) => setState(reduce(state(), command).state),
     advance: (minutes) => setState(step(state(), minutes).state),
+    run: () => null,
+    play: () => {},
+    stop: () => {},
     onEvents: () => () => {},
-  };
-
-  const setPaused = (paused: boolean) => {
-    if (state().paused !== paused) store.dispatch({ type: 'TogglePause' });
   };
 
   const enter = (next: DemoSceneId) => {
     setScene(next);
     setState(demoInitialState(next));
-    setPaused(!playing());
     setHolding(false);
     held = 0;
   };
@@ -134,7 +134,7 @@ export function createDemoPlayer(): DemoPlayer {
         enter(demoSceneOrder[(i + 1) % demoSceneOrder.length] ?? 'before');
       }
     } else {
-      store.advance(dt * balance.time.minutesPerRealSecond * speed());
+      store.advance(dt * DEMO_MINUTES_PER_SECOND * speed());
     }
     frame = requestAnimationFrame(tick);
   };
@@ -154,12 +154,10 @@ export function createDemoPlayer(): DemoPlayer {
     holding,
     play() {
       setPlaying(true);
-      setPaused(false);
       resume();
     },
     pause() {
       setPlaying(false);
-      setPaused(true);
     },
     setSpeed,
     restart() {

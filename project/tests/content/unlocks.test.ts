@@ -95,7 +95,7 @@ describe('チュートリアルの台本（content/tutorial.ts）', () => {
     ];
     expect(errors).toEqual([]);
     for (const s of tutorialScript.steps) {
-      if (s.highlight) expect(taskIds.has(s.highlight.taskId), s.id).toBe(true);
+      if (s.highlight?.kind === 'task') expect(taskIds.has(s.highlight.taskId), s.id).toBe(true);
       for (const a of s.allow) expect(taskIds.has(a.taskId), s.id).toBe(true);
     }
     for (const id of Object.keys(tutorialScript.forcedAiOutcomes)) expect(taskIds.has(id), id).toBe(true);

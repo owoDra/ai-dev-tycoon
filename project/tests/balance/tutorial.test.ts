@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
+import { uiLayout } from '../../src/content/look/layout';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { AssignModeId } from '../../src/content/types';
 import { modeFeature } from '../../src/content/unlocks';
@@ -12,14 +13,17 @@ import { runHeadless, type TimedCommand } from '../helpers/headless';
 
 /**
  * 最初の3分（企画書50〜51章）を、想定どおりの操作列で再生して確かめる。
- * プレイヤーはステップが進むたびに吹き出しを読み、島とカードを押す。その時間を THINK_SECONDS として、
- * ゲームを1倍速のまま進めた（早送りしない）ときの実時間を数える。
+ * プレイヤーはステップが進むたびに吹き出しを読み、島とカードを押す。その時間を THINK_SECONDS とする（その間、ゲーム内の時間は止まっている）。
+ * 実時間は、読む・押す時間と、「次の日へ」で進めた時間（1日を uiLayout.flow.dayMs で見せる）の合計で数える。
  */
 const P = tutorialScript.projectId;
 const THINK_SECONDS = 5;
 const LIMIT_SECONDS = 180;
-const thinkMinutes = THINK_SECONDS * balance.time.minutesPerRealSecond;
-const toRealSeconds = (minutes: number) => minutes / balance.time.minutesPerRealSecond;
+/** 「次の日へ」で進めているときの、実時間1秒あたりのゲーム内の分 */
+const minutesPerRealSecond = balance.time.minutesPerDay / (uiLayout.flow.dayMs / 1000);
+const toRealSeconds = (minutes: number) => minutes / minutesPerRealSecond;
+/** 打ち切るゲーム内時刻（分） */
+const HORIZON = LIMIT_SECONDS * minutesPerRealSecond * 2;
 
 const assign = (taskId: string, mode: AssignModeId): Command => ({
   type: 'AssignTask',
@@ -48,11 +52,10 @@ function plannedCommands(): TimedCommand[] {
   let state = runHeadless({ seed: tutorialScript.seed, initial: tutorialStart(), commands, until: 0 }).state;
   for (const { step, command } of PLAN) {
     while (currentTutorialStep(state)?.id !== step) {
-      if (state.clock > LIMIT_SECONDS * balance.time.minutesPerRealSecond * 2) throw new Error(`${step} に届かない`);
+      if (state.clock > HORIZON) throw new Error(`${step} に届かない`);
       state = runHeadless({ seed: tutorialScript.seed, initial: state, until: state.clock + 1 }).state;
     }
-    commands.push({ at: state.clock + thinkMinutes, command });
-    state = runHeadless({ seed: tutorialScript.seed, initial: state, until: state.clock + thinkMinutes }).state;
+    commands.push({ at: state.clock, command });
     state = runHeadless({
       seed: tutorialScript.seed,
       initial: state,
@@ -67,7 +70,7 @@ function plannedCommands(): TimedCommand[] {
 function stepTimeline(commands: readonly TimedCommand[]): { id: string; at: number }[] {
   const first = tutorialScript.steps[0]?.id ?? '';
   const timeline = [{ id: first, at: 0 }];
-  const horizon = LIMIT_SECONDS * balance.time.minutesPerRealSecond * 2;
+  const horizon = HORIZON;
   let state = runHeadless({
     seed: tutorialScript.seed,
     initial: tutorialStart(),
@@ -91,7 +94,7 @@ function stepTimeline(commands: readonly TimedCommand[]): { id: string; at: numb
 
 function play() {
   const commands = plannedCommands();
-  const horizon = LIMIT_SECONDS * balance.time.minutesPerRealSecond * 2;
+  const horizon = HORIZON;
   const full = runHeadless({ seed: tutorialScript.seed, initial: tutorialStart(), commands, until: horizon });
   const ended = full.events.findIndex((e) => e.type === 'TutorialEnded');
   const started = runHeadless({
@@ -144,10 +147,10 @@ describe('チュートリアル「小さなLP制作」（企画書50〜51章）'
     expect(r.end.profitPerPersonDay).toBeGreaterThanOrEqual(r.start * 2);
   });
 
-  it('所要時間：ゲーム内時間を1倍速の実時間に換算して3分以内（各ステップの読む時間を含む）', () => {
-    const seconds = toRealSeconds(completedAt);
+  it('所要時間：進めた時間と、各ステップの読む・押す時間を合わせて3分以内', () => {
+    const seconds = toRealSeconds(completedAt) + THINK_SECONDS * PLAN.length;
     console.info(
-      `[tutorial] 所要時間: ゲーム内 ${completedAt} 分 = 1倍速の実時間 ${seconds.toFixed(1)} 秒（うち読む・押す時間 ${THINK_SECONDS}秒 × ${PLAN.length}回）`,
+      `[tutorial] 所要時間: ゲーム内 ${completedAt} 分（進めて見る ${toRealSeconds(completedAt).toFixed(1)} 秒）+ 読む・押す時間 ${THINK_SECONDS}秒 × ${PLAN.length}回 = ${seconds.toFixed(1)} 秒`,
     );
     for (const c of r.commands.slice(1))
       console.info(`[tutorial]   ${toRealSeconds(c.at).toFixed(1)}秒: ${JSON.stringify(c.command)}`);

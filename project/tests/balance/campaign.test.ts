@@ -14,44 +14,38 @@ import {
 } from '../helpers/representative';
 
 /**
- * 1回の遊び（企画書21章「1プレイ20〜30分」）の手応え。時間を1日 = 24時間・1倍速で約1分に速めた（夜は早送り）ので、
- * 代表的な案件群の通しは数分で終わり、長く遊ぶ手応えは決算の期と会社の成長（long-run.test.ts）が受け持つ。チュートリアルから、固定 seed で生成した代表的な案件群
+ * 1回の遊び（企画書21章「1プレイ20〜30分」）の手応え。時間はプレイヤーが1日ずつ進めるので、遊ぶ長さは進めた日数（判断の回数）で測る。
+ * 長く遊ぶ手応えは決算の期と会社の成長（long-run.test.ts）が受け持つ。チュートリアルから、固定 seed で生成した代表的な案件群
  * （以前のキャンペーンの6案件と同じ型・同じ受注の順と条件。tests/helpers/representative.ts）の納品までを、smart 系の戦略 Bot で通して遊ぶ。
- * 1倍速のまま進め（早送りしない）、チュートリアルの吹き出しを読む時間と、新しい依頼を読んで担当を決める時間も時計が進む。
  */
-const TUTORIAL_THINK_SECONDS = 5;
-const THINK_SECONDS = 20;
-const MIN_MINUTES = 3;
-const MAX_MINUTES = 8;
-const SECONDS_PER_MINUTE = 60;
+const MIN_DAYS = 4;
+const MAX_DAYS = 14;
 const BASE_SEEDS = [tutorialScript.seed, 'campaign-1', 'campaign-2', 'campaign-3'];
 /** balance:full では、通常の4つに campaign-4 以降を足す */
 const SEEDS = isFullBalance ? [...BASE_SEEDS, ...seeds(FULL_SEEDS, 'campaign').slice(BASE_SEEDS.length)] : BASE_SEEDS;
 
-/** ゲーム内の分を、1倍速での実時間（分）に換算する */
-const realMinutes = (gameMinutes: number) => gameMinutes / balance.time.minutesPerRealSecond / SECONDS_PER_MINUTE;
+/** ゲーム内の分を、日（1日目が 1）に換算する */
+const dayOf = (gameMinutes: number) => gameMinutes / balance.time.minutesPerDay + 1;
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
 function play(policy: CampaignPolicy, seed: string, unlocked: readonly FeatureId[] = []) {
   return playCampaign({
     seed,
     policy,
-    thinkSeconds: THINK_SECONDS,
-    tutorialThinkSeconds: TUTORIAL_THINK_SECONDS,
-    limitMinutes: MAX_MINUTES * 2 * SECONDS_PER_MINUTE * balance.time.minutesPerRealSecond,
+    limitMinutes: MAX_DAYS * 2 * balance.time.minutesPerDay,
     unlocked,
   });
 }
 
 describe('チュートリアルと代表的な案件群（企画書21章）', () => {
-  it('smart 系の Bot が最後までクリアでき、所要時間（実時間・1倍速）が3〜8分に収まる', () => {
+  it('smart 系の Bot が最後までクリアでき、進める日数が4〜14日に収まる', () => {
     for (const seed of SEEDS) {
-      const { state, clearedAt, clearedRealSeconds } = play(smartSeatPolicy, seed);
+      const { state, clearedAt, clearedDays } = play(smartSeatPolicy, seed);
       expect(clearedAt, seed).not.toBeNull();
-      const minutes = (clearedRealSeconds ?? 0) / SECONDS_PER_MINUTE;
+      const days = clearedDays ?? 0;
       const company = scoreCompany(state);
       console.log(
-        `[企画書21章] seed ${seed}：通し ${minutes.toFixed(1)} 分（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +
+        `[企画書21章] seed ${seed}：通し ${days} 日（ゲーム内 ${fmt(clearedAt ?? 0)} 分）` +
           ` / 会社の Profit/Person-Day ${fmt(company.profitPerPersonDay)} 円/人日（Seat の固定費 ${fmt(company.seatCost)} 円）`,
       );
       if (seed === tutorialScript.seed) {
@@ -60,14 +54,14 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
           const s = scoreProject(state, id);
           console.log(
             `  ${getProject(id).name}：Profit/Person-Day ${fmt(s?.profitPerPersonDay ?? 0)} 円/人日` +
-              ` / 受注 ${realMinutes(run?.startedAt ?? 0).toFixed(1)} 分 → 納品 ${realMinutes(run?.completedAt ?? 0).toFixed(1)} 分` +
+              ` / 受注 ${dayOf(run?.startedAt ?? 0).toFixed(1)} 日目 → 納品 ${dayOf(run?.completedAt ?? 0).toFixed(1)} 日目` +
               ` / 遅延損失 ${fmt(s?.delayLoss ?? 0)} 円`,
           );
         }
       }
       expect(representativeRun.every((id) => (state.projects[id]?.completedAt ?? null) !== null)).toBe(true);
-      expect(minutes, seed).toBeGreaterThanOrEqual(MIN_MINUTES);
-      expect(minutes, seed).toBeLessThanOrEqual(MAX_MINUTES);
+      expect(days, seed).toBeGreaterThanOrEqual(MIN_DAYS);
+      expect(days, seed).toBeLessThanOrEqual(MAX_DAYS);
     }
   });
 
@@ -78,8 +72,8 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
     const premium = play(smartSeatPolicy, tutorialScript.seed, stage);
     const standard = play(smartPolicy, tutorialScript.seed, stage);
     console.log(
-      `[企画書6章] 通し：全員Standard ${realMinutes(standard.clearedAt ?? 0).toFixed(1)} 分` +
-        ` vs 運用者だけPremium ${realMinutes(premium.clearedAt ?? 0).toFixed(1)} 分`,
+      `[企画書6章] 通し：全員Standard ${dayOf(standard.clearedAt ?? 0).toFixed(1)} 日目` +
+        ` vs 運用者だけPremium ${dayOf(premium.clearedAt ?? 0).toFixed(1)} 日目`,
     );
     expect(standard.clearedAt).not.toBeNull();
     expect(premium.clearedAt ?? 0).toBeLessThan(standard.clearedAt ?? 0);

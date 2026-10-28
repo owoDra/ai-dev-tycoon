@@ -1,25 +1,25 @@
-import { createMemo, For, type JSX, Show } from 'solid-js';
+import { createMemo, type JSX, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import type { IconName } from '../../assets/icons';
 import { balance } from '../../content/balance';
 import { calendarDay, type DayPhase, dayPhase, minuteOfDay } from '../../core/clock';
-import { awaitingAssignment, idleHours } from '../../core/step';
+import { unassignedProjects } from '../../core/turn';
 import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { hhmm } from '../../view/hud';
 import { Icon } from '../Icon';
-import { NewBadge, PlayPauseIcon, panel, SettingsIcon } from '../parts';
+import { DayIcon, NewBadge, panel, SettingsIcon } from '../parts';
 
 const t = ja.hud;
 
 const phaseIcon: Record<DayPhase, IconName> = { work: 'day', lunch: 'clock', night: 'night' };
 
 /**
- * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・一時停止と速度・メニュー（案件ボード・社員と Seat・Context・Harness・設定）。
- * compact ではメニューをアイコンだけにし、速度を1つのボタンで順に切り替える。part で一部だけを出せる
- * （スマホでは時計と一時停止・速度を右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
- * 速度は解放（dock:speed）されるまで一時停止だけを出す。
- * 操作は Command（TogglePause / SetSpeed）と、渡されたシートを開く関数で行う（渡されなければそのボタンを出さない）。
+ * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・日を進めるボタン・メニュー（案件ボード・社員と Seat・Context・Harness・設定）。
+ * compact ではメニューをアイコンだけにする。part で一部だけを出せる
+ * （スマホでは時計と日を進めるボタンを右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
+ * 「まとめて進める」は解放（dock:skip）されるまで出さない。
+ * 時間はこのボタン（store.play）でだけ進む。メニューは渡されたシートを開く関数で開く（渡されなければそのボタンを出さない）。
  */
 export function PlayControls(props: {
   store: GameStore;
@@ -35,7 +35,7 @@ export function PlayControls(props: {
   /** all: すべて / clock: 時計と一時停止・速度だけ / menu: メニューだけ（枠なし） */
   part?: 'all' | 'clock' | 'menu';
 }) {
-  const speedOn = () => isUnlocked(props.store.state(), 'dock:speed');
+  const skipOn = () => isUnlocked(props.store.state(), 'dock:skip');
   const part = () => props.part ?? 'all';
   /** 解放したがまだ開いていない機能のあるメニュー（「NEW」の印） */
   const fresh = createMemo(() => freshMenus(props.store.state()));
@@ -43,9 +43,7 @@ export function PlayControls(props: {
     <div class={`flex items-center gap-2 ${part() === 'menu' ? '' : `${panel} px-2 py-1`}`} data-play-controls={part()}>
       <Show when={part() !== 'menu'}>
         <ClockPill store={props.store} dense={props.compact} />
-        <Show when={speedOn()} fallback={<PauseButton store={props.store} />}>
-          <SpeedControl store={props.store} dense={props.compact} />
-        </Show>
+        <DayControl store={props.store} dense={props.compact} skip={skipOn()} />
       </Show>
       <Show when={part() !== 'clock'}>
         <nav aria-label={t.menu} class="flex items-center gap-1">
@@ -118,12 +116,12 @@ export function PlayControls(props: {
   );
 }
 
-/** 日付と時刻。勤務時間の区分をアイコンとラベルで示し、夜を早送りしている間は「早送り中」を添える */
+/** 日付と時刻。勤務時間の区分をアイコンとラベルで示し、進めている最中か・担当待ちがあるかを添える */
 function ClockPill(props: { store: GameStore; dense: boolean }) {
   const clock = () => props.store.state().clock;
   const phase = createMemo(() => dayPhase(clock()));
-  const waiting = () => !props.store.state().paused && awaitingAssignment(props.store.state());
-  const skipping = () => !props.store.state().paused && !waiting() && idleHours(props.store.state());
+  const running = () => props.store.run() !== null;
+  const waiting = () => !running() && unassignedProjects(props.store.state()).length > 0;
   return (
     <div class="flex min-w-0 items-center gap-1.5" title={t.phaseHint[phase()]} data-clock data-phase={phase()}>
       <Icon name={phaseIcon[phase()]} class={props.dense ? 'text-lg' : 'text-2xl'} />
@@ -135,67 +133,51 @@ function ClockPill(props: { store: GameStore; dense: boolean }) {
           class={`truncate text-[11px] font-bold whitespace-nowrap text-ink-muted ${props.dense ? 'max-w-24' : ''}`}
           data-phase-label
         >
-          {t.phase[phase()]}
-          <Show when={skipping()}> · {t.skipping}</Show>
-          <Show when={waiting()}> · {t.waiting}</Show>
+          {t.phase[phase()]} · {running() ? t.running : waiting() ? t.waiting : t.stopped}
         </span>
       </div>
     </div>
   );
 }
 
-function PauseButton(props: { store: GameStore }) {
-  const paused = () => props.store.state().paused;
-  return (
-    <button
-      type="button"
-      class="flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-accent-400 text-on-accent"
-      aria-label={paused() ? ja.controls.resume : ja.controls.pause}
-      onClick={() => props.store.dispatch({ type: 'TogglePause' })}
-    >
-      <PlayPauseIcon paused={paused()} />
-    </button>
-  );
-}
-
-/** 一時停止と速度。スマホでは速度を1つのボタンで順に切り替える */
-export function SpeedControl(props: { store: GameStore; dense: boolean }) {
-  const speed = () => props.store.state().speed;
+/**
+ * 日を進めるボタン。「次の日へ」で1日、「まとめて進める」で判断が要るまで進める。進めている間は押したボタンが「止める」になる
+ */
+export function DayControl(props: { store: GameStore; dense: boolean; skip: boolean }) {
+  const run = () => props.store.run();
+  const button =
+    'flex h-11 items-center justify-center gap-1 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap';
   return (
     <div class="flex items-center gap-1">
-      <PauseButton store={props.store} />
-      <Show
-        when={!props.dense}
-        fallback={
-          <button
-            type="button"
-            class="h-11 min-w-11 rounded-md border-[3px] border-line bg-surface px-1.5 text-sm font-bold"
-            aria-label={t.nextSpeed(speed())}
-            onClick={() => {
-              const speeds = balance.time.speeds;
-              const i = speeds.indexOf(speed());
-              props.store.dispatch({ type: 'SetSpeed', speed: speeds[(i + 1) % speeds.length] ?? speeds[0] });
-            }}
-          >
-            {t.speed(speed())}
-          </button>
-        }
+      <button
+        type="button"
+        data-next-day
+        class={`${button} bg-accent-400 text-on-accent`}
+        aria-label={run() && !run()?.untilDecision ? t.stop : t.nextDay}
+        title={t.nextDayHint}
+        disabled={run()?.untilDecision === true}
+        onClick={() => props.store.play(false)}
       >
-        <fieldset class="flex gap-1" aria-label={ja.controls.speedGroup}>
-          <For each={balance.time.speeds}>
-            {(s) => (
-              <button
-                type="button"
-                aria-pressed={speed() === s}
-                aria-label={ja.controls.speed(s)}
-                class="h-11 min-w-11 rounded-md border-[3px] border-line/30 bg-surface px-1.5 text-sm font-bold aria-pressed:border-line aria-pressed:bg-accent-200"
-                onClick={() => props.store.dispatch({ type: 'SetSpeed', speed: s })}
-              >
-                {t.speed(s)}
-              </button>
-            )}
-          </For>
-        </fieldset>
+        <DayIcon kind={run() && !run()?.untilDecision ? 'stop' : 'play'} />
+        <Show when={!props.dense}>
+          <span>{run() && !run()?.untilDecision ? t.stop : t.nextDay}</span>
+        </Show>
+      </button>
+      <Show when={props.skip}>
+        <button
+          type="button"
+          data-until-decision
+          class={`${button} bg-surface disabled:opacity-50`}
+          aria-label={run()?.untilDecision ? t.stop : t.untilDecision}
+          title={t.untilDecisionHint(balance.time.maxSkipDays)}
+          disabled={run() !== null && !run()?.untilDecision}
+          onClick={() => props.store.play(true)}
+        >
+          <DayIcon kind={run()?.untilDecision ? 'stop' : 'skip'} />
+          <Show when={!props.dense}>
+            <span>{run()?.untilDecision ? t.stop : t.untilDecision}</span>
+          </Show>
+        </button>
       </Show>
     </div>
   );

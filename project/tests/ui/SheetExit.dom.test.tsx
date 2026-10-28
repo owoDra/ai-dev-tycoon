@@ -76,7 +76,8 @@ describe('シートの退場中の操作', () => {
     expect(() => {
       selection.dispatch({ type: 'SelectEntity', entityId: null });
       setProjectId(null);
-      store.dispatch({ type: 'TogglePause' });
+      store.play(false);
+      store.advance(30);
     }).not.toThrow();
     await finishExits();
     setProjectId(P);

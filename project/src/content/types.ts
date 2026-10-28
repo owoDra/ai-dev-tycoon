@@ -222,7 +222,7 @@ export type ModeFeatureId = `mode:${AssignModeId}`;
  */
 export type FeatureId =
   | ModeFeatureId
-  | 'dock:speed'
+  | 'dock:skip'
   | 'dock:utilization'
   | 'problems'
   /** context: 資料の渡し方の2択と Context の状態 / context:pick: 資料を個別に選ぶチェックリスト / context:router: Context Router */
@@ -259,7 +259,7 @@ export interface UnlockDef {
 export type UnlockMessageId =
   | 'review'
   | 'eval'
-  | 'speed'
+  | 'skip'
   | 'utilization'
   | 'advanced'
   | 'workflow'
@@ -318,7 +318,10 @@ export type TutorialSay =
  * コーチマークで照らす場所。task は、その Task の詳細シートが開いていれば担当カード（mode を指定すればその1枚）、
  * 閉じていればワールドの島のラベルを照らす
  */
-export type TutorialHighlight = { readonly kind: 'task'; readonly taskId: string; readonly mode?: AssignModeId };
+/** 照らす場所。task は Task の島（詳細を開いていれば担当のカード）、nextDay は「次の日へ」のボタン */
+export type TutorialHighlight =
+  | { readonly kind: 'task'; readonly taskId: string; readonly mode?: AssignModeId }
+  | { readonly kind: 'nextDay' };
 
 /** チュートリアル中に許す操作（alwaysAllowed 以外）。Task の担当を、決めたモードの中から選ばせる */
 export interface TutorialAllow {
@@ -344,7 +347,7 @@ export interface TutorialScript {
   /** AI の作業の成否をシナリオで決める（true: 成功 / false: 失敗）。載っていない Task は通常どおり確率で決まる */
   readonly forcedAiOutcomes: Readonly<Record<string, boolean>>;
   /** ステップに関係なく、いつでも受け付ける Command */
-  readonly alwaysAllowed: readonly ('SetSpeed' | 'TogglePause' | 'SeeFeatures' | 'StartProject' | 'SkipTutorial')[];
+  readonly alwaysAllowed: readonly ('SeeFeatures' | 'StartProject' | 'SkipTutorial')[];
   readonly steps: readonly TutorialStepDef[];
   /** この条件を満たしたらチュートリアルを終える */
   readonly completeWhen: Condition;

@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -113,6 +113,11 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...state, board: { ...state.board, inquiries } };
     },
   },
+  // v19 → v20：時間はプレイヤーが1日ずつ進める（Phase 33）。速度と一時停止をなくす（日の途中のセーブは、次に進めたときにその日の終わりまで進む）
+  {
+    from: 19,
+    migrate: (state) => (isRecord(state) ? (({ speed, paused, ...rest }) => rest)(state) : state),
+  },
 ];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
@@ -167,8 +172,6 @@ function isGameState(v: unknown): v is GameState {
     typeof v.rng === 'number' &&
     typeof v.clock === 'number' &&
     typeof v.carryMinutes === 'number' &&
-    typeof v.speed === 'number' &&
-    typeof v.paused === 'boolean' &&
     isRecord(v.entities) &&
     isRecord(v.projects) &&
     isRecord(v.humanQueues) &&

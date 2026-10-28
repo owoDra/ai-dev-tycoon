@@ -2,11 +2,11 @@ import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from 's
 import type { GameStore } from '../../../app/store';
 import type { IconName } from '../../../assets/icons';
 import { assignModes } from '../../../content/assignModes';
-import { balance } from '../../../content/balance';
 import type { HudItemId, LayoutForm, UiLayout } from '../../../content/look/layout';
 import type { AssignModeId } from '../../../content/types';
 import { ja } from '../../../i18n/ja';
 import { Icon } from '../../../ui/Icon';
+import { DayControl } from '../../../ui/play/PlayControls';
 import type { Selection } from '../../../ui/selection';
 import { type TaskRowView, taskRows } from '../../../view/project';
 import { describeEntity, type WorldViewModel } from '../../../view/world';
@@ -124,51 +124,7 @@ function UtilizationItem(props: { hud: HudValues; dense?: boolean }) {
 }
 
 function SpeedItem(props: { store: GameStore; dense?: boolean }) {
-  const paused = () => props.store.state().paused;
-  return (
-    <div class="flex items-center gap-1">
-      <button
-        type="button"
-        class="flex size-11 items-center justify-center rounded-md border-[3px] border-line bg-accent-400 text-on-accent"
-        aria-label={paused() ? ja.controls.resume : ja.controls.pause}
-        onClick={() => props.store.dispatch({ type: 'TogglePause' })}
-      >
-        <svg viewBox="0 0 16 16" class="size-4 fill-current" aria-hidden="true">
-          <path d={paused() ? 'M4 2.5v11l9-5.5z' : 'M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z'} />
-        </svg>
-      </button>
-      <Show when={!props.dense}>
-        <fieldset class="flex gap-1" aria-label={ja.controls.speedGroup}>
-          <For each={balance.time.speeds}>
-            {(s) => (
-              <button
-                type="button"
-                aria-pressed={props.store.state().speed === s}
-                class="h-11 min-w-9 rounded-md border-[3px] border-line/30 bg-surface px-1.5 text-sm font-bold aria-pressed:border-line aria-pressed:bg-accent-200"
-                onClick={() => props.store.dispatch({ type: 'SetSpeed', speed: s })}
-              >
-                {t.hud.speed(s)}
-              </button>
-            )}
-          </For>
-        </fieldset>
-      </Show>
-      <Show when={props.dense}>
-        <button
-          type="button"
-          class="h-11 min-w-11 rounded-md border-[3px] border-line bg-surface px-1.5 text-sm font-bold"
-          aria-label={ja.controls.speedGroup}
-          onClick={() => {
-            const speeds = balance.time.speeds;
-            const i = speeds.indexOf(props.store.state().speed);
-            props.store.dispatch({ type: 'SetSpeed', speed: speeds[(i + 1) % speeds.length] ?? speeds[0] });
-          }}
-        >
-          {t.hud.speed(props.store.state().speed)}
-        </button>
-      </Show>
-    </div>
-  );
+  return <DayControl store={props.store} dense={props.dense === true} skip />;
 }
 
 function ProblemsItem(props: { count: number; onClick: () => void }) {

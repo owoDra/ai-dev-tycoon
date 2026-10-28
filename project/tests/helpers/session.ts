@@ -1,4 +1,5 @@
 import { getProject } from '../../src/content/index';
+import { postInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import { createInitialState, createProjectRun, type GameState } from '../../src/core/state';
 
@@ -10,9 +11,8 @@ export const SESSION_PROJECT = 'tutorialLp';
  */
 export function campaignInProgress(seed = 'session', unassigned = 0): GameState {
   const fresh = createInitialState(seed, { board: true, talent: true, tutorial: false });
-  // 再開の Command で、最初の営業日の引き合いを届ける
-  let s = reduce(reduce({ ...fresh, paused: true }, { type: 'TogglePause' }).state, { type: 'TogglePause' }).state;
-  s = { ...s, paused: false };
+  // 最初の営業日の引き合いを届ける（Command の適用後と同じ判定。状態を変えない Command では判定が走らないので直接呼ぶ）
+  let s = postInquiries(fresh, () => {});
   const board = s.board ? { ...s.board, inquiries: [] } : null;
   s = { ...s, board, projects: { [SESSION_PROJECT]: createProjectRun(SESSION_PROJECT, s.clock) } };
   const human = Object.keys(s.team)[0] ?? '';

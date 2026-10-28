@@ -1,5 +1,5 @@
 import { primaryActor } from '../content/assignModes';
-import { balance, type GameSpeed } from '../content/balance';
+import { balance } from '../content/balance';
 import { findDocument } from '../content/documents';
 import { harnessPresets } from '../content/harness/guide';
 import { content, findProject, findWorker } from '../content/index';
@@ -36,8 +36,6 @@ import { isUnlocked, seeFeatures } from './unlocks';
 
 /** プレイヤー操作。状態を変える唯一の入口 */
 export type Command =
-  | { readonly type: 'SetSpeed'; readonly speed: GameSpeed }
-  | { readonly type: 'TogglePause' }
   /** 解放した機能を見た（メニューの入口を開いた）ことにして、「NEW」の印を外す */
   | { readonly type: 'SeeFeatures'; readonly features: readonly FeatureId[] }
   /**
@@ -150,16 +148,6 @@ export function reduce(state: GameState, command: Command): Transition {
 
 function apply(state: GameState, command: Command): Transition {
   switch (command.type) {
-    case 'SetSpeed': {
-      if (command.speed === state.speed || !balance.time.speeds.includes(command.speed)) {
-        return unchanged(state);
-      }
-      return { state: { ...state, speed: command.speed }, events: [{ type: 'SpeedChanged', speed: command.speed }] };
-    }
-    case 'TogglePause': {
-      const paused = !state.paused;
-      return { state: { ...state, paused }, events: [{ type: 'PauseToggled', paused }] };
-    }
     case 'SeeFeatures':
       return { state: seeFeatures(state, command.features), events: [] };
     case 'StartProject': {

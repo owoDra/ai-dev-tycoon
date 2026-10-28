@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import type { PriceStep } from '../../src/core/bidding';
-import { activeProjects, openInquiries } from '../../src/core/board';
+import { activeProjects, openInquiries, postInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import { scoreCompany } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -49,7 +49,7 @@ function play(price: PriceStep, seed: string) {
   let s = createInitialState(seed, { board: true, tutorial: false });
   s = { ...s, unlocked: [...new Set([...s.unlocked, 'harness' as const])] };
   for (const c of equipCommands('agent')) s = reduce(s, c).state;
-  s = reduce({ ...s, paused: true }, { type: 'TogglePause' }).state;
+  s = postInquiries(s, () => {});
   let won = 0;
   let late = 0;
   while (s.clock < DAYS * balance.time.minutesPerDay) {

@@ -43,7 +43,6 @@ export function AudioHost(props: {
 
   createEffect(() => audio.setVolumes(settings().audio));
   createEffect(() => audio.setSong(props.song));
-  createEffect(() => audio.setPaused(props.projectId !== null && props.store.state().paused));
 
   // 直近の Task 完了（実時間 ms）
   let recent: number[] = [];

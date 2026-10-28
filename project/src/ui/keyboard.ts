@@ -1,7 +1,7 @@
 /** プレイ画面のキーボード操作（キー → 動作）。Tab / Enter はブラウザ標準のフォーカス移動とボタンの決定に任せる */
 export type KeyAction =
   | { readonly type: 'close' }
-  | { readonly type: 'pause' }
+  | { readonly type: 'nextDay' }
   | { readonly type: 'move'; readonly dir: Direction };
 
 export type Direction = 'left' | 'right' | 'up' | 'down';
@@ -33,7 +33,7 @@ const within = (target: EventTarget | null, selector: string) =>
 export function keyAction(e: KeyInput): KeyAction | null {
   if (e.altKey || e.ctrlKey || e.metaKey) return null;
   if (e.key === 'Escape') return { type: 'close' };
-  if (e.key === ' ' && !within(e.target, NATIVE_SPACE)) return { type: 'pause' };
+  if (e.key === ' ' && !within(e.target, NATIVE_SPACE)) return { type: 'nextDay' };
   const dir = arrows[e.key];
   if (dir && !within(e.target, NATIVE_ARROWS)) return { type: 'move', dir };
   return null;

@@ -43,7 +43,8 @@ export function PlayLogHost(props: { store: GameStore; selection: Selection }) {
   createEffect(
     on(props.selection.selected, (id) => {
       const h = currentTutorialStep(props.store.state())?.highlight;
-      if (id && h && id.startsWith('island:') && id !== islandId(h.taskId)) log()?.log.misclick(at(), id);
+      if (id && h?.kind === 'task' && id.startsWith('island:') && id !== islandId(h.taskId))
+        log()?.log.misclick(at(), id);
     }),
   );
 

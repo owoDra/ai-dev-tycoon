@@ -63,7 +63,7 @@ describe('HUD（ドック）', () => {
 describe('操作の列（日付と時刻・速度・メニュー）', () => {
   function mountControls() {
     const base = createInitialState('controls');
-    const store = createGameStore({ ...base, unlocked: [...base.unlocked, 'dock:speed'] });
+    const store = createGameStore({ ...base, unlocked: [...base.unlocked, 'dock:skip'] });
     const root = document.createElement('div');
     document.body.append(root);
     const opened: string[] = [];
@@ -82,13 +82,17 @@ describe('操作の列（日付と時刻・速度・メニュー）', () => {
     return { store, root, opened };
   }
 
-  it('時計は1日目の始業（10:00・勤務中）から始まり、退勤後は夜の表示になる', () => {
+  it('時計は1日目の始業（10:00・勤務中）から始まり、退勤後は夜の表示になる。勤務時間の区分と、進めている最中かをラベルで示す', () => {
     const { store, root } = mountControls();
     expect(root.querySelector('[data-clock]')?.textContent).toContain(ja.hud.today(1, '10:00'));
     expect(root.querySelector('[data-clock]')?.getAttribute('data-phase')).toBe('work');
+    expect(root.querySelector('[data-phase-label]')?.textContent).toBe(`${ja.hud.phase.work} · ${ja.hud.stopped}`);
+    store.play(false);
     store.advance(balance.time.workday.end - balance.time.workday.start);
     expect(root.querySelector('[data-clock]')?.textContent).toContain(ja.hud.today(1, '19:00'));
-    expect(root.querySelector('[data-phase-label]')?.textContent).toContain(ja.hud.phase.night);
+    expect(root.querySelector('[data-clock]')?.getAttribute('data-phase')).toBe('night');
+    expect(root.querySelector('[data-clock]')?.getAttribute('title')).toBe(ja.hud.phaseHint.night);
+    expect(root.querySelector('[data-phase-label]')?.textContent).toBe(`${ja.hud.phase.night} · ${ja.hud.running}`);
   });
 
   it('メニューのボタンは渡された画面を開く', () => {
@@ -99,11 +103,36 @@ describe('操作の列（日付と時刻・速度・メニュー）', () => {
     expect(opened).toEqual(['board', 'team', 'harness']);
   });
 
-  it('一時停止と速度の操作は Command で state を変える', () => {
+  it('「次の日へ」で1日、「まとめて進める」で判断が要るまで進め始め、進めている間にもう一度押すと止まる', () => {
     const { store, root } = mountControls();
-    root.querySelector<HTMLButtonElement>(`button[aria-label="${ja.controls.pause}"]`)?.click();
-    expect(store.state().paused).toBe(true);
-    root.querySelector<HTMLButtonElement>(`button[aria-label="${ja.controls.speed(10)}"]`)?.click();
-    expect(store.state().speed).toBe(10);
+    const nextDay = () => root.querySelector<HTMLButtonElement>('[data-next-day]');
+    const until = () => root.querySelector<HTMLButtonElement>('[data-until-decision]');
+    expect(nextDay()?.getAttribute('aria-label')).toBe(ja.hud.nextDay);
+    nextDay()?.click();
+    expect(store.run()).toMatchObject({ untilDecision: false });
+    expect(nextDay()?.getAttribute('aria-label')).toBe(ja.hud.stop);
+    // 1日だけ進めている間は、まとめ送りは押せない
+    expect(until()?.disabled).toBe(true);
+    nextDay()?.click();
+    expect(store.run()).toBeNull();
+    until()?.click();
+    expect(store.run()).toMatchObject({ untilDecision: true });
+    expect(until()?.getAttribute('aria-label')).toBe(ja.hud.stop);
+    expect(nextDay()?.disabled).toBe(true);
+    until()?.click();
+    expect(store.run()).toBeNull();
+  });
+
+  it('「まとめて進める」は解放（dock:skip）されるまで出さない', () => {
+    const base = createInitialState('controls');
+    const store = createGameStore({ ...base, unlocked: base.unlocked.filter((f) => f !== 'dock:skip') });
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(
+      () => <PlayControls store={store} compact={false} onBoard={() => {}} onTeam={() => {}} onHarness={() => {}} />,
+      root,
+    );
+    expect(root.querySelector('[data-next-day]')).not.toBeNull();
+    expect(root.querySelector('[data-until-decision]')).toBeNull();
   });
 });

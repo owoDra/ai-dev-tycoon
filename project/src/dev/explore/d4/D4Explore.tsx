@@ -3,7 +3,6 @@ import { App } from '../../../app/App';
 import { settings } from '../../../app/settings';
 import type { GameStore } from '../../../app/store';
 import { audio } from '../../../audio/index';
-import { balance } from '../../../content/balance';
 import { getProject } from '../../../content/index';
 import { type FeelIntensityId, type FeelMotionId, feelIntensities, feelMotions } from '../../../content/look/feel';
 import { type SoundPaletteId, soundPalettes } from '../../../content/look/sound';
@@ -22,6 +21,10 @@ import type { World } from '../../../world/index';
 import { DEMO_PROJECT, demoInitialState, isDemoDone } from '../d2/demo';
 import { ExploreShell } from '../ExploreShell';
 import { createVariantSelection } from '../selection';
+
+/** デモで実時間1秒に進めるゲーム内の分（本編は1日ずつ進めるので、デモだけの速さ） */
+const DEMO_MINUTES_PER_SECOND = 24;
+
 import {
   beatsBetween,
   beatTier,
@@ -191,6 +194,9 @@ function createAmbientStore(): GameStore {
     state,
     dispatch: (command) => setState(reduce(state(), command).state),
     advance: (minutes) => setState(step(state(), minutes).state),
+    run: () => null,
+    play: () => {},
+    stop: () => {},
     onEvents: () => () => {},
   };
   let last: number | undefined;
@@ -199,7 +205,7 @@ function createAmbientStore(): GameStore {
     const dt = last === undefined ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
     last = now;
     if (isDemoDone(state())) setState(demoInitialState('after'));
-    else store.advance(dt * balance.time.minutesPerRealSecond * AMBIENT_SPEED);
+    else store.advance(dt * DEMO_MINUTES_PER_SECOND * AMBIENT_SPEED);
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);

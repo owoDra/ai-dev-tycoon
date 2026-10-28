@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { step, toGameMinutes } from '../../src/core/step';
+import { step } from '../../src/core/step';
 import type { System } from '../../src/core/system';
 
 /** 乱数を使い、ステップ回数に依存するテスト用システム */
@@ -10,7 +10,7 @@ const rollDice: System = (state, ctx) => ({
   ...state,
   pendingEvents:
     ctx.rng.chance(0.5) && state.clock % 7 === 0
-      ? [...state.pendingEvents, { at: state.clock, event: { type: 'PauseToggled', paused: false } }]
+      ? [...state.pendingEvents, { at: state.clock, event: { type: 'CompanyRanked', rank: 1 } }]
       : state.pendingEvents,
 });
 
@@ -49,17 +49,14 @@ describe('step', () => {
     expect(state.carryMinutes).toBeCloseTo(tick * 0.5);
   });
 
-  it('一時停止中は進まない', () => {
-    const paused = reduce(createInitialState('p'), { type: 'TogglePause' }).state;
-    const r = step(paused, 60, [rollDice]);
-    expect(r.state).toBe(paused);
-    expect(r.events).toEqual([]);
-  });
-
-  it('再開すると再び進む', () => {
-    const paused = reduce(createInitialState('p'), { type: 'TogglePause' }).state;
-    const resumed = reduce(paused, { type: 'TogglePause' }).state;
-    expect(step(resumed, 10).state.clock).toBe(10);
+  it('進める時間が 0 以下なら進めない（同じ state を返す）', () => {
+    const initial = createInitialState('p');
+    for (const dt of [0, -5, Number.NaN]) {
+      const r = step(initial, dt, [rollDice]);
+      expect(r.state).toBe(initial);
+      expect(r.events).toEqual([]);
+    }
+    expect(step(initial, 10).state.clock).toBe(10);
   });
 
   it('システムは固定ステップごとに配列の順に適用される', () => {
@@ -90,14 +87,14 @@ describe('step', () => {
     const initial: GameState = {
       ...createInitialState('scheduled'),
       pendingEvents: [
-        { at: 5, event: { type: 'PauseToggled', paused: true } },
-        { at: 20, event: { type: 'SpeedChanged', speed: 3 } },
+        { at: 5, event: { type: 'CompanyRanked', rank: 1 } },
+        { at: 20, event: { type: 'CompanyRanked', rank: 3 } },
       ],
     };
     const first = step(initial, 10);
-    expect(first.events).toEqual([{ type: 'PauseToggled', paused: true }]);
-    expect(first.state.pendingEvents).toEqual([{ at: 20, event: { type: 'SpeedChanged', speed: 3 } }]);
-    expect(step(first.state, 10).events).toEqual([{ type: 'SpeedChanged', speed: 3 }]);
+    expect(first.events).toEqual([{ type: 'CompanyRanked', rank: 1 }]);
+    expect(first.state.pendingEvents).toEqual([{ at: 20, event: { type: 'CompanyRanked', rank: 3 } }]);
+    expect(step(first.state, 10).events).toEqual([{ type: 'CompanyRanked', rank: 3 }]);
   });
 
   it('入力の state を書き換えない', () => {
@@ -106,31 +103,12 @@ describe('step', () => {
     step(initial, 50, [rollDice]);
     expect(initial).toEqual(snapshot);
   });
-
-  it('実時間は minutesPerRealSecond と速度でゲーム内の分に換算される', () => {
-    expect(toGameMinutes(1, 1)).toBe(balance.time.minutesPerRealSecond);
-    expect(toGameMinutes(1.5, 4)).toBe(balance.time.minutesPerRealSecond * 6);
-  });
 });
 
 describe('reduce', () => {
-  it('SetSpeed で速度が変わり SpeedChanged を出す', () => {
-    const r = reduce(createInitialState('c'), { type: 'SetSpeed', speed: 10 });
-    expect(r.state.speed).toBe(10);
-    expect(r.events).toEqual([{ type: 'SpeedChanged', speed: 10 }]);
-  });
-
-  it('同じ速度や選択肢にない速度は無視する', () => {
-    const initial = createInitialState('c');
-    expect(reduce(initial, { type: 'SetSpeed', speed: initial.speed })).toEqual({ state: initial, events: [] });
-    // @ts-expect-error 型の上でも選択肢にない速度は渡せない
-    expect(reduce(initial, { type: 'SetSpeed', speed: 4 })).toEqual({ state: initial, events: [] });
-  });
-
-  it('TogglePause で一時停止と再開が切り替わる', () => {
-    const r1 = reduce(createInitialState('c'), { type: 'TogglePause' });
-    expect(r1.state.paused).toBe(true);
-    expect(r1.events).toEqual([{ type: 'PauseToggled', paused: true }]);
-    expect(reduce(r1.state, { type: 'TogglePause' }).state.paused).toBe(false);
+  it('状態を変えない Command は、同じ state を返して events も出さない（適用後の判定も走らない）', () => {
+    const initial = createInitialState('c', { board: true, tutorial: false });
+    expect(reduce(initial, { type: 'SeeFeatures', features: [] })).toEqual({ state: initial, events: [] });
+    expect(initial.board?.inquiries).toEqual([]);
   });
 });

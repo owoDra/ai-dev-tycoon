@@ -14,9 +14,10 @@ import { calendarDay, minuteOfDay } from '../../src/core/clock';
 import { type Command, reduce } from '../../src/core/commands';
 import { tierOf } from '../../src/core/company';
 import type { GameEvent } from '../../src/core/events';
+import { settleProgress } from '../../src/core/progress';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { playSpeed, step } from '../../src/core/step';
+import { step } from '../../src/core/step';
 import { applyUnlocks } from '../../src/core/unlocks';
 import { boardView, projectTabs } from '../../src/view/board';
 import { hhmm } from '../../src/view/hud';
@@ -36,7 +37,11 @@ function deliver(state: GameState, projectId: string): GameState {
   return { ...state, projects: { ...state.projects, [projectId]: { ...run, tasks, completedAt: state.clock } } };
 }
 
-const pause: Command = { type: 'TogglePause' };
+/** Command の適用後の判定（解放・チュートリアルの進行・引き合い）だけを走らせる。状態を変えない Command では判定が走らないので直接呼ぶ */
+function settle(state: GameState): { state: GameState; events: readonly GameEvent[] } {
+  const events: GameEvent[] = [];
+  return { state: settleProgress(state, (e) => events.push(e)), events };
+}
 
 /** 引き合いに基準の見積を出し、勝ったことにする（勝敗の乱数は別のテストで確かめる） */
 function win(state: GameState, projectId: string): GameState {
@@ -54,13 +59,13 @@ function win(state: GameState, projectId: string): GameState {
 
 /** 次の営業日の始業まで進める（その日の引き合いが届き、まだ締め切られていない） */
 function nextMorning(state: GameState): GameState {
-  return step({ ...state, paused: false }, DAY - (state.clock % DAY)).state;
+  return step(state, DAY - (state.clock % DAY)).state;
 }
 
 /** チュートリアルを納品して、最初の引き合いが届いた会社 */
 function afterTutorial(): { state: GameState; events: readonly GameEvent[] } {
   const s = reduce(createInitialState('c', { board: true }), { type: 'StartProject', projectId: 'tutorialLp' }).state;
-  return reduce(deliver(s, 'tutorialLp'), pause);
+  return settle(deliver(s, 'tutorialLp'));
 }
 
 describe('案件ボードの進行（core/board.ts）', () => {
@@ -131,7 +136,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
   });
 
   it('終わりはなく、営業日ごとに新しい引き合いが届き続ける。見積を出さなかった引き合いは締切で見送り、通知する', () => {
-    let s = { ...afterTutorial().state, paused: false };
+    let s = afterTutorial().state;
     const events: GameEvent[] = [];
     for (let day = 1; day <= 5; day++) {
       const r = step(s, DAY);
@@ -160,7 +165,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     s = { ...s, unlocked: [...s.unlocked, 'harness'] };
     s = reduce(s, { type: 'EquipPart', workerId: 'agent', partId: 'skillFrontend' }).state;
     expect(s.ownedParts).toEqual(['skillFrontend']);
-    s = reduce(deliver(s, a), pause).state;
+    s = settle(deliver(s, a)).state;
     const [next = ''] = openInquiries(nextMorning(s));
     s = win(nextMorning(s), next);
     expect(s.projects[next]).toBeDefined();
@@ -251,7 +256,6 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
     expect(s.board?.results.map((r) => r.projectId).sort()).toEqual([...ids].sort());
     // 受注した案件はすぐ始まる
     for (const e of events) if (e.type === 'BidWon') expect(activeProjects(s)).toContain(e.projectId);
-    expect(playSpeed(s)).toBe(s.speed);
     // 結果の出た引き合いには、もう見積を出せない（出し直しはない）
     const again = reduce(s, { type: 'SubmitBid', projectId: ids[0] ?? '', price: 'minus20', deadline: 'standard' });
     expect(again.state).toBe(s);
@@ -267,7 +271,7 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
   });
 
   it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消え、結果の履歴に「見送り」として残る', () => {
-    const s = { ...afterTutorial().state, paused: false };
+    const s = afterTutorial().state;
     const ids = openInquiries(s);
     const last = Math.max(...(s.board?.inquiries ?? []).map((i) => i.closesAt));
     const { state, events } = step(s, last - s.clock);

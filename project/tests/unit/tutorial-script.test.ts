@@ -5,6 +5,7 @@ import type { AssignModeId } from '../../src/content/types';
 import { type Command, reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
+import { advanceDay, nextDayStart } from '../../src/core/turn';
 import { currentTutorialStep, isAllowed, resolveSay } from '../../src/core/tutorial';
 
 const P = tutorialScript.projectId;
@@ -75,10 +76,9 @@ describe('チュートリアルの台本：許可されていない操作は拒�
     });
   }
 
-  it('時間の操作（速度・一時停止）はどのステップでも受け付ける', () => {
+  it('時間を進める（次の日へ）はどのステップでもできる（Command ではないので、ステップの許可に左右されない）', () => {
     for (const s of visited.values()) {
-      expect(reduce(s, { type: 'SetSpeed', speed: 3 }).state.speed).toBe(3);
-      expect(reduce(s, { type: 'TogglePause' }).state.paused).toBe(true);
+      expect(advanceDay(s).state.clock).toBe(nextDayStart(s.clock));
     }
   });
 

@@ -2,7 +2,6 @@ import { For, onCleanup, onMount, Show } from 'solid-js';
 import { type MotionPreference, motionPreferences, settings, updateSettings } from '../app/settings';
 import type { AudioVolumes } from '../audio/engine';
 import { audio } from '../audio/index';
-import { balance } from '../content/balance';
 import { type FeelIntensityId, feelIntensities } from '../content/look/feel';
 import { enter } from '../fx/motion';
 import { ja } from '../i18n/ja';
@@ -11,9 +10,7 @@ import { ghostButton, panel } from './parts';
 const t = ja.settings;
 const FEEL_INTENSITIES = Object.keys(feelIntensities) as FeelIntensityId[];
 const VOLUME_KEYS = ['master', 'sfx', 'music'] as const satisfies readonly (keyof AudioVolumes)[];
-const PLAY_FLAGS = ['dayBreak', 'awayProgress'] as const;
 /** 1営業日の実時間（分、1倍速） */
-const DAY_REAL_MINUTES = balance.time.minutesPerDay / balance.time.minutesPerRealSecond / 60;
 
 function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
   updateSettings({ audio: { ...settings().audio, [key]: value } });
@@ -128,24 +125,6 @@ export function SettingsSheet(props: { onClose: () => void; onTitle?: () => void
             <span class="font-bold">{t.mute}</span>
           </label>
           <p class="text-xs text-ink-muted">{t.soundHint}</p>
-        </fieldset>
-        <fieldset class="flex flex-col gap-2">
-          <legend class="mb-1 font-bold">{t.play}</legend>
-          <For each={PLAY_FLAGS}>
-            {(key) => (
-              <label class="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-[3px] border-line/30 px-3 has-checked:border-line has-checked:bg-accent-200">
-                <input
-                  type="checkbox"
-                  data-setting={key}
-                  checked={settings()[key]}
-                  onChange={(e) => updateSettings({ [key]: e.currentTarget.checked })}
-                  class="size-4 accent-primary-500"
-                />
-                <span class="font-bold">{t[key]}</span>
-              </label>
-            )}
-          </For>
-          <p class="text-xs text-ink-muted">{t.playHint(DAY_REAL_MINUTES)}</p>
         </fieldset>
         <div class="flex flex-wrap items-center justify-between gap-2">
           <Show when={props.onTitle} fallback={<span />}>

@@ -9,6 +9,7 @@ import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
+import { playFor } from '../helpers/play';
 
 let dispose = () => {};
 afterEach(() => {
@@ -39,7 +40,7 @@ function mount(projectId: string, setup: (store: GameStore) => void) {
 
 /** cond を満たすまで1分ずつ進める */
 function advanceUntil(store: GameStore, cond: () => boolean, limit = 3000) {
-  for (let i = 0; i < limit && !cond(); i++) store.advance(1);
+  for (let i = 0; i < limit && !cond(); i++) playFor(store, 1);
 }
 
 describe('ボトルネックの移動の案内（プレイ画面）', () => {

@@ -109,7 +109,6 @@ export function simulateTaskAlone(
     rng: hashSeed(rngSeed),
     clock: 0,
     carryMinutes: 0,
-    paused: false,
     projects: {
       [projectId]: {
         ...(state.projects[projectId] ?? createProjectRun(projectId, 0)),

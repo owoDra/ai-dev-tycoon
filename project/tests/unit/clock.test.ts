@@ -12,7 +12,7 @@ import {
 } from '../../src/core/clock';
 import { reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { awaitingAssignment, idleHours, playSpeed, stalledProjects, step } from '../../src/core/step';
+import { awaitingAssignment, stalledProjects, step } from '../../src/core/step';
 
 const DAY = balance.time.minutesPerDay;
 const w = balance.time.workday;
@@ -86,15 +86,6 @@ describe('夜（人間が帰った後）', () => {
       return night;
     };
     expect(nightAi('agentWorkflow')).toBeGreaterThan(nightAi('ai'));
-  });
-
-  it('人間が帰っていて AI も動いていなければ早送りする（速度は idleSkip まで上げる）', () => {
-    const day = reduce(createInitialState('idle'), { type: 'StartProject', projectId: P }).state;
-    expect(idleHours(day)).toBe(false);
-    expect(playSpeed(day)).toBe(day.speed);
-    const night = { ...createInitialState('idle'), clock: w.end - w.start };
-    expect(idleHours(night)).toBe(true);
-    expect(playSpeed(night)).toBe(balance.time.idleSkip);
   });
 });
 

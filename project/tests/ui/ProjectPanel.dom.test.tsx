@@ -4,6 +4,7 @@ import { createGameStore } from '../../src/app/store';
 import { createInitialState } from '../../src/core/state';
 import { ja } from '../../src/i18n/ja';
 import { ProjectPanel } from '../../src/ui/ProjectPanel';
+import { playFor } from '../helpers/play';
 
 let dispose = () => {};
 afterEach(() => {
@@ -51,7 +52,7 @@ describe('ProjectPanel（仮 UI）', () => {
     worker.dispatchEvent(new Event('change'));
     expect(store.state().projects.ecRenewal?.tasks.hearing?.assignment?.workerId).toBe('suzuki');
 
-    store.advance(30);
+    playFor(store, 30);
     expect(root.textContent).toContain(ja.project.status.running);
     expect(select(root, `${hearing} ${ja.project.mode}`)?.disabled).toBe(true);
     expect(root.textContent).toContain(ja.score.minutes(30));

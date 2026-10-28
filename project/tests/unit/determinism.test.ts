@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { Command } from '../../src/core/commands';
+import { createInitialState } from '../../src/core/state';
 import { defaultSystems, type System } from '../../src/core/system';
 import { runHeadless, type TimedCommand } from '../helpers/headless';
 
@@ -6,20 +8,30 @@ import { runHeadless, type TimedCommand } from '../helpers/headless';
 const randomScheduler: System = (state, ctx) => {
   if (!ctx.rng.chance(0.1)) return state;
   const delay = ctx.rng.int(1, 30);
-  const speed = ctx.rng.pick([1, 3, 10] as const);
+  const rank = ctx.rng.pick([1, 3, 10] as const);
   return {
     ...state,
-    pendingEvents: [...state.pendingEvents, { at: state.clock + delay, event: { type: 'SpeedChanged', speed } }],
+    pendingEvents: [...state.pendingEvents, { at: state.clock + delay, event: { type: 'CompanyRanked', rank } }],
   };
 };
 
 const systems = [randomScheduler, ...defaultSystems];
 
+const P = 'ecRenewal';
+const founder = (i: number) => Object.keys(createInitialState('s').team)[i] ?? '';
+const assign = (workerId: string): Command => ({
+  type: 'AssignTask',
+  projectId: P,
+  taskId: 'hearing',
+  mode: 'human',
+  workerId,
+});
+
 const commands: TimedCommand[] = [
-  { at: 10, command: { type: 'SetSpeed', speed: 3 } },
-  { at: 60, command: { type: 'TogglePause' } },
-  { at: 60, command: { type: 'TogglePause' } },
-  { at: 300, command: { type: 'SetSpeed', speed: 10 } },
+  { at: 10, command: { type: 'StartProject', projectId: P } },
+  { at: 60, command: assign(founder(0)) },
+  { at: 60, command: assign(founder(1)) },
+  { at: 300, command: { type: 'SeeFeatures', features: [] } },
 ];
 
 describe('determinism', () => {
@@ -41,21 +53,11 @@ describe('determinism', () => {
 
   it('Command は指定時刻に、同時刻なら配列の順に適用される', () => {
     const { state, events } = runHeadless({ seed: 's', commands, until: 1_000 });
-    expect(events).toEqual([
-      { type: 'SpeedChanged', speed: 3 },
-      { type: 'PauseToggled', paused: true },
-      { type: 'PauseToggled', paused: false },
-      { type: 'SpeedChanged', speed: 10 },
-    ]);
-    expect(state).toMatchObject({ clock: 1_000, speed: 10, paused: false });
-  });
-
-  it('一時停止したままなら、その時点で打ち切る', () => {
-    const { state } = runHeadless({
-      seed: 's',
-      commands: [{ at: 45, command: { type: 'TogglePause' } }],
-      until: 1_000,
-    });
-    expect(state).toMatchObject({ clock: 45, paused: true });
+    expect(state.clock).toBe(1_000);
+    const run = state.projects[P];
+    expect(run?.startedAt).toBe(10);
+    // 同時刻の担当は、後に適用した方が残る
+    expect(run?.tasks.hearing?.assignment).toEqual({ mode: 'human', workerId: founder(1) });
+    expect(events).toContainEqual({ type: 'TaskStarted', projectId: P, taskId: 'hearing', mode: 'human' });
   });
 });

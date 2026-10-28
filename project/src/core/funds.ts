@@ -76,5 +76,5 @@ export function checkFunds(state: GameState, emit: (e: GameEvent) => void): Game
   }
   const last = funds.samples.at(-1)?.day === sample.day ? funds : addSample(funds, sample);
   emit({ type: 'CompanyBankrupt' });
-  return { ...state, paused: true, funds: { ...last, shortDays, bankruptAt: state.clock } };
+  return { ...state, funds: { ...last, shortDays, bankruptAt: state.clock } };
 }

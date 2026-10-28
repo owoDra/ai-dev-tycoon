@@ -7,7 +7,7 @@ import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
 import { createInitialState, createProjectRun, type GameState } from '../../src/core/state';
-import { playSpeed, step } from '../../src/core/step';
+import { step } from '../../src/core/step';
 import { defaultSystems } from '../../src/core/system';
 import { humanSpeed, teamMembers } from '../../src/core/team';
 import { currentTutorialStep } from '../../src/core/tutorial';
@@ -18,7 +18,7 @@ import { representativeProject } from './generated';
  * チュートリアルから、固定 seed で生成した代表的な案件群を受注していく流れ（以前のキャンペーン）を遊ぶ戦略 Bot（画面なし）。
  * 案件ボードのある会社で始め、チュートリアルを納品したら、以前のキャンペーンの段階と同じ順と条件で代表的な案件を受注したことにする
  * （コンペの勝敗は tests/balance/bidding.test.ts で確かめる。ここでは決まった仕事量の進め方を比べる）。
- * プレイヤーと同じく1倍速のまま進め（早送りしない）、受注した案件を読んで担当を決めるまでの時間（考える時間）も時計が進む。
+ * 時間はプレイヤーが進めるまで止まっているので、受注した案件を読んで担当を決める間は時計が進まない（その場で決める）。
  */
 
 /** 代表的な案件群の段階。前の段階の後、条件を満たすと受注する */
@@ -121,7 +121,8 @@ function tutorialCommands(state: GameState): Command[] {
   return s.allow
     .filter((a) => run?.tasks[a.taskId]?.assignment === null)
     .map((a) => {
-      const highlighted = s.highlight?.taskId === a.taskId ? s.highlight.mode : undefined;
+      const h = s.highlight;
+      const highlighted = h?.kind === 'task' && h.taskId === a.taskId ? h.mode : undefined;
       const mode = highlighted ?? a.modes.at(-1) ?? 'human';
       return {
         type: 'AssignTask',
@@ -136,10 +137,6 @@ function tutorialCommands(state: GameState): Command[] {
 export interface CampaignOptions {
   readonly seed?: string;
   readonly policy: CampaignPolicy;
-  /** 新しい依頼を読んで担当を決めるまでの実時間（秒） */
-  readonly thinkSeconds: number;
-  /** チュートリアルの吹き出しを読んで操作するまでの実時間（秒） */
-  readonly tutorialThinkSeconds: number;
   /** 打ち切るゲーム内時刻（分） */
   readonly limitMinutes: number;
   /**
@@ -154,8 +151,8 @@ export interface CampaignResult {
   readonly events: readonly GameEvent[];
   /** チュートリアルと代表的な案件群をすべて納品したゲーム内時刻（分）。打ち切ったら null */
   readonly clearedAt: number | null;
-  /** すべて納品するまでの1倍速での実時間（秒。夜の早送り（core/step.ts の playSpeed）を含む）。打ち切ったら null */
-  readonly clearedRealSeconds: number | null;
+  /** すべて納品するまでに進めた営業日の数（「次の日へ」を押す回数の目安）。打ち切ったら null */
+  readonly clearedDays: number | null;
 }
 
 /**
@@ -164,13 +161,10 @@ export interface CampaignResult {
  */
 const SYSTEMS = defaultSystems.filter((s) => s !== archiveSystem);
 
-/** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、考える時間が過ぎたら Command を出す */
+/** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、判断が要るところでその場で Command を出す */
 export function playCampaign(options: CampaignOptions): CampaignResult {
-  const perSecond = balance.time.minutesPerRealSecond;
   const initial = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
   let state: GameState = { ...initial, unlocked: [...initial.unlocked, ...(options.unlocked ?? [])] };
-  /** 1倍速で遊んだときの経過実時間（秒）。考える時間もこの時計で数える */
-  let real = 0;
   const events: GameEvent[] = [];
   const apply = (commands: readonly Command[]) => {
     for (const c of commands) {
@@ -179,40 +173,36 @@ export function playCampaign(options: CampaignOptions): CampaignResult {
       events.push(...r.events);
     }
   };
-  /** 依頼を受注する時刻と、チュートリアルの次の操作の時刻 */
-  const acceptAt = new Map<string, number>();
-  let tutorialAt = null as { readonly step: number; readonly at: number } | null;
+  // 時間はプレイヤーが進めるまで止まっているので、考える時間はゲーム内の時間を使わない（届いた依頼はその場で受注し、担当を決める）
+  const offered = new Set<string>();
   let reached = 0;
   const all = [tutorialScript.projectId, ...representativeRun];
   apply([{ type: 'StartProject', projectId: tutorialScript.projectId }]);
 
   while (!all.every((id) => done(state, id)) && state.clock < options.limitMinutes) {
     while (reached < STAGES.length && STAGES[reached]?.when(state)) {
-      for (const id of STAGES[reached]?.projects ?? []) acceptAt.set(id, real);
+      for (const id of STAGES[reached]?.projects ?? []) offered.add(id);
       reached++;
     }
-    for (const [id, offeredAt] of acceptAt) {
-      if (state.projects[id] || real < offeredAt + options.thinkSeconds) continue;
+    for (const id of offered) {
+      if (state.projects[id]) continue;
       state = { ...state, projects: { ...state.projects, [id]: createProjectRun(id, state.clock) } };
       apply([...(options.policy.setup?.(state) ?? []), ...assignProject(state, id, options.policy)]);
     }
-    if (state.tutorial) {
-      const current = state.tutorial.step;
-      const planned =
-        tutorialAt !== null && tutorialAt.step === current
-          ? tutorialAt
-          : { step: current, at: real + options.tutorialThinkSeconds };
-      tutorialAt = planned;
-      if (real >= planned.at) apply(tutorialCommands(state));
-    } else {
+    if (state.tutorial) apply(tutorialCommands(state));
+    else {
       // チュートリアルの後に始めた案件や、途中で解放された担当で、まだ決めていない Task を決める
       for (const id of activeProjects(state)) apply(assignProject(state, id, options.policy));
     }
-    real += balance.time.tickMinutes / (perSecond * playSpeed(state));
     const r = step(state, balance.time.tickMinutes, SYSTEMS);
     state = r.state;
     events.push(...r.events);
   }
   const cleared = all.every((id) => done(state, id));
-  return { state, events, clearedAt: cleared ? state.clock : null, clearedRealSeconds: cleared ? real : null };
+  return {
+    state,
+    events,
+    clearedAt: cleared ? state.clock : null,
+    clearedDays: cleared ? Math.ceil(state.clock / balance.time.minutesPerDay) : null,
+  };
 }

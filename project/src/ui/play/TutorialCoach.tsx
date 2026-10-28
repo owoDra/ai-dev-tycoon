@@ -23,6 +23,7 @@ const BUBBLE_GAP = 14;
  * 閉じていればワールドの島のラベル。見つからなければ null
  */
 export function findHighlight(root: ParentNode, h: TutorialHighlight): Element | null {
+  if (h.kind === 'nextDay') return root.querySelector('[data-next-day]');
   const sheet = root.querySelector(`[data-detail-sheet][data-task="${h.taskId}"]`);
   if (sheet) return sheet.querySelector(h.mode ? `[data-mode="${h.mode}"]` : '[data-assign-cards]');
   return root.querySelector(`[data-island="${islandId(h.taskId)}"]`);

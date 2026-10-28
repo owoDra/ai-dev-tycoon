@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startLoop } from '../../src/app/loop';
 import { createGameStore } from '../../src/app/store';
-import { createInitialState } from '../../src/core/state';
+import { balance } from '../../src/content/balance';
+import { uiLayout } from '../../src/content/look/layout';
+import { campaignInProgress } from '../helpers/session';
 
 /** requestAnimationFrame を手で進められるようにした偽物 */
 function fakeFrames() {
@@ -37,15 +39,58 @@ describe('startLoop', () => {
     vi.unstubAllGlobals();
   });
 
-  it('held の間（結果画面や設定を見ている間）は時間を進めず、一時停止の状態も変えない', () => {
-    const store = createGameStore(createInitialState('loop-held'));
+  it('進めている日がなければ、フレームは回り続けても時間は進まない', () => {
+    const store = createGameStore(campaignInProgress());
+    const stop = startLoop(store);
+    frames.step();
+    frames.step();
+    expect(frames.pending()).toBe(1);
+    expect(store.state().clock).toBe(0);
+    stop();
+    expect(frames.pending()).toBe(0);
+  });
+
+  it('次の日へ を押すと、1日を uiLayout.flow.dayMs の実時間で進め、次の始業ちょうどで止まる', () => {
+    const store = createGameStore(campaignInProgress());
+    const stop = startLoop(store);
+    frames.step();
+    store.play(false);
+    const frameMs = 100;
+    frames.step(frameMs);
+    expect(store.state().clock + store.state().carryMinutes).toBeCloseTo(
+      (balance.time.minutesPerDay * frameMs) / uiLayout.flow.dayMs,
+    );
+    for (let i = 0; i < uiLayout.flow.dayMs / frameMs + 5; i++) frames.step(frameMs);
+    expect(store.run()).toBeNull();
+    expect(store.state().clock).toBe(balance.time.minutesPerDay);
+    // 止まった後もフレームは回り続ける（次に押したらすぐ動く）
+    expect(frames.pending()).toBe(1);
+    stop();
+  });
+
+  it('まとめ送りでは、1日を uiLayout.flow.skipDayMs の実時間で進める', () => {
+    const store = createGameStore(campaignInProgress());
+    const stop = startLoop(store);
+    frames.step();
+    store.play(true);
+    frames.step(100);
+    expect(store.state().clock + store.state().carryMinutes).toBeCloseTo(
+      (balance.time.minutesPerDay * 100) / uiLayout.flow.skipDayMs,
+    );
+    stop();
+  });
+
+  it('held の間（結果画面・決算・納品を見ている間）は、進めている日があっても時間を進めない', () => {
+    const store = createGameStore(campaignInProgress());
     let held = true;
-    const stop = startLoop(store, undefined, undefined, () => held);
+    const stop = startLoop(store, undefined, () => held);
+    frames.step();
+    store.play(false);
     frames.step();
     frames.step();
     const elapsed = () => store.state().clock + store.state().carryMinutes;
     expect(elapsed()).toBe(0);
-    expect(store.state().paused).toBe(false);
+    expect(store.run()).not.toBeNull();
     held = false;
     frames.step();
     expect(elapsed()).toBeGreaterThan(0);
@@ -53,7 +98,7 @@ describe('startLoop', () => {
   });
 
   it('描画や進行で例外が出ても、次のフレームを予約し続ける（ループが止まって画面が固まらない）', () => {
-    const store = createGameStore(createInitialState('loop-throw'));
+    const store = createGameStore(campaignInProgress());
     let fail = true;
     const stop = startLoop(store, () => {
       if (fail) throw new Error('描画の失敗');
@@ -63,41 +108,6 @@ describe('startLoop', () => {
     fail = false;
     frames.step();
     expect(frames.pending()).toBe(1);
-    stop();
-  });
-
-  it('進行中はフレームを要求し続け、一時停止すると止まり、再開すると回り始める', () => {
-    const store = createGameStore(createInitialState('loop'));
-    const stop = startLoop(store);
-    frames.step();
-    frames.step();
-    expect(frames.pending()).toBe(1);
-    const elapsed = () => store.state().clock + store.state().carryMinutes;
-    expect(elapsed()).toBeGreaterThan(0);
-
-    store.dispatch({ type: 'TogglePause' });
-    frames.step();
-    expect(frames.pending()).toBe(0);
-    const paused = elapsed();
-    frames.step();
-    expect(elapsed()).toBe(paused);
-
-    store.dispatch({ type: 'TogglePause' });
-    expect(frames.pending()).toBe(1);
-    stop();
-    expect(frames.pending()).toBe(0);
-  });
-
-  it('止める時刻を渡すと、その時刻を越えて進めず、ちょうどその時刻に届く', () => {
-    const store = createGameStore(createInitialState('loop'));
-    let limit: number | null = 3;
-    const stop = startLoop(store, undefined, () => limit);
-    for (let i = 0; i < 10; i++) frames.step(250);
-    expect(store.state().clock).toBe(3);
-    expect(store.state().carryMinutes).toBeLessThan(0.001);
-    limit = null;
-    for (let i = 0; i < 4; i++) frames.step(250);
-    expect(store.state().clock).toBeGreaterThan(3);
     stop();
   });
 });

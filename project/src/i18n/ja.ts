@@ -10,14 +10,6 @@ export const ja = {
   clock: {
     day: (day: number) => `${day}日目`,
   },
-  controls: {
-    pause: '一時停止',
-    resume: '再開',
-    paused: '一時停止中',
-    running: '進行中',
-    speed: (speed: number) => `${speed}倍速`,
-    speedGroup: 'ゲーム速度',
-  },
   projects: {
     ecRenewal: 'ECサイトリニューアル',
     tutorialLp: '小さなLP制作',
@@ -450,39 +442,6 @@ export const ja = {
       ],
     },
   },
-  /** 隙間時間に少しずつ遊ぶためのカード（営業日の終わりの区切り・再開したときのあらすじ） */
-  session: {
-    dayEnded: (day: number) => `${day}日目の業務が終わりました`,
-    dayLead: 'ここで区切っても大丈夫。進み具合は保存してあります',
-    recapTitle: '前回のあらすじ',
-    away: (hours: string) => `閉じていた間に、業務が${hours}進みました`,
-    noAway: '閉じていた間は、業務を進めていません',
-    tasks: '完了した仕事',
-    tasksDone: (n: number) => `完了した仕事 ${n}件`,
-    delivered: (name: string) => `${name}を納品`,
-    incidents: (n: number) => `事件 ${n}件`,
-    profit: '利益',
-    humanTime: '人間の稼働',
-    active: '進行中の案件',
-    progress: (done: number, total: number) => `${done} / ${total}`,
-    daysLeft: (days: number) =>
-      days >= 0 ? `納期まで ${days.toFixed(1)}日` : `納期を ${Math.abs(days).toFixed(1)}日超過`,
-    next: '次にやること',
-    steps: {
-      incident: (n: number) => `事件が${n}件起きています。解決しよう`,
-      assign: (n: number) => `担当が決まっていない仕事が${n}件あります`,
-      offer: (n: number) => `見積を出していない引き合いが${n}件あります`,
-      watch: 'いまは見守るだけ。AI と人の仕事が進みます',
-    },
-    nextDay: '次の日へ',
-    resume: '再開する',
-    quit: 'ここで中断する',
-    saved: '保存済み',
-    /** あらすじのチームごとの進み具合と、閉じている間の決算 */
-    teams: 'チーム',
-    teamLine: (name: string, active: number, delivered: number) => `${name}：進行中 ${active}件・納品 ${delivered}件`,
-    fiscalClosed: (no: number) => `第${no}期の決算が出ています`,
-  },
   /** 決算（core/fiscal.ts・view/fiscal.ts） */
   fiscal: {
     title: (no: number) => `第${no}期 決算`,
@@ -715,15 +674,20 @@ export const ja = {
       lunch: '人間は昼休み。AI は手元の作業を続ける',
       night: '人間は帰宅した。AI は手元の作業だけを続け、終わったら止まる（Agent Workflow と AI PM は続けて進む）',
     },
-    skipping: '早送り中',
-    waiting: '担当待ちで停止中',
+    running: '進めています',
+    waiting: '担当待ちの仕事あり',
+    stopped: '止まっています',
+    nextDay: '次の日へ',
+    nextDayHint: '1日進める（Space）。進めている間にもう一度押すと止まる',
+    untilDecision: 'まとめて進める',
+    untilDecisionHint: (days: number) =>
+      `担当待ち・納品・決算・事件など、判断が要ることが起きるまで1日ずつ進める（最大${days}日）`,
+    stop: '止める',
     menu: 'メニュー',
     board: '案件ボード',
     utilization: '稼働',
     human: '人間',
     ai: 'AI',
-    speed: (n: number) => `×${n}`,
-    nextSpeed: (n: number) => `速度を変える（今は${n}倍速）`,
     problemsCount: (n: number) => `問題 ${n}件（押すと閉じた問題を出し直す）`,
     streak: (m: number) => `連続 ${Math.floor(m)}分`,
     streakFire: (m: number) => `STREAK ${Math.floor(m)}分`,
@@ -1338,11 +1302,6 @@ export const ja = {
     mute: '音を消す',
     soundHint:
       '音は補助です。音を消しても、すべての出来事は画面の表示とアイコンで分かります。音は最初の操作の後に鳴り始めます。',
-    play: '遊び方',
-    dayBreak: '1日の終わりで一時停止する',
-    awayProgress: '閉じている間も、その日の終わりまで進める',
-    playHint: (minutes: number) =>
-      `オンにすると、1日（1倍速で約${Math.round(minutes)}分）ごとに一時停止して、その日の成果を出します。`,
   },
   audio: {
     test: {
@@ -1406,7 +1365,7 @@ export const ja = {
     open: '開く',
     needsProject: '案件のフロアを開くと使えます',
     basic: '担当を選べるようになった',
-    speed: '早送りできるようになった',
+    skip: '「まとめて進める」で、判断が要るときまで日を進められるようになった',
     utilization: '人間と AI の稼働が見えるようになった',
     review: '「AI → 人間レビュー」が使えるようになった',
     eval: '「AI → 自動テスト → 確認」が使えるようになった',
@@ -1602,19 +1561,19 @@ export const ja = {
     /** content/tutorial.ts のステップの say */
     say: {
       choose: 'この作業を誰に任せる？ 島を押して「人間」か「AI」を選ぼう',
-      aiWorking: 'AI が作業中… 人間は最初に指示を出すだけ',
-      humanWorking: '人間が作業中… 時間がかかりそう。×3・×10 で早送りもできる',
+      aiWorking: 'AI に任せた。人間は最初に指示を出すだけ。「次の日へ」を押して作業を進めよう',
+      humanWorking: '人間に任せた。時間がかかりそう…。「次の日へ」を押して作業を進めよう',
       aiFast: 'AI ならあっという間！ 人間の時間がほとんど浮いた。次の作業も AI に任せよう',
       humanSlow: '人間は確実だけど時間がかかる…。次は AI に任せてみよう',
-      aiAgain: 'AI が作業中… さっきと同じく、すぐ終わるはず',
+      aiAgain: 'AI が作業中… さっきと同じく、すぐ終わるはず。「次の日へ」で進めよう',
       needReview: '品質が下がった！ AI は速いけど、結果の確認が必要みたい。次は「AI → 人間レビュー」で',
-      reviewing: 'AI の成果物を人間がレビュー中。ミスがあれば見つけて直す',
+      reviewing: 'AI の成果物を人間がレビューする。ミスがあれば見つけて直す。「次の日へ」で進めよう',
       tryEval: '毎回人間が確認するのは大変…。自動テストに先に確かめてもらおう。「AI → 自動テスト → 確認」で',
-      evaluating: '自動テストがミスを見つけたら AI が直す。人間は最後に軽く確認するだけ',
+      evaluating: '自動テストがミスを見つけたら AI が直す。人間は最後に軽く確認するだけ。「次の日へ」で進めよう',
     },
   },
   keys: {
-    help: 'Tab で移動・Enter で決定・Esc で閉じる・矢印キーで島を移動・Space で一時停止',
+    help: 'Tab で移動・Enter で決定・Esc で閉じる・矢印キーで島を移動・Space で次の日へ',
   },
   icons: {
     human: '人間',

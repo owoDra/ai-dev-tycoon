@@ -7,6 +7,7 @@ import { createInitialState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { Keyed } from '../../src/ui/Keyed';
 import { BoardSheet } from '../../src/ui/play/BoardSheet';
+import { playFor } from '../helpers/play';
 
 let dispose = () => {};
 afterEach(() => {
@@ -58,7 +59,7 @@ describe('案件ボード', () => {
     const card = root.querySelector<HTMLElement>('[data-inquiry]');
     const submit = card?.querySelector('[data-submit]');
     card?.querySelector<HTMLButtonElement>('[data-price="plus10"]')?.click();
-    store.advance(30);
+    playFor(store, 30);
     expect(root.querySelector('[data-inquiry]')).toBe(card);
     expect(card?.querySelector('[data-submit]')).toBe(submit);
     expect(card?.querySelector('[data-price="plus10"]')?.getAttribute('aria-pressed')).toBe('true');

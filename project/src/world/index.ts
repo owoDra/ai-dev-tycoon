@@ -328,7 +328,7 @@ export function createWorld(canvas: HTMLCanvasElement, options: WorldOptions): W
     worldTime += dt;
     const time = worldTime;
     const reduced = reducedMotion();
-    const live = !vm.paused;
+    const live = true;
     const motion = live && !reduced;
     stage.update(vm.islands, time, motion, (id) => squash.get(id), vm.lanes);
     const walking = actors.frame({ dt, time, live, reducedMotion: reduced });

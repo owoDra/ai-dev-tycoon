@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { archivable, archiveProjects } from '../../src/core/archive';
-import { catchUp } from '../../src/core/away';
 import { industryTrack, winChance } from '../../src/core/bidding';
 import { reduce } from '../../src/core/commands';
 import { goalProgress, promote, rankProgress, tierOf } from '../../src/core/company';
@@ -17,7 +16,7 @@ import { scoreCompany } from '../../src/core/scoring';
 import { deserialize, MIGRATIONS, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createFunds, createInitialState, createTaskRun, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
-import { recapView } from '../../src/view/session';
+import { advanceUntilDecision } from '../../src/core/turn';
 import { growCompany } from '../helpers/growth';
 import { campaignInProgress } from '../helpers/session';
 
@@ -172,12 +171,12 @@ describe('資金と倒産・時価総額（core/funds.ts）', () => {
     expect(shorts).toHaveLength(balance.funds.graceDays - 1);
     expect(events.filter((e) => e.type === 'CompanyBankrupt')).toHaveLength(1);
     expect(isBankrupt(state)).toBe(true);
-    expect(state.paused).toBe(true);
     expect(state.funds.bankruptAt).toBe(DAY * balance.funds.graceDays);
     expect(state.funds.samples.at(-1)?.day).toBe(balance.funds.graceDays);
-    const resumed = { ...state, paused: false };
-    expect(step(resumed, DAY).state).toBe(resumed);
-    expect(reduce(resumed, { type: 'TogglePause' }).state).toBe(resumed);
+    expect(step(state, DAY).state).toBe(state);
+    // 倒産していなければ状態を変える Command でも、受け付けない
+    const fresh = { ...state, fresh: ['dock:skip' as const] };
+    expect(reduce(fresh, { type: 'SeeFeatures', features: ['dock:skip'] }).state).toBe(fresh);
   });
 
   it('資金が持ち直せば、倒産までの日数は元に戻る', () => {
@@ -321,7 +320,7 @@ describe('セーブと閉じている間の進行', () => {
     const s = company('migrate');
     const { rank, eventCost, ledger, fiscal, funds, achievements, companyEvents, ...v12 } = s;
     const json = JSON.stringify({ saveVersion: 12, state: v12 });
-    expect(SAVE_VERSION).toBe(19);
+    expect(SAVE_VERSION).toBe(20);
     expect(() => deserialize(json)).toThrow(OutdatedSaveError);
     const loaded = deserialize(json, MIGRATIONS, 13);
     expect(loaded).toMatchObject({ rank: 0, eventCost: 0, achievements: [] });
@@ -337,11 +336,12 @@ describe('セーブと閉じている間の進行', () => {
     expect(deserialize(serialize(state))).toEqual(state);
   });
 
-  it('閉じている間に期末を迎えたら決算を締め、あらすじで知らせる', () => {
+  it('まとめて進めている間に期末を迎えたら決算を締め、その日の終わりで止まる（決算を見て次の手を考える）', () => {
     const start = campaignInProgress('away-fiscal');
     const before = { ...start, clock: FISCAL * DAY - 60, fiscal: { ...start.fiscal, startDay: 0 } };
-    const { state, events } = catchUp(before, 24 * 60 * 60);
+    const { state, events } = advanceUntilDecision(before);
     expect(events).toContainEqual({ type: 'FiscalClosed', no: 1 });
-    expect(recapView(before, state, events).fiscalClosed).toBe(1);
+    expect(state.clock).toBe(FISCAL * DAY);
+    expect(state.fiscal.reports).toHaveLength(1);
   });
 });

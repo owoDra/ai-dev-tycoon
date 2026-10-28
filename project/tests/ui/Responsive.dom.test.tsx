@@ -23,7 +23,7 @@ afterEach(() => {
 
 function mount(size: { width: number; height: number }) {
   const base = createInitialState('responsive');
-  const store = createGameStore({ ...base, unlocked: [...base.unlocked, 'dock:speed', 'problems'] });
+  const store = createGameStore({ ...base, unlocked: [...base.unlocked, 'dock:skip', 'problems'] });
   store.dispatch({ type: 'StartProject', projectId: P });
   const root = document.createElement('div');
   document.body.append(root);

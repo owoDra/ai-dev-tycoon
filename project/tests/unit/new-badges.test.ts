@@ -24,7 +24,7 @@ describe('解放した機能の「NEW」の印（state.fresh）', () => {
     expect(isFresh(s, 'team')).toBe(true);
     expect([...freshMenus(s)].sort()).toEqual(['harness', 'team']);
     // ドックの項目など、印を出す場所のない機能は持たない
-    expect(hasNewBadge('dock:speed')).toBe(false);
+    expect(hasNewBadge('dock:skip')).toBe(false);
     expect(s.fresh.every(hasNewBadge)).toBe(true);
     // 始めから解放済みの機能（チュートリアルの「人間」「AI」・チュートリアルなしの会社）には付かない
     expect(createInitialState('t', { tutorial: true }).fresh).toEqual([]);

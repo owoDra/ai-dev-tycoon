@@ -12,6 +12,7 @@ import { findHighlight } from '../../src/ui/play/TutorialCoach';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { islandId, worldView } from '../../src/view/world';
+import { playFor } from '../helpers/play';
 
 const P = tutorialScript.projectId;
 let dispose = () => {};
@@ -52,7 +53,7 @@ const card = (root: HTMLElement, mode: string) =>
 
 /** 指定の Task が完了するまで時間を進める */
 function runUntilDone(store: GameStore, taskId: string) {
-  for (let i = 0; i < 2000 && store.state().projects[P]?.tasks[taskId]?.status !== 'done'; i++) store.advance(1);
+  for (let i = 0; i < 2000 && store.state().projects[P]?.tasks[taskId]?.status !== 'done'; i++) playFor(store, 1);
 }
 
 describe('チュートリアル（コーチマークと機能の解放）', () => {
@@ -68,18 +69,27 @@ describe('チュートリアル（コーチマークと機能の解放）', () =
     );
   });
 
-  it('最初は早送り・稼働・問題の表示を出さず、Task が始まると早送りが解放される', () => {
+  it('最初は「まとめて進める」・稼働・問題の表示を出さず、Task が始まると「まとめて進める」が解放される', () => {
     const { store, root, select } = mount();
     const items = () => [...root.querySelectorAll<HTMLElement>('[data-hud-item]')].map((e) => e.dataset.hudItem);
-    const speeds = () => root.querySelector(`[data-play-controls] fieldset[aria-label="${ja.controls.speedGroup}"]`);
+    const skip = () => root.querySelector('[data-play-controls] [data-until-decision]');
     expect(items()).toEqual(['spend', 'remaining']);
-    expect(speeds()).toBeNull();
+    expect(skip()).toBeNull();
+    // 「次の日へ」は最初から押せる
+    expect(root.querySelector('[data-play-controls] [data-next-day]')).not.toBeNull();
     select('wireframe');
     card(root, 'ai')?.click();
-    store.advance(1);
-    expect(speeds()).not.toBeNull();
+    playFor(store, 1);
+    expect(skip()).not.toBeNull();
     expect(items()).not.toContain('problems');
-    expect(root.textContent).toContain(`${ja.unlocks.badge} ${ja.unlocks.speed}`);
+    expect(root.textContent).toContain(`${ja.unlocks.badge} ${ja.unlocks.skip}`);
+  });
+
+  it('AI に任せたら、コーチマークは「次の日へ」のボタンを照らす（時間はプレイヤーが進める）', () => {
+    const { root, select } = mount();
+    select('wireframe');
+    card(root, 'ai')?.click();
+    expect(findHighlight(document, { kind: 'nextDay' })).toBe(root.querySelector('[data-next-day]'));
   });
 
   it('操作すればステップが進む：AI を選ぶと「AI が作業中」、終わると次の Task へ。許していないモードは押せない', () => {

@@ -3,12 +3,8 @@
  */
 export const balance = {
   time: {
-    /** 1倍速のとき、実時間1秒で進むゲーム内の分数（1日 = 24時間がおよそ1分） */
-    minutesPerRealSecond: 24,
     /** シミュレーションの固定ステップ幅（ゲーム内の分）。システムはこの幅ごとに1回ずつ適用される */
     tickMinutes: 1,
-    /** 選べる速度倍率。先頭が既定値 */
-    speeds: [1, 3, 10],
     /** 1日の長さ（ゲーム内の分）。納期・営業日・日割りの固定費はこの単位で数える */
     minutesPerDay: 1440,
     /** 時計の 0 が指す時刻（0:00 からの分）。ゲームは1日目の始業から始まり、営業日はこの時刻で切り替わる */
@@ -18,8 +14,8 @@ export const balance = {
      * 勤務時間の外は人間が帰っていて、AI は手元の工程だけを進める（人間の工程は翌朝まで待つ）
      */
     workday: { start: 600, lunchStart: 780, lunchEnd: 840, end: 1140 },
-    /** 人間が帰っていて AI も働いていない間の早送りの倍率（夜を待たずに翌朝へ進める） */
-    idleSkip: 40,
+    /** 「判断が必要になるまで進める」で一度に進める日数の上限（core/turn.ts） */
+    maxSkipDays: 20,
   },
   project: {
     /** 1人日の長さ（人間が働くゲーム内の分）。勤務時間から昼休みを除いた長さ */
@@ -555,14 +551,6 @@ export const balance = {
      */
     minCardValue: 6_000,
   },
-  /**
-   * 閉じている間の進行（core/away.ts）。隙間時間に少しずつ遊べるよう、タブを閉じていた実時間の分だけ再開時に進める。
-   * 進めるのはその営業日の終わりまでで、判断の機会を何日分も飛ばさない
-   */
-  away: {
-    /** 閉じていた実時間をゲーム内の分に換算するときの速度の倍率 */
-    speed: 1,
-  },
   /** Workflow Library（core/library.ts） */
   library: {
     /** Workflow の名前の長さの上限（文字）。共有コードの文字列の上限（lib/codec.ts）にも収まる */
@@ -587,5 +575,3 @@ export const balance = {
     maxRunsPerYear: 5000,
   },
 } as const;
-
-export type GameSpeed = (typeof balance.time.speeds)[number];

@@ -51,10 +51,17 @@ export function StatusIcon(props: { status: TaskStatusView; class?: string }) {
   );
 }
 
-export function PlayPauseIcon(props: { paused: boolean }) {
+const dayIconPaths = {
+  play: 'M4 2.5v11l9-5.5z',
+  skip: 'M1.5 2.5v11l7-5.5zM8.5 2.5v11l7-5.5z',
+  stop: 'M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z',
+} as const;
+
+/** 日を進めるボタンの記号（1日進める・まとめて進める・止める）。UI 専用の記号なので、ここで描く */
+export function DayIcon(props: { kind: keyof typeof dayIconPaths }) {
   return (
     <svg viewBox="0 0 16 16" class="size-4 fill-current" aria-hidden="true">
-      <path d={props.paused ? 'M4 2.5v11l9-5.5z' : 'M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z'} />
+      <path d={dayIconPaths[props.kind]} />
     </svg>
   );
 }

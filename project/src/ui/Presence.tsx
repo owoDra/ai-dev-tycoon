@@ -1,11 +1,11 @@
 import { type Accessor, createEffect, createSignal, type JSX, on, Show, untrack } from 'solid-js';
-import { enter, exit, pop } from '../fx/motion';
+import { type ExitHandle, enter, exit, pop } from '../fx/motion';
 
 /**
  * 出現と退場のトランジション（Framer Motion の AnimatePresence 相当）。
  * when が値を持つと中身を出して enter し、null / false になると、最後の値のまま exit してから取り除く。
  * 退場中の要素はクリックを素通りさせる（fx/motion.ts の exit）ので、後ろの操作は止まらない。
- * 退場中にまた値が来たら、そのまま出し直す。
+ * 退場中にまた値が来たら、退場のアニメーションを止めて出し直す（止めないと、透明なまま押せる要素が残る）。
  */
 export function Presence<T>(props: {
   when: T | null | undefined | false;
@@ -18,6 +18,7 @@ export function Presence<T>(props: {
   const [shown, setShown] = createSignal<T | null>(props.when || null);
   let el: HTMLDivElement | undefined;
   let leaving = 0;
+  let leavingAnimation: ExitHandle | null = null;
 
   createEffect(
     on(
@@ -25,6 +26,8 @@ export function Presence<T>(props: {
       (value) => {
         if (value) {
           leaving++;
+          leavingAnimation?.cancel();
+          leavingAnimation = null;
           if (el) el.style.pointerEvents = '';
           setShown(() => value);
           return;
@@ -35,8 +38,8 @@ export function Presence<T>(props: {
         const done = () => {
           if (ticket === leaving) setShown(null);
         };
-        const leavingAnimation = target ? exit(target, props.from ?? 'below') : null;
-        if (leavingAnimation) void leavingAnimation.then(done);
+        leavingAnimation = target ? exit(target, props.from ?? 'below') : null;
+        if (leavingAnimation) void leavingAnimation.finished.then(done);
         else done();
       },
       { defer: true },

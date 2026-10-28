@@ -28,22 +28,23 @@ export function startLoop(
 
   const tick = (now: number) => {
     frame = 0;
-    const dtSeconds = last === undefined ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
-    last = now;
-    const state = store.state();
-    const dt = toGameMinutes(dtSeconds, playSpeed(state));
-    const stop = stopAt();
-    const { clock, carryMinutes } = state;
-    // 早送りは始業や見積の締切までにとどめる（人間が働き始めたら・結果が出たら選んだ速度に戻す）
-    const wake = skipUntil(state);
-    const room = Math.min(stop ?? Number.POSITIVE_INFINITY, wake ?? Number.POSITIVE_INFINITY) - clock - carryMinutes;
-    if (room > 0 && !held() && !awaitingAssignment(state)) store.advance(dt >= room ? room + STOP_EPSILON : dt);
-    render(store.state().carryMinutes / balance.time.tickMinutes);
-    if (store.state().paused) {
-      last = undefined;
-      return;
+    // 進める途中で例外が出ても、次のフレームは必ず予約する（ループが止まると画面全体が固まって見える）
+    try {
+      const dtSeconds = last === undefined ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
+      last = now;
+      const state = store.state();
+      const dt = toGameMinutes(dtSeconds, playSpeed(state));
+      const stop = stopAt();
+      const { clock, carryMinutes } = state;
+      // 早送りは始業や見積の締切までにとどめる（人間が働き始めたら・結果が出たら選んだ速度に戻す）
+      const wake = skipUntil(state);
+      const room = Math.min(stop ?? Number.POSITIVE_INFINITY, wake ?? Number.POSITIVE_INFINITY) - clock - carryMinutes;
+      if (room > 0 && !held() && !awaitingAssignment(state)) store.advance(dt >= room ? room + STOP_EPSILON : dt);
+      render(store.state().carryMinutes / balance.time.tickMinutes);
+    } finally {
+      if (store.state().paused) last = undefined;
+      else frame = requestAnimationFrame(tick);
     }
-    frame = requestAnimationFrame(tick);
   };
 
   const resume = () => {

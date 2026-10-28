@@ -1,5 +1,6 @@
 import {
   type Accessor,
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -121,6 +122,11 @@ export function PlayScreen(props: {
   /** 開いている案件の id。案件の島や Task にかかわる表示は、案件を開いているときだけ作るので、そこでは必ず案件の id になる */
   const pid = () => props.projectId ?? '';
   const inProject = () => props.projectId !== null;
+  /**
+   * シートの中で使う案件。ホームへ移った後も、退場中のシートは最後に開いていた案件のまま読む
+   * （空の案件 ID で view を読み直すと例外になり、Solid の更新とゲームループが止まる）
+   */
+  const sheetPid = createMemo<string>((prev) => props.projectId ?? prev, '');
   const layout = () => props.layout ?? uiLayout;
   const [windowSize, setWindowSize] = createSignal({ width: window.innerWidth, height: window.innerHeight });
   const onResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -411,7 +417,7 @@ export function PlayScreen(props: {
   const context = createMemo(() => (contextOpen() && inProject() ? contextView(props.store.state(), pid()) : null));
   /** Context のシートを開けるか（案件を開いていて、Context が解放済みで、その案件に資料がある） */
   const contextOn = createMemo(() => inProject() && contextView(props.store.state(), pid()) !== null);
-  /** 開いているシートをすべて閉じる（シートは1つだけ開く） */
+  /** 開いているシートをすべて閉じる（シートは1つだけ開く）。別のシートを開くときは batch でまとめ、間に退場が始まらないようにする */
   const closeSheets = () => {
     setContextOpen(false);
     setHarnessOpen(false);
@@ -427,10 +433,12 @@ export function PlayScreen(props: {
       go(projectId);
     });
   const openContext = () => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    closeSheets();
-    setContextOpen(true);
-    see('context');
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setContextOpen(true);
+      see('context');
+    });
   };
   // Workflow Library（企画書25章）。Task の詳細から開くと、その Task に適用できる
   const [libraryOpen, setLibraryOpen] = createSignal(false);
@@ -443,11 +451,13 @@ export function PlayScreen(props: {
     libraryOpen() && libraryOn() && inProject() ? libraryView(props.store.state(), libraryTarget()) : null,
   );
   const openLibrary = (taskId: string | null) => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    closeSheets();
-    setLibraryTask(taskId);
-    setLibraryOpen(true);
-    see('library');
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setLibraryTask(taskId);
+      setLibraryOpen(true);
+      see('library');
+    });
   };
   const [harnessOpen, setHarnessOpen] = createSignal(false);
   // 社員と Seat の画面（企画書6章）
@@ -459,18 +469,22 @@ export function PlayScreen(props: {
     teamOpen() && props.store.state().board ? deliveredProjects(props.store.state()) : null,
   );
   const openTeam = () => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    closeSheets();
-    setTeamOpen(true);
-    see('team');
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setTeamOpen(true);
+      see('team');
+    });
   };
   // 案件ボード（ホームとプレイの上に開くシート）。チュートリアルの間は開かない
   const [boardOpen, setBoardOpen] = createSignal(false);
   const boardOn = () => props.store.state().board !== null && props.store.state().tutorial === null;
   const openBoard = () => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    closeSheets();
-    setBoardOpen(true);
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setBoardOpen(true);
+    });
   };
   createEffect(() => props.onBoardOpen?.(boardOpen() && boardOn()));
   createEffect(
@@ -495,10 +509,12 @@ export function PlayScreen(props: {
     harnessOpen() && harnessOn() ? harnessView(props.store.state(), pid(), harnessWorker()) : null,
   );
   const openHarness = () => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    closeSheets();
-    setHarnessOpen(true);
-    see('harness');
+    batch(() => {
+      props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+      closeSheets();
+      setHarnessOpen(true);
+      see('harness');
+    });
   };
   createEffect(() => {
     if (props.selection.selected() !== null) closeSheets();
@@ -727,7 +743,7 @@ export function PlayScreen(props: {
               sheetEl = el;
             }}
             store={props.store}
-            projectId={pid()}
+            projectId={sheetPid()}
             detail={d()}
             layout={form().form.sheet}
             scrollCards={form().form.assignCards === 'scroll'}
@@ -742,7 +758,7 @@ export function PlayScreen(props: {
             picks={(taskId) =>
               recommendWorkflows(
                 props.store.state(),
-                { projectId: pid(), taskId, workerId: harnessWorker() },
+                { projectId: sheetPid(), taskId, workerId: harnessWorker() },
                 layout().flow.workflowPicks,
               )
             }
@@ -750,14 +766,14 @@ export function PlayScreen(props: {
               props.store.dispatch(command);
               if (!layout().flow.keepDetailAfterAssign) close();
             }}
-            workflow={(taskId) => workflowTasks(props.store.state(), pid(), taskId)}
+            workflow={(taskId) => workflowTasks(props.store.state(), sheetPid(), taskId)}
             // Agent Workflow を解放するまでは出さない（押しても受け付けないボタンにしない）
             onWorkflow={
               isUnlocked(props.store.state(), modeFeature('agentWorkflow'))
                 ? (taskIds) => {
                     props.store.dispatch({
                       type: 'AssignWorkflow',
-                      projectId: pid(),
+                      projectId: sheetPid(),
                       taskIds,
                       workerId: harnessWorker(),
                     });
@@ -777,7 +793,7 @@ export function PlayScreen(props: {
             viewHeight={view().height}
             maxHeight={regions().sheet.height}
             dispatch={(c) => props.store.dispatch(c)}
-            toggleDoc={(docId) => toggleDoc(props.store.state(), pid(), v().workerId, docId)}
+            toggleDoc={(docId) => toggleDoc(props.store.state(), sheetPid(), v().workerId, docId)}
             onClose={() => setContextOpen(false)}
           />
         )}
@@ -790,14 +806,14 @@ export function PlayScreen(props: {
             bottom={sheetBottom()}
             viewHeight={view().height}
             maxHeight={regions().sheet.height}
-            forecast={(command) => harnessForecast(props.store.state(), pid(), v().workerId, command)}
+            forecast={(command) => harnessForecast(props.store.state(), sheetPid(), v().workerId, command)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setHarnessOpen(false)}
             tabs={aiTabs('harness')}
             footer={
               <SaveWorkflowForm
                 modes={saveModes(props.store.state())}
-                defaultMode={defaultSaveMode(props.store.state(), pid(), v().workerId)}
+                defaultMode={defaultSaveMode(props.store.state(), sheetPid(), v().workerId)}
                 defaultName={defaultWorkflowName(props.store.state())}
                 onSave={(name, mode) =>
                   props.store.dispatch({
@@ -814,12 +830,12 @@ export function PlayScreen(props: {
         {(v) => (
           <LibrarySheet
             view={v()}
-            target={libraryTask() ? getTask(pid(), libraryTask() ?? '').name : null}
+            target={libraryTask() ? getTask(sheetPid(), libraryTask() ?? '').name : null}
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
             maxHeight={regions().sheet.height}
-            forecast={(command) => harnessForecast(props.store.state(), pid(), harnessWorker(), command)}
+            forecast={(command) => harnessForecast(props.store.state(), sheetPid(), harnessWorker(), command)}
             readCode={(code) => importPreview(props.store.state(), code)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setLibraryOpen(false)}

@@ -69,11 +69,18 @@ export function enter(el: HTMLElement, from: 'below' | 'above' | 'none' = 'below
   });
 }
 
+/** 退場中のアニメーション。finished は最後まで動いたら解決する。cancel は止めて、要素を出ている状態に戻す */
+export interface ExitHandle {
+  finished: Promise<void>;
+  cancel: () => void;
+}
+
 /**
- * 退場。終わったら解決する。退場中の要素はクリックを素通りさせ、後ろの操作を妨げない。
+ * 退場。退場中の要素はクリックを素通りさせ、後ろの操作を妨げない。
+ * 途中で出し直すときは cancel で止める（止めないと、透明なまま押せる要素が残る）。
  * アニメーションできない環境では null を返す（呼び出し側はすぐに取り除く）
  */
-export function exit(el: HTMLElement, to: 'below' | 'above' | 'none' = 'below'): Promise<void> | null {
+export function exit(el: HTMLElement, to: 'below' | 'above' | 'none' = 'below'): ExitHandle | null {
   if (!canAnimate(el)) return null;
   el.style.pointerEvents = 'none';
   const offset = to === 'below' ? OFFSET : -OFFSET;
@@ -82,7 +89,15 @@ export function exit(el: HTMLElement, to: 'below' | 'above' | 'none' = 'below'):
     duration: visual.motion.fastDuration / MS,
     ease: ease.inOut,
   });
-  return controls.then(() => undefined);
+  return {
+    finished: controls.then(() => undefined),
+    cancel: () => {
+      controls.stop();
+      el.style.pointerEvents = '';
+      el.style.opacity = '';
+      el.style.transform = '';
+    },
+  };
 }
 
 /**

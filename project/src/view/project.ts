@@ -85,9 +85,9 @@ export function bottleneckLabel(state: GameState): string | null {
  * まだ始まっていないもの。選んだ Task が始まっていたら空
  */
 export function workflowTasks(state: GameState, projectId: string, taskId: string): string[] {
-  const tasks = getProject(projectId).tasks;
   const run = state.projects[projectId];
   if (run?.tasks[taskId]?.status !== 'waiting') return [];
+  const tasks = getProject(projectId).tasks;
   const picked = new Set([taskId]);
   for (const t of tasks) {
     if (t.deps.some((d) => picked.has(d)) && run.tasks[t.id]?.status === 'waiting') picked.add(t.id);

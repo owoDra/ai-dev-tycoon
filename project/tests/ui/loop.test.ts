@@ -52,6 +52,20 @@ describe('startLoop', () => {
     stop();
   });
 
+  it('描画や進行で例外が出ても、次のフレームを予約し続ける（ループが止まって画面が固まらない）', () => {
+    const store = createGameStore(createInitialState('loop-throw'));
+    let fail = true;
+    const stop = startLoop(store, () => {
+      if (fail) throw new Error('描画の失敗');
+    });
+    expect(() => frames.step()).toThrow('描画の失敗');
+    expect(frames.pending()).toBe(1);
+    fail = false;
+    frames.step();
+    expect(frames.pending()).toBe(1);
+    stop();
+  });
+
   it('進行中はフレームを要求し続け、一時停止すると止まり、再開すると回り始める', () => {
     const store = createGameStore(createInitialState('loop'));
     const stop = startLoop(store);

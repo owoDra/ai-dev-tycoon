@@ -4,7 +4,6 @@ import type { GameStore } from '../../app/store';
 import { getProject } from '../../content/index';
 import type { DockLayout, DockTabsLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
-import { waitingOnBids } from '../../core/step';
 import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
@@ -107,7 +106,6 @@ export function Dock(props: {
           compact={props.compact}
           onSwitch={(id) => props.onSwitch?.(id)}
           onBoard={props.onBoard}
-          waiting={waitingOnBids(props.store.state())}
         />
       </Show>
       <Show when={props.layout.projectName && !showTabs() && props.projectId}>
@@ -199,15 +197,13 @@ export function Dock(props: {
 const homeTabs = (compact: boolean): DockTabsLayout => ({ office: !compact, others: Number.POSITIVE_INFINITY });
 
 /**
- * ホームのドック：オフィスの見出し（進行中の案件があればそのタブ）・引き合いの入口（0件でも案件ボードを開ける）・結果待ちの数。
- * 結果を待つだけの間は早送りしていることを、アイコンとラベルで示す
+ * ホームのドック：オフィスの見出し（進行中の案件があればそのタブ）・引き合いの入口（0件でも案件ボードを開ける）
  */
 function HomeItems(props: {
   tabs?: ProjectTabsView;
   compact: boolean;
   onSwitch: (projectId: string) => void;
   onBoard?: () => void;
-  waiting: boolean;
 }) {
   const b = ja.board;
   return (
@@ -252,18 +248,6 @@ function HomeItems(props: {
             {b.inquiriesEntry(props.tabs?.offers ?? 0)}
           </button>
         )}
-      </Show>
-      <Show when={(props.tabs?.pending ?? 0) > 0}>
-        <span class="flex items-center gap-1 text-xs font-bold whitespace-nowrap tabular-nums" data-pending>
-          <Icon name="clock" class="text-lg" />
-          {b.pending(props.tabs?.pending ?? 0)}
-          <Show when={props.waiting}>
-            <span class="flex items-center gap-0.5 text-ink-muted" data-waiting>
-              <Icon name="automation" />
-              {b.waiting}
-            </span>
-          </Show>
-        </span>
       </Show>
     </>
   );

@@ -12,6 +12,7 @@ import {
   type PriceStep,
   priceSteps,
   quoteBid,
+  submitBid,
   winChance,
 } from '../../src/core/bidding';
 import { openInquiries } from '../../src/core/board';
@@ -104,77 +105,94 @@ describe('コンペの勝率（core/bidding.ts）', () => {
 });
 
 describe('勝率の表示と実際の判定', () => {
-  it('案件ボードに表示した勝率（After）が、出した見積の勝率になる', () => {
-    let s = company();
+  it('案件ボードに表示した勝率（After）が、出した見積の勝率になる。Before は基準の見積', () => {
+    const s = company();
     for (const id of openInquiries(s)) {
       for (const price of ['minus20', 'base', 'plus10'] as PriceStep[]) {
         const shown = bidPreview(s, id, price, 'short').after;
-        s = reduce(s, { type: 'SubmitBid', projectId: id, price, deadline: 'short' }).state;
-        expect(s.board?.inquiries.find((i) => i.projectId === id)?.bid).toEqual(shown);
-        // 出し直した後は、出した見積が Before になる
-        expect(bidPreview(s, id, 'base', 'standard').before).toEqual(shown);
+        expect(bidPreview(s, id, price, 'short').before).toEqual(quoteBid(s, id, 'base', 'standard'));
+        const r = reduce(s, { type: 'SubmitBid', projectId: id, price, deadline: 'short' });
+        expect(r.events[0]).toEqual({
+          type: 'BidSubmitted',
+          projectId: id,
+          amount: shown.amount,
+          winChance: shown.winChance,
+        });
+        expect(r.state.board?.results[0]).toMatchObject({ projectId: id, winChance: shown.winChance });
       }
     }
   });
 
-  it('締切の判定は出した見積の勝率どおり：勝つ割合が勝率に一致する（0 は必ず負け、1 は必ず勝つ）', () => {
+  it('その場の判定は見積の勝率どおり：勝つ割合が勝率に一致する（予算超えの 0 は必ず負ける）', () => {
     const s = company();
     const id = openInquiries(s)[0] ?? '';
-    const withChance = (winChanceValue: number): GameState => {
-      const board = s.board;
-      if (!board) throw new Error('案件ボードがない');
-      const bid = { ...quoteBid(s, id, 'base', 'standard'), winChance: winChanceValue };
-      const inquiries = board.inquiries.map((i) => (i.projectId === id ? { ...i, bid } : i));
-      return { ...s, clock: board.inquiries[0]?.closesAt ?? 0, board: { ...board, inquiries } };
-    };
     const trials = 2000;
-    for (const p of [0, 0.25, 0.6, 1]) {
+    for (const price of ['minus20', 'base', 'plus20'] as PriceStep[]) {
+      const chance = quoteBid(s, id, price, 'standard').winChance;
       let wins = 0;
       for (let n = 0; n < trials; n++) {
         const rng = createRngCursor(hashSeed(`trial-${n}`));
-        const next = closeInquiries(
-          withChance(p),
-          () => rng.next(),
-          () => {},
-        );
-        if (next.projects[id]) wins++;
+        if (submitBid(s, id, price, 'standard', rng.next, () => {}).projects[id]) wins++;
       }
-      expect(Math.abs(wins / trials - p), `勝率 ${p}`).toBeLessThan(0.03);
-      if (p === 0) expect(wins).toBe(0);
-      if (p === 1) expect(wins).toBe(trials);
+      expect(Math.abs(wins / trials - chance), `勝率 ${chance}`).toBeLessThan(0.03);
+      if (chance === 0) expect(wins).toBe(0);
     }
   });
 
-  it('受注した案件の売上は見積額、納期は提案した納期。結果は案件ボードの履歴に残る', () => {
+  it('受注した案件の売上は見積額、納期は提案した納期。結果は案件ボードの履歴に残り、引き合いから外れる', () => {
     const s = company();
     const id = openInquiries(s)[0] ?? '';
     const bid = quoteBid(s, id, 'minus10', 'long');
-    const board = s.board;
-    if (!board) throw new Error('案件ボードがない');
-    const inquiries = board.inquiries.map((i) => (i.projectId === id ? { ...i, bid: { ...bid, winChance: 1 } } : i));
     const events: GameEvent[] = [];
-    const closesAt = board.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
-    const next = closeInquiries(
-      { ...s, clock: closesAt, board: { ...board, inquiries } },
-      () => 0.5,
+    const next = submitBid(
+      s,
+      id,
+      'minus10',
+      'long',
+      () => 0,
       (e) => events.push(e),
     );
+    expect(next.clock).toBe(s.clock);
     expect(next.projects[id]).toMatchObject({ revenue: bid.amount, deadlineDays: bid.deadlineDays, completedAt: null });
-    // 見積を出さなかったほかの引き合いは、同じ締切で見送ったことを知らせる
-    const others = openInquiries(s).filter((o) => o !== id);
     expect(events).toEqual([
+      { type: 'BidSubmitted', projectId: id, amount: bid.amount, winChance: bid.winChance },
       { type: 'BidWon', projectId: id, amount: bid.amount },
-      ...others.map((projectId) => ({ type: 'InquiryPassed', projectId })),
     ]);
-    // 見送った引き合いも、結果の履歴に残る
-    expect(next.board?.results).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ projectId: id, outcome: 'won', amount: bid.amount }),
-        ...others.map((projectId) => expect.objectContaining({ projectId, outcome: 'passed', amount: 0 })),
-      ]),
+    expect(next.board?.results).toEqual([
+      { projectId: id, outcome: 'won', amount: bid.amount, winChance: bid.winChance, at: s.clock },
+    ]);
+    expect(openInquiries(next)).toEqual(openInquiries(s).filter((o) => o !== id));
+    // 負けたら案件は始まらず、失注として残る
+    const lostEvents: GameEvent[] = [];
+    const lost = submitBid(
+      s,
+      id,
+      'minus10',
+      'long',
+      () => 0.999_999,
+      (e) => lostEvents.push(e),
     );
-    expect(next.board?.results).toHaveLength(1 + others.length);
-    expect(next.board?.inquiries).toEqual([]);
+    expect(lost.projects[id]).toBeUndefined();
+    expect(lostEvents.at(-1)).toEqual({ type: 'BidLost', projectId: id });
+    expect(lost.board?.results[0]).toMatchObject({ projectId: id, outcome: 'lost' });
+  });
+
+  it('見積を出さなかった引き合いは、締切で見送ったことを知らせ、結果の履歴に残る', () => {
+    const s = company();
+    const board = s.board;
+    if (!board) throw new Error('案件ボードがない');
+    const closesAt = Math.min(...board.inquiries.map((i) => i.closesAt));
+    const due = board.inquiries.filter((i) => i.closesAt <= closesAt).map((i) => i.projectId);
+    const events: GameEvent[] = [];
+    const next = closeInquiries({ ...s, clock: closesAt }, (e) => events.push(e));
+    expect(events).toEqual(due.map((projectId) => ({ type: 'InquiryPassed', projectId })));
+    expect(next.board?.results).toHaveLength(due.length);
+    expect(next.board?.results).toEqual(
+      expect.arrayContaining(
+        due.map((projectId) => expect.objectContaining({ projectId, outcome: 'passed', amount: 0 })),
+      ),
+    );
+    expect(openInquiries(next)).toEqual(openInquiries(s).filter((o) => !due.includes(o)));
   });
 
   it('チュートリアルの間・締切の後・未知の引き合いには見積を出せない', () => {
@@ -217,19 +235,20 @@ describe('評判', () => {
       for (const id of openInquiries(s)) {
         const r = reduce(s, { type: 'SubmitBid', projectId: id, price: 'minus10', deadline: 'standard' });
         s = r.state;
-        const bid = s.board?.inquiries.find((i) => i.projectId === id)?.bid;
-        log.push(
-          `${day + 1}日目 見積：${getProject(id).name} ${bid?.amount}円 勝率 ${Math.round((bid?.winChance ?? 0) * 100)}%`,
-        );
+        for (const e of r.events) {
+          if (e.type === 'BidSubmitted')
+            log.push(
+              `${day + 1}日目 見積：${getProject(id).name} ${e.amount}円 勝率 ${Math.round(e.winChance * 100)}%`,
+            );
+          if (e.type === 'BidWon') won ??= e.projectId;
+          if (e.type === 'BidWon' || e.type === 'BidLost')
+            log.push(`${e.type === 'BidWon' ? '受注' : '失注'}：${getProject(e.projectId).name}`);
+        }
       }
+      if (won) break;
       const r = step(s, DAY);
       s = r.state;
       events.push(...r.events);
-      for (const e of r.events) {
-        if (e.type === 'BidWon') won ??= e.projectId;
-        if (e.type === 'BidWon' || e.type === 'BidLost')
-          log.push(`${e.type === 'BidWon' ? '受注' : '失注'}：${getProject(e.projectId).name}`);
-      }
     }
     if (!won) throw new Error('10日で受注できなかった');
     const projectId = won;

@@ -17,6 +17,7 @@ import { applyPreset, equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
 import { settleProgress } from './progress';
+import { createRngCursor } from './rng';
 import type { ManagerRun } from './state';
 import { createProjectRun, type GameState, notePlayerAssigned, updateTask } from './state';
 import { hire, inTeam, release, setSeat } from './team';
@@ -43,7 +44,7 @@ export type Command =
    * 案件を始める。案件ボードのある会社では、チュートリアルの案件だけ（ほかの案件はコンペで受注する）。進行中の案件と同時に進められる
    */
   | { readonly type: 'StartProject'; readonly projectId: string }
-  /** 案件ボードの引き合いに見積を出す（締切までは出し直せる）。価格と納期は選択肢から選ぶ（core/bidding.ts） */
+  /** 案件ボードの引き合いに見積を出す（その場で受注か失注が決まる）。価格と納期は選択肢から選ぶ（core/bidding.ts） */
   | {
       readonly type: 'SubmitBid';
       readonly projectId: string;
@@ -170,13 +171,11 @@ function apply(state: GameState, command: Command): Transition {
     case 'SubmitBid': {
       const { projectId, price, deadline } = command;
       if (!(price in balance.bid.prices) || !(deadline in balance.bid.deadlines)) return unchanged(state);
-      const next = submitBid(state, projectId, price, deadline);
-      const bid = next.board?.inquiries.find((i) => i.projectId === projectId)?.bid;
-      if (next === state || !bid) return unchanged(state);
-      return {
-        state: next,
-        events: [{ type: 'BidSubmitted', projectId, amount: bid.amount, winChance: bid.winChance }],
-      };
+      const rng = createRngCursor(state.rng);
+      const events: GameEvent[] = [];
+      const next = submitBid(state, projectId, price, deadline, rng.next, (e) => events.push(e));
+      if (next === state) return unchanged(state);
+      return { state: { ...next, rng: rng.state }, events };
     }
     case 'AssignTask': {
       const run = state.projects[command.projectId]?.tasks[command.taskId];

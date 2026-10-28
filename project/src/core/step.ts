@@ -1,6 +1,5 @@
 import { balance } from '../content/balance';
 import { getProject } from '../content/index';
-import { activeProjects, openInquiries, pendingBids } from './board';
 import { untilWork } from './clock';
 import type { Transition } from './commands';
 import type { GameEvent } from './events';
@@ -54,37 +53,14 @@ export function awaitingAssignment(state: GameState): boolean {
   return stalledProjects(state).length > 0;
 }
 
-/**
- * 見積の結果を待つだけの時間。チュートリアルを終えた会社で、進行中の案件がなく、見積を出した引き合いがあり、
- * まだ見積を出していない引き合い（プレイヤーが考えている途中のもの）がない
- */
-export function waitingOnBids(state: GameState): boolean {
-  return (
-    state.board !== null &&
-    state.tutorial === null &&
-    activeProjects(state).length === 0 &&
-    pendingBids(state).length > 0 &&
-    openInquiries(state).length === 0
-  );
-}
-
-/**
- * 早送りを止めるゲーム内時刻。早送りしないときは null。
- * idleHours の間は次の始業まで、waitingOnBids の間は最初の締切（結果が出る時刻）まで。両方なら早い方
- */
+/** 早送りを止めるゲーム内時刻。idleHours の間は次の始業まで。早送りしないときは null */
 export function skipUntil(state: GameState): number | null {
-  const stops: number[] = [];
-  if (idleHours(state)) stops.push(state.clock + untilWork(state.clock));
-  if (waitingOnBids(state)) {
-    const closes = (state.board?.inquiries ?? []).filter((i) => i.bid !== null).map((i) => i.closesAt);
-    stops.push(Math.min(...closes));
-  }
-  return stops.length > 0 ? Math.min(...stops) : null;
+  return idleHours(state) ? state.clock + untilWork(state.clock) : null;
 }
 
 /**
  * 実時間を進めるときの速度の倍率。ふだんは選んだ速度で、早送りの間（skipUntil）は balance.time.idleSkip まで上げる
- * （夜や見積の結果を待たせない。どの速度でも同じ速さで、始業や締切へ進む）
+ * （夜を待たせない。どの速度でも同じ速さで、始業へ進む）
  */
 export function playSpeed(state: GameState): number {
   return skipUntil(state) !== null ? Math.max(state.speed, balance.time.idleSkip) : state.speed;

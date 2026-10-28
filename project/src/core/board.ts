@@ -13,7 +13,7 @@ import type { System } from './system';
 
 /*
  * 案件ボード。チュートリアルを終えた会社には、営業日ごとに引き合い（生成した案件）が届く。
- * 引き合いには応募の締切（規模に応じて数営業日後の夕方）があり、締切に見積のコンペの結果が出る（core/bidding.ts）。
+ * 引き合いに見積を出すと、その場でコンペの結果が出る（core/bidding.ts）。見積を出さずに応募の締切（規模に応じて数営業日後の夕方）を迎えると見送りになる。
  * 届く案件は、ゲームの seed と営業日から決まる（state の乱数は使わない）。
  */
 
@@ -65,12 +65,7 @@ export function canStartProject(state: GameState, projectId: string): boolean {
 
 /** 応募の締切前で、まだ見積を出していない引き合い */
 export function openInquiries(state: GameState): string[] {
-  return (state.board?.inquiries ?? []).filter((i) => i.bid === null).map((i) => i.projectId);
-}
-
-/** 見積を出して、結果を待っている引き合い */
-export function pendingBids(state: GameState): string[] {
-  return (state.board?.inquiries ?? []).filter((i) => i.bid !== null).map((i) => i.projectId);
+  return (state.board?.inquiries ?? []).map((i) => i.projectId);
 }
 
 /** チュートリアルを終えた会社に、今日の引き合いが届いていなければ届ける。Command の適用後と各ステップの最後に判定する */
@@ -86,10 +81,9 @@ export function postInquiries(state: GameState, emit: (e: GameEvent) => void): G
     projectId,
     postedDay: day,
     closesAt: closingTime(state.clock, closeDaysOf(projectId)),
-    bid: null,
   }));
   return { ...state, board: { ...board, day, inquiries: [...board.inquiries, ...posted] } };
 }
 
-/** 締切を迎えた引き合いの結果を出す */
-export const boardSystem: System = (state, ctx) => closeInquiries(state, () => ctx.rng.next(), ctx.emit);
+/** 見積を出さずに締切を迎えた引き合いを見送る */
+export const boardSystem: System = (state, ctx) => closeInquiries(state, ctx.emit);

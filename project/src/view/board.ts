@@ -15,7 +15,7 @@ import {
   proposalOf,
   quoteBid,
 } from '../core/bidding';
-import { activeProjects, openInquiries, pendingBids } from '../core/board';
+import { activeProjects, openInquiries } from '../core/board';
 import { calendarDay, minuteOfDay } from '../core/clock';
 import { scoreProject } from '../core/scoring';
 import type { GameState } from '../core/state';
@@ -42,8 +42,6 @@ export interface ProjectTabsView {
   readonly tabs: readonly ProjectTabView[];
   /** まだ見積を出していない引き合いの数 */
   readonly offers: number;
-  /** 見積を出して結果を待っている引き合いの数 */
-  readonly pending: number;
 }
 
 const doneRatio = (state: GameState, projectId: string) => {
@@ -67,7 +65,6 @@ export function projectTabs(state: GameState, current: string | null): ProjectTa
       stalled: stalled.includes(projectId),
     })),
     offers: openInquiries(state).length,
-    pending: pendingBids(state).length,
   };
 }
 
@@ -105,8 +102,6 @@ export interface InquiryView {
   readonly deadlineDays: number;
   /** 応募の締切（HUD の時計と同じ「N日目 HH:MM」の日付と時刻） */
   readonly closes: { readonly day: number; readonly time: string };
-  /** 出した見積。まだなら null */
-  readonly bid: BidRun | null;
 }
 
 /** コンペの結果の1件（新しい順） */
@@ -171,7 +166,6 @@ export function boardView(state: GameState): BoardView {
         base: baseAmount(def),
         deadlineDays: def.deadlineDays,
         closes: { day: calendarDay(i.closesAt) + 1, time: hhmm(minuteOfDay(i.closesAt)) },
-        bid: i.bid,
       },
     ];
   });
@@ -221,7 +215,7 @@ export const deadlineOptions: readonly DeadlineOptionView[] = deadlineSteps.map(
   offered: (standard: number) => deadlineOffered(standard, id),
 }));
 
-/** 見積の Before / After。Before は出した見積（まだなら基準の価格・標準の納期）、After は選んでいる見積 */
+/** 見積の Before / After。Before は基準の価格・標準の納期の見積、After は選んでいる見積 */
 export interface BidPreview {
   readonly before: BidRun;
   readonly after: BidRun;
@@ -233,11 +227,10 @@ export interface BidPreview {
 
 export function bidPreview(state: GameState, projectId: string, price: PriceStep, deadline: DeadlineStep): BidPreview {
   const def = getProject(projectId);
-  const submitted = state.board?.inquiries.find((i) => i.projectId === projectId)?.bid ?? null;
   const after = quoteBid(state, projectId, price, deadline);
   const { reputation, track, ai } = proposalOf(state, def);
   return {
-    before: submitted ?? quoteBid(state, projectId, 'base', 'standard'),
+    before: quoteBid(state, projectId, 'base', 'standard'),
     after,
     overBudget: after.amount > (def.brief?.budget ?? Number.POSITIVE_INFINITY),
     proposal: { reputation, track, ai },

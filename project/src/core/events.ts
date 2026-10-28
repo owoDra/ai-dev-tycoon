@@ -73,7 +73,7 @@ export type GameEvent =
   | { readonly type: 'StaffReleased'; readonly staffId: string }
   /** 案件ボードに引き合いが届いた（営業日ごと） */
   | { readonly type: 'InquiriesPosted'; readonly projectIds: readonly string[] }
-  /** 引き合いに見積を出した（出し直しを含む） */
+  /** 引き合いに見積を出した。続けて BidWon か BidLost が出る */
   | { readonly type: 'BidSubmitted'; readonly projectId: string; readonly amount: number; readonly winChance: number }
   /** コンペに勝って受注した。案件が始まる */
   | { readonly type: 'BidWon'; readonly projectId: string; readonly amount: number }

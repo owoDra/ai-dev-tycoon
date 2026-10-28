@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { founders } from '../../src/content/staff';
+import { quoteBid, submitBid } from '../../src/core/bidding';
 import {
   activeProjects,
   canStartProject,
@@ -8,7 +9,6 @@ import {
   closingTime,
   inquiriesOn,
   openInquiries,
-  pendingBids,
 } from '../../src/core/board';
 import { calendarDay, minuteOfDay } from '../../src/core/clock';
 import { type Command, reduce } from '../../src/core/commands';
@@ -16,7 +16,7 @@ import { tierOf } from '../../src/core/company';
 import type { GameEvent } from '../../src/core/events';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { playSpeed, skipUntil, step, waitingOnBids } from '../../src/core/step';
+import { playSpeed, step } from '../../src/core/step';
 import { applyUnlocks } from '../../src/core/unlocks';
 import { boardView, projectTabs } from '../../src/view/board';
 import { hhmm } from '../../src/view/hud';
@@ -38,17 +38,18 @@ function deliver(state: GameState, projectId: string): GameState {
 
 const pause: Command = { type: 'TogglePause' };
 
-/** 引き合いに見積を出し、勝ったことにして締切まで進める（勝敗の乱数は別のテストで確かめる） */
+/** 引き合いに基準の見積を出し、勝ったことにする（勝敗の乱数は別のテストで確かめる） */
 function win(state: GameState, projectId: string): GameState {
-  const s = reduce(state, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
-  const board = s.board;
-  const inquiry = board?.inquiries.find((i) => i.projectId === projectId);
-  if (!board || !inquiry?.bid) throw new Error(`見積を出せない ${projectId}`);
-  const inquiries = board.inquiries.map((i) =>
-    i.projectId === projectId && i.bid ? { ...i, bid: { ...i.bid, winChance: 1 } } : i,
+  const s = submitBid(
+    state,
+    projectId,
+    'base',
+    'standard',
+    () => 0,
+    () => {},
   );
-  const ready = { ...s, board: { ...board, inquiries }, paused: false };
-  return step(ready, inquiry.closesAt - s.clock).state;
+  if (!s.projects[projectId]) throw new Error(`見積を出せない ${projectId}`);
+  return s;
 }
 
 /** 次の営業日の始業まで進める（その日の引き合いが届き、まだ締め切られていない） */
@@ -108,27 +109,23 @@ describe('案件ボードの進行（core/board.ts）', () => {
   it('コンペで受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上は見積額、納期は提案した納期', () => {
     let s = afterTutorial().state;
     const [a = '', b = ''] = openInquiries(s);
+    const quoteA = quoteBid(s, a, 'base', 'standard');
+    const quoteB = quoteBid(s, b, 'minus10', 'long');
     s = reduce(s, { type: 'SubmitBid', projectId: b, price: 'minus10', deadline: 'long' }).state;
-    const bidB = s.board?.inquiries.find((i) => i.projectId === b)?.bid;
+    // b の見積はその場で結果が出る（勝敗は乱数）。どちらにしても引き合いからは外れる
+    expect(openInquiries(s)).not.toContain(b);
+    expect(s.board?.results[0]).toMatchObject({ projectId: b, amount: quoteB.amount });
     s = win(s, a);
-    expect(activeProjects(s)).toEqual([a, b].filter((id) => s.projects[id]));
-    // b の見積も同じ締切で結果が出ている（勝敗は乱数）。どちらにしても a は進行中
-    expect(s.board?.inquiries).toEqual(expect.not.arrayContaining([expect.objectContaining({ projectId: a })]));
+    expect(activeProjects(s)).toEqual([b, a].filter((id) => s.projects[id]));
     // 進行中の案件は案件ボードではなくタブに並び、売上は見積額
-    const quoteA = reduce(afterTutorial().state, {
-      type: 'SubmitBid',
-      projectId: a,
-      price: 'base',
-      deadline: 'standard',
-    }).state.board?.inquiries.find((i) => i.projectId === a)?.bid;
-    expect(s.projects[a]?.revenue).toBe(quoteA?.amount);
+    expect(s.projects[a]?.revenue).toBe(quoteA.amount);
     expect(projectTabs(s, null).tabs.map((t) => t.projectId)).toContain(a);
     if (s.projects[b]) {
-      expect(s.projects[b]?.revenue).toBe(bidB?.amount);
-      expect(s.projects[b]?.deadlineDays).toBe(bidB?.deadlineDays);
-      expect(projectTabs(s, b).tabs.map((t) => [t.projectId, t.floor, t.selected])).toEqual([
-        [a, 1, false],
-        [b, 2, true],
+      expect(s.projects[b]?.revenue).toBe(quoteB.amount);
+      expect(s.projects[b]?.deadlineDays).toBe(quoteB.deadlineDays);
+      expect(projectTabs(s, a).tabs.map((t) => [t.projectId, t.floor, t.selected])).toEqual([
+        [b, 1, false],
+        [a, 2, true],
       ]);
     }
   });
@@ -183,7 +180,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(openInquiries(step(s, DAY * 2).state)).toEqual([]);
   });
 
-  it('セーブして読み込むと、案件ボードの途中（引き合い・見積・受注した案件・評判）から同じ状態で再開できる', () => {
+  it('セーブして読み込むと、案件ボードの途中（引き合い・コンペの結果・受注した案件・評判）から同じ状態で再開できる', () => {
     let s = afterTutorial().state;
     const [a = '', b = ''] = openInquiries(s);
     s = win(s, a);
@@ -236,39 +233,37 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
     expect(closingTime(DAY - 1)).toBe(closeOffset + DAY);
   });
 
-  it('進行中の案件がなく、見積を出して結果を待つだけのときは、締切まで早送りする', () => {
+  it('見積を出すと、時間を進めずにその場でコンペの結果が出る。結果を待つための早送りはしない', () => {
     let s = afterTutorial().state;
-    // 見積を考えている途中（出していない引き合いが残っている）は早送りしない
-    expect(waitingOnBids(s)).toBe(false);
-    expect(playSpeed(s)).toBe(s.speed);
-    for (const projectId of openInquiries(s)) {
-      s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
+    const clock = s.clock;
+    const ids = openInquiries(s);
+    const events: GameEvent[] = [];
+    for (const projectId of ids) {
+      const r = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
+      s = r.state;
+      events.push(...r.events);
+      const outcome = r.events.find((e) => e.type === 'BidWon' || e.type === 'BidLost');
+      expect(outcome?.projectId).toBe(projectId);
     }
-    expect(pendingBids(s)).toHaveLength(tierOf(s).inquiries);
-    expect(waitingOnBids(s)).toBe(true);
-    expect(playSpeed(s)).toBe(balance.time.idleSkip);
-    // 早送りは最初の締切（結果が出る時刻）まで
-    const closesAt = s.board?.inquiries[0]?.closesAt ?? 0;
-    expect(skipUntil(s)).toBe(closesAt);
-    // 結果が出たら早送りをやめる（受注すれば担当を決めるまで、負ければ次の引き合いまで）
-    const after = step({ ...s, paused: false }, closesAt - s.clock).state;
-    expect(pendingBids(after)).toEqual([]);
-    expect(waitingOnBids(after)).toBe(false);
+    expect(s.clock).toBe(clock);
+    expect(openInquiries(s)).toEqual([]);
+    expect(events.filter((e) => e.type === 'BidSubmitted')).toHaveLength(ids.length);
+    expect(s.board?.results.map((r) => r.projectId).sort()).toEqual([...ids].sort());
+    // 受注した案件はすぐ始まる
+    for (const e of events) if (e.type === 'BidWon') expect(activeProjects(s)).toContain(e.projectId);
+    expect(playSpeed(s)).toBe(s.speed);
+    // 結果の出た引き合いには、もう見積を出せない（出し直しはない）
+    const again = reduce(s, { type: 'SubmitBid', projectId: ids[0] ?? '', price: 'minus20', deadline: 'standard' });
+    expect(again.state).toBe(s);
   });
 
-  it('進行中の案件があれば、結果待ちの見積があっても早送りしない（勤務時間の間）', () => {
-    const first = afterTutorial().state;
-    const [a = ''] = openInquiries(first);
-    const won = win(first, a);
-    // 翌朝の引き合いにすべて見積を出す
-    let s = nextMorning(won);
-    expect(openInquiries(s).length).toBeGreaterThan(0);
-    for (const projectId of openInquiries(s)) {
-      s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
-    }
-    expect(pendingBids(s).length).toBeGreaterThan(0);
-    expect(activeProjects(s)).toContain(a);
-    expect(waitingOnBids(s)).toBe(false);
+  it('勝敗は state の乱数で決まり、同じ state から同じ見積を出せば同じ結果になる', () => {
+    const s = afterTutorial().state;
+    const [a = ''] = openInquiries(s);
+    const bid: Command = { type: 'SubmitBid', projectId: a, price: 'base', deadline: 'standard' };
+    const r1 = reduce(s, bid);
+    expect(r1).toEqual(reduce(s, bid));
+    expect(r1.state.rng).not.toBe(s.rng);
   });
 
   it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消え、結果の履歴に「見送り」として残る', () => {

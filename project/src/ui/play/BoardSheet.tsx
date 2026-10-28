@@ -140,8 +140,8 @@ function ResultAction(props: { status: 'active' | 'delivered' | null; onOpen?: (
 
 /** 引き合い1件：条件・見積の選択（価格5段階 × 納期3段階）・勝率の Before / After・見積を出すボタン */
 function InquiryCard(props: { store: GameStore; inquiry: InquiryView }) {
-  const [price, setPrice] = createSignal<PriceStep>(props.inquiry.bid?.price ?? 'base');
-  const [deadline, setDeadline] = createSignal<DeadlineStep>(props.inquiry.bid?.deadline ?? 'standard');
+  const [price, setPrice] = createSignal<PriceStep>('base');
+  const [deadline, setDeadline] = createSignal<DeadlineStep>('standard');
   const preview = createMemo(() => bidPreview(props.store.state(), props.inquiry.projectId, price(), deadline()));
   const submit = () =>
     props.store.dispatch({
@@ -226,16 +226,9 @@ function InquiryCard(props: { store: GameStore; inquiry: InquiryView }) {
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" data-submit class={primaryButton} onClick={submit}>
-          {i().bid ? t.resubmit : t.submit}
+          {t.submit}
         </button>
-        <Show when={i().bid}>
-          {(bid) => (
-            <span class="flex items-center gap-1 text-xs font-bold" data-submitted>
-              <Icon name="success" class="text-sm" />
-              {t.submitted(ja.score.percent(bid().winChance))}
-            </span>
-          )}
-        </Show>
+        <span class="text-xs text-ink-muted">{t.submitHint}</span>
       </div>
     </li>
   );

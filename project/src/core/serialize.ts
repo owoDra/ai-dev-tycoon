@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -104,6 +104,15 @@ export const MIGRATIONS: readonly Migration[] = [
   { from: 16, migrate: (state) => (isRecord(state) ? { ...state, unlockDay: null } : state) },
   // v17 → v18：解放したがまだ開いていない機能の「NEW」の印（Phase 31）。それまでの解放は見たことにする
   { from: 17, migrate: (state) => (isRecord(state) ? { ...state, fresh: [] } : state) },
+  // v18 → v19：見積を出したらその場で結果を出す。結果待ちだった見積は取り下げ、締切までにもう一度出せる引き合いに戻す
+  {
+    from: 18,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.board) || !Array.isArray(state.board.inquiries)) return state;
+      const inquiries = state.board.inquiries.map((i) => (isRecord(i) ? (({ bid, ...rest }) => rest)(i) : i));
+      return { ...state, board: { ...state.board, inquiries } };
+    },
+  },
 ];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */

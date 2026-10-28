@@ -1,5 +1,5 @@
 import { balance } from '../content/balance';
-import { activeProjects, pendingBids } from './board';
+import { activeProjects } from './board';
 import { businessDay } from './clock';
 import type { Transition } from './commands';
 import type { GameEvent } from './events';
@@ -17,13 +17,9 @@ export function dayEnd(clock: number): number {
   return (businessDay(clock) + 1) * balance.time.minutesPerDay;
 }
 
-/** 区切りと閉じている間の進行の対象か。案件ボードのある会社で、チュートリアルを終えていて、進行中の案件か結果待ちの見積がある */
+/** 区切りと閉じている間の進行の対象か。案件ボードのある会社で、チュートリアルを終えていて、進行中の案件がある */
 export function runsUnattended(state: GameState): boolean {
-  return (
-    state.board !== null &&
-    state.tutorial === null &&
-    (activeProjects(state).length > 0 || pendingBids(state).length > 0)
-  );
+  return state.board !== null && state.tutorial === null && activeProjects(state).length > 0;
 }
 
 /** 閉じていた実時間（秒）のうち、再開時に進めるゲーム内の分。その営業日の終わりまで */
@@ -65,6 +61,6 @@ export function catchUp(state: GameState, awaySeconds: number): Transition {
  * （戻ったプレイヤーが見積を出せるように）。なければ制限しない
  */
 export function awayLimit(state: GameState): number {
-  const closes = (state.board?.inquiries ?? []).filter((i) => i.bid === null).map((i) => i.closesAt);
+  const closes = (state.board?.inquiries ?? []).map((i) => i.closesAt);
   return Math.min(Number.POSITIVE_INFINITY, ...closes.map((c) => c - balance.board.minOpenMinutes));
 }

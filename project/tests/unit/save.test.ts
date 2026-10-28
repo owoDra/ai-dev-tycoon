@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(18);
+    expect(SAVE_VERSION).toBe(19);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -115,6 +115,23 @@ describe('コンペの結果の見送り（core/serialize.ts の v15 → v16）'
     expect(s.board?.results).toEqual([
       { projectId: 'p~1~S', outcome: 'won', amount: 1, winChance: 0.5, at: 0 },
       { projectId: 'p~2~S', outcome: 'lost', amount: 2, winChance: 0.2, at: 0 },
+    ]);
+  });
+});
+
+describe('結果待ちの見積の取り下げ（core/serialize.ts の v18 → v19）', () => {
+  it('結果待ちだった見積を外し、締切までにもう一度出せる引き合いに戻す', () => {
+    const state = createInitialState('v18', { board: true });
+    const bid = { price: 'base', deadline: 'standard', amount: 1, deadlineDays: 3, winChance: 0.5 };
+    const inquiries = [
+      { projectId: 'p~1~S', postedDay: 0, closesAt: 900, bid },
+      { projectId: 'p~2~S', postedDay: 0, closesAt: 900, bid: null },
+    ];
+    const old = { saveVersion: 18, state: { ...state, board: { day: 0, inquiries, results: [] } } };
+    const s = deserialize(JSON.stringify(old));
+    expect(s.board?.inquiries).toEqual([
+      { projectId: 'p~1~S', postedDay: 0, closesAt: 900 },
+      { projectId: 'p~2~S', postedDay: 0, closesAt: 900 },
     ]);
   });
 });

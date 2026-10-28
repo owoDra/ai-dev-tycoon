@@ -25,14 +25,12 @@ describe('営業日の終わりと、閉じている間の進行（core/away.ts�
     expect(runsUnattended(tutorial)).toBe(false);
     expect(awayMinutes(tutorial, 600)).toBe(0);
     expect(runsUnattended(campaignInProgress())).toBe(true);
-    // 案件の合間でも、見積の結果を待っていれば時間が進む（締切に結果が出る）
-    const waiting = { ...campaignInProgress(), projects: {} };
-    expect(runsUnattended(waiting)).toBe(false);
-    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 960, bid: null };
+    // 案件の合間（引き合いがあるだけ）は進めない（見積の結果はその場で出るので、待つものがない）
+    const between = { ...campaignInProgress(), projects: {} };
+    expect(runsUnattended(between)).toBe(false);
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 960 };
     const board = { day: 0, inquiries: [inquiry], results: [] };
-    expect(runsUnattended({ ...waiting, board })).toBe(false);
-    const bid = { price: 'base' as const, deadline: 'standard' as const, amount: 1, deadlineDays: 1, winChance: 0.5 };
-    expect(runsUnattended({ ...waiting, board: { ...board, inquiries: [{ ...inquiry, bid }] } })).toBe(true);
+    expect(runsUnattended({ ...between, board })).toBe(false);
   });
 
   it('閉じていた実時間を1倍速で換算し、その営業日の終わりまでで止める', () => {
@@ -80,16 +78,13 @@ describe('閉じている間の進行は、プレイヤーの判断が要ると�
   it('見積を出していない引き合いは、締切まで balance.board.minOpenMinutes を残して止まる', () => {
     const s = campaignInProgress();
     const closesAt = s.clock + 300;
-    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt, bid: null };
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt };
     const withInquiry = { ...s, board: { day: 0, inquiries: [inquiry], results: [] } };
     expect(awayLimit(withInquiry)).toBe(closesAt - balance.board.minOpenMinutes);
     const r = catchUp(withInquiry, 24 * 60 * 60);
     expect(r.state.clock).toBe(closesAt - balance.board.minOpenMinutes);
     expect(r.state.board?.inquiries).toHaveLength(1);
-    // 見積を出した引き合いは結果を待つだけなので、止めない
-    const bid = { price: 'base' as const, deadline: 'standard' as const, amount: 1, deadlineDays: 1, winChance: 0 };
-    expect(awayLimit({ ...withInquiry, board: { day: 0, inquiries: [{ ...inquiry, bid }], results: [] } })).toBe(
-      Number.POSITIVE_INFINITY,
-    );
+    // 引き合いがなければ止めない
+    expect(awayLimit({ ...withInquiry, board: { day: 0, inquiries: [], results: [] } })).toBe(Number.POSITIVE_INFINITY);
   });
 });

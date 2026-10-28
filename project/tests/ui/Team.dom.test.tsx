@@ -5,8 +5,10 @@ import { getHuman, getProject } from '../../src/content/index';
 import { screenRegions, uiLayout } from '../../src/content/look/layout';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
+import { quoteBid } from '../../src/core/bidding';
 import { openInquiries } from '../../src/core/board';
 import { tierOf } from '../../src/core/company';
+import { hashSeed, next } from '../../src/core/rng';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
@@ -182,17 +184,6 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
     expect(q('[data-closes]')?.textContent).toBe(ja.board.closes(first?.closes.day ?? 0, '17:00'));
   });
 
-  it('見積をすべて出して結果を待つだけになると、結果待ちの数と早送りの印が出る', () => {
-    const store = createGameStore(offeredCompany());
-    const offered = openInquiries(store.state());
-    for (const projectId of offered) {
-      store.dispatch({ type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
-    }
-    const { q } = mount(store.state(), null);
-    expect(q('[data-pending]')?.textContent).toContain(ja.board.pending(offered.length));
-    expect(q('[data-waiting]')?.textContent).toContain(ja.board.waiting);
-  });
-
   it('社員と Seat のシートの「実績」に、納品した案件が並ぶ（案件ボードからは外した一覧）', () => {
     const single = createGameStore(createInitialState('d'));
     single.dispatch({ type: 'StartProject', projectId: P });
@@ -211,17 +202,22 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
   });
 });
 
-/** 見積を1件出し、勝つことにして締切まで進めた会社と、受注した案件の id。進めずに締切の直前で止めた state も返す */
+/** 次の乱数で、勝率 chance の見積に勝つ乱数の状態にした state（勝敗の乱数は tests/unit/bidding.test.ts で確かめる） */
+function rigged(state: GameState, chance: number): GameState {
+  for (let n = 0; ; n++) {
+    const rng = hashSeed(`win-${n}`);
+    if (next(rng)[0] < chance) return { ...state, rng };
+  }
+}
+
+/** 見積を1件出して勝つ会社と、受注した案件の id。見積を出す直前（勝つ乱数にした）の state も返す */
 function wonCompany() {
-  const store = createGameStore(offeredCompany());
-  const id = openInquiries(store.state())[0] ?? '';
+  const s = offeredCompany();
+  const id = openInquiries(s)[0] ?? '';
+  const before = rigged(s, quoteBid(s, id, 'base', 'standard').winChance);
+  const store = createGameStore(before);
   store.dispatch({ type: 'SubmitBid', projectId: id, price: 'base', deadline: 'standard' });
-  const s = store.state();
-  const inquiries =
-    s.board?.inquiries.map((i) => (i.projectId === id && i.bid ? { ...i, bid: { ...i.bid, winChance: 1 } } : i)) ?? [];
-  const closesAt = s.board?.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
-  const before = { ...s, board: s.board ? { ...s.board, inquiries } : null };
-  return { id, before, minutes: closesAt - s.clock, after: step(before, closesAt - s.clock).state };
+  return { id, before, after: store.state() };
 }
 
 /** 案件の Task をすべて終えて納品した state */
@@ -250,11 +246,12 @@ describe('受注・納品した案件への導線', () => {
   });
 
   it('別の案件を開いている間に受注すると、お知らせの「開く」でその案件へ移れる', () => {
-    const { id, before, minutes } = wonCompany();
+    const { id, before } = wonCompany();
     const store0 = createGameStore(before);
     store0.dispatch({ type: 'StartProject', projectId: P });
     const { store, q, switched } = mount(store0.state(), P);
-    store.advance(minutes);
+    store.dispatch({ type: 'SubmitBid', projectId: id, price: 'base', deadline: 'standard' });
+    expect(store.state().projects[id]).toBeDefined();
     const action = q<HTMLButtonElement>('[data-notice-action]');
     expect(action?.textContent).toBe(ja.board.openProject);
     action?.click();
@@ -289,34 +286,29 @@ describe('受注・納品した案件への導線', () => {
 });
 
 describe('案件ボードとタイトル', () => {
-  it('案件ボードで見積を出すと結果待ちになり、コンペに勝って受注した案件がドックのタブに並ぶ', () => {
-    const base = createInitialState('c', { board: true, tutorial: false });
-    const { store, root } = mount(step(base, 1).state, null);
+  it('案件ボードで見積を出すとその場で結果が出て、コンペに勝って受注した案件がドックのタブに並ぶ', () => {
+    const base = step(createInitialState('c', { board: true, tutorial: false }), 1).state;
+    const id = openInquiries(base)[0] ?? '';
+    const quote = quoteBid(base, id, 'minus20', 'standard');
+    const { store, root } = mount(rigged(base, quote.winChance), null);
     root.querySelector<HTMLButtonElement>('[data-board-open]')?.click();
     const cards = [...root.querySelectorAll<HTMLElement>('[data-inquiry]')].map((e) => e.dataset.inquiry ?? '');
     expect(cards.length).toBe(tierOf(base).inquiries);
-    const id = cards[0] ?? '';
+    expect(cards[0]).toBe(id);
     const card = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
     card?.querySelector<HTMLButtonElement>('[data-price="minus20"]')?.click();
     const shown = card?.querySelector('[data-win-after]')?.textContent;
     card?.querySelector<HTMLButtonElement>('[data-submit]')?.click();
-    const bid = store.state().board?.inquiries.find((i) => i.projectId === id)?.bid;
-    expect(bid?.price).toBe('minus20');
-    // 表示した勝率で見積を出す
-    expect(shown).toBe(ja.score.percent(bid?.winChance ?? -1));
-    // 出した後の引き合いのカードには、提出済みの印と出した見積の選択が残る
-    const after1 = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
-    expect(after1?.querySelector('[data-submitted]')).not.toBeNull();
-    expect(after1?.querySelector('[data-price="minus20"]')?.getAttribute('aria-pressed')).toBe('true');
-    // 勝ったことにして締切まで進めると受注し、ホームのドックのタブに並んで開ける（売上は見積額）
+    // 表示した勝率で見積を出し、その場で受注する（売上は見積額）
+    expect(shown).toBe(ja.score.percent(quote.winChance));
+    const after = store.state();
+    expect(after.board?.results[0]).toMatchObject({ projectId: id, outcome: 'won', winChance: quote.winChance });
+    expect(after.projects[id]?.revenue).toBe(quote.amount);
+    // 結果の出た引き合いのカードは消え、結果の一覧に受注として並ぶ
+    expect(root.querySelector(`[data-inquiry="${id}"]`)).toBeNull();
+    // ホームのドックのタブに並んで開ける
     dispose?.();
     document.body.innerHTML = '';
-    const s = store.state();
-    const won = bid ? { ...bid, winChance: 1 } : null;
-    const inquiries = s.board?.inquiries.map((i) => (i.projectId === id ? { ...i, bid: won } : i)) ?? [];
-    const closesAt = s.board?.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
-    const after = step({ ...s, board: s.board ? { ...s.board, inquiries } : null }, closesAt - s.clock).state;
-    expect(after.projects[id]?.revenue).toBe(bid?.amount);
     const home = mount(after, null);
     home.q<HTMLButtonElement>(`[data-project-tab="${id}"]`)?.click();
     expect(home.switched).toEqual([id]);

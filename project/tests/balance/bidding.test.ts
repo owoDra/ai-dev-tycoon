@@ -49,13 +49,15 @@ function play(price: PriceStep, seed: string) {
   let won = 0;
   let late = 0;
   while (s.clock < DAYS * balance.time.minutesPerDay) {
+    // 見積の結果はその場で出る
     for (const projectId of openInquiries(s)) {
-      s = reduce(s, { type: 'SubmitBid', projectId, price, deadline: 'standard' }).state;
+      const bid = reduce(s, { type: 'SubmitBid', projectId, price, deadline: 'standard' });
+      s = bid.state;
+      won += bid.events.filter((e) => e.type === 'BidWon').length;
     }
     s = assignAll(s);
     const r = step(s, CHUNK);
     s = r.state;
-    won += r.events.filter((e) => e.type === 'BidWon').length;
     late += r.events.filter((e) => e.type === 'ReputationChanged' && e.delta < 0).length;
   }
   const c = scoreCompany(s);

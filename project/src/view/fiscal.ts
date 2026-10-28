@@ -13,7 +13,7 @@ import { cashOf, companyRunning, valuationOf } from '../core/funds';
 import type { FiscalRecord } from '../core/resultCode';
 import { scoreProject } from '../core/scoring';
 import type { FiscalReport, GameState, ValuationSample } from '../core/state';
-import { teamName } from '../core/teams';
+import { projectDelegated, teamName } from '../core/teams';
 import { ja } from '../i18n/ja';
 
 /*
@@ -215,7 +215,7 @@ export function companyStatusView(state: GameState): CompanyStatusView | null {
   };
 }
 
-/** 納品のカード（全画面の結果の代わりに、短く知らせる） */
+/** 納品の結果（直轄の案件はモーダル、管理者に任せた案件はカードで、全画面の結果の代わりに知らせる） */
 export interface DeliveryView {
   readonly projectId: string;
   readonly name: string;
@@ -223,6 +223,10 @@ export interface DeliveryView {
   readonly profitPerPersonDay: number;
   readonly onTime: boolean;
   readonly quality: number;
+  /** 品質が評判の上がる水準（balance.reputation.qualityPivot）以上か */
+  readonly qualityGood: boolean;
+  /** 直轄のチームの案件か（管理者に任せていない） */
+  readonly direct: boolean;
   /** 評判の変化（core/bidding.ts の deliveryRating） */
   readonly reputation: number;
 }
@@ -238,6 +242,8 @@ export function deliveryView(state: GameState, projectId: string): DeliveryView 
     profitPerPersonDay: score.profitPerPersonDay,
     onTime: run !== undefined && score.elapsedMinutes <= run.deadlineDays * balance.time.minutesPerDay,
     quality: score.quality,
+    qualityGood: score.quality >= balance.reputation.qualityPivot,
+    direct: !projectDelegated(state, projectId),
     reputation: state.board ? deliveryRating(state, projectId) : 0,
   };
 }

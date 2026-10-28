@@ -557,6 +557,11 @@ export const ja = {
   /** 納品のカード */
   delivery: {
     title: (name: string) => `${name}を納品`,
+    /** 直轄の案件の納品のモーダル */
+    heading: '納品',
+    deadline: '納期',
+    qualityLow: '品質が低い（評判が下がる）',
+    next: '続ける',
     onTime: '納期内',
     late: '納期超過',
     review: '振り返りを見る',

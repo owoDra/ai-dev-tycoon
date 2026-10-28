@@ -13,8 +13,10 @@ import { createNotices } from '../../src/ui/notices';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createTermCards } from '../../src/ui/play/TermCards';
 import { createSelection } from '../../src/ui/selection';
+import { deliveryView } from '../../src/view/fiscal';
 import { daySummary, recapView } from '../../src/view/session';
 import { islandId, worldView } from '../../src/view/world';
+import { growCompany } from '../helpers/growth';
 import { campaignInProgress } from '../helpers/session';
 
 const P = 'ecRenewal';
@@ -191,6 +193,52 @@ describe('節目の画面を閉じて再開する（app/milestones.ts）', () =>
     key(' ');
     expect(m.dayCard()).toBeNull();
     expect(m.fiscal()).toBeNull();
+    expect(store.state().paused).toBe(false);
+  });
+
+  /** 直轄の案件を納品した会社（時間が進んでいる）と、納品の結果2件 */
+  function delivered() {
+    const state = growCompany('delivery-ui', 3).state;
+    const id = Object.values(state.projects).find((p) => p.completedAt !== null)?.projectId ?? '';
+    const view = deliveryView(state, id);
+    if (!view) throw new Error('納品した案件がない');
+    // 2件目は同じ結果を別の案件として出す（milestones は中身を見ない）
+    const views = [view, { ...view, projectId: `${id}-2` }];
+    const store = createGameStore({ ...state, paused: false });
+    const m = createRoot((d) => {
+      dispose = d;
+      return createMilestones(() => store);
+    });
+    return { store, m, views };
+  }
+
+  it('直轄の納品の結果は一時停止して順に出し、最後の1件を閉じたら再開する（Space でも閉じる）', () => {
+    const { store, m, views } = delivered();
+    expect(views.every((v) => v.direct)).toBe(true);
+    m.showDeliveries(views);
+    expect(store.state().paused).toBe(true);
+    expect(m.open()).toBe(true);
+    expect(m.delivery()?.projectId).toBe(views[0]?.projectId);
+    m.closeDelivery();
+    expect(m.delivery()?.projectId).toBe(views[1]?.projectId);
+    expect(store.state().paused).toBe(true);
+    key(' ');
+    expect(m.delivery()).toBeNull();
+    expect(m.open()).toBe(false);
+    expect(store.state().paused).toBe(false);
+  });
+
+  it('決算と同時に納品したら、決算を閉じた後も一時停止したまま納品の結果を出す', () => {
+    const { store, m, views } = delivered();
+    m.showDeliveries(views.slice(0, 1));
+    m.showFiscal(1);
+    // 決算の下には納品の結果を出さない
+    expect(m.delivery()).toBeNull();
+    m.resume();
+    expect(m.fiscal()).toBeNull();
+    expect(m.delivery()?.projectId).toBe(views[0]?.projectId);
+    expect(store.state().paused).toBe(true);
+    m.closeDelivery();
     expect(store.state().paused).toBe(false);
   });
 });

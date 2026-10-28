@@ -30,7 +30,7 @@ import type { BottleneckRef } from '../../core/bottleneck';
 import { tierOf } from '../../core/company';
 import { getIncidentDef } from '../../core/incidents';
 import { defaultWorkflowName, findWorkflow, workflowFromWorker } from '../../core/library';
-import { teamName } from '../../core/teams';
+import { projectDelegated, teamName } from '../../core/teams';
 import { freshMenus, isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
@@ -345,7 +345,12 @@ export function PlayScreen(props: {
         if (e.type === 'InquiryPassed') {
           notices.push({ text: ja.board.passed(getProject(e.projectId).name), icon: 'clock', tone: 'neutral' });
         }
-        if (e.type === 'ProjectCompleted' && e.projectId !== props.projectId) {
+        // 直轄の案件の納品はモーダルで知らせる（app/App.tsx）ので、管理者に任せた案件だけ
+        if (
+          e.type === 'ProjectCompleted' &&
+          e.projectId !== props.projectId &&
+          projectDelegated(props.store.state(), e.projectId)
+        ) {
           notices.push({ text: ja.board.delivered(getProject(e.projectId).name), icon: 'success', tone: 'success' });
         }
         if (e.type === 'ReputationChanged') {

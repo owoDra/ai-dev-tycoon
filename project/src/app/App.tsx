@@ -11,7 +11,7 @@ import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
-import { DeliveryCards } from '../ui/company/DeliveryCard';
+import { DeliveryCards, DeliveryModal } from '../ui/company/DeliveryCard';
 import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
@@ -280,12 +280,15 @@ export function App(props: {
           const done = events.filter((e) => e.type === 'ProjectCompleted').map((e) => e.projectId);
           if (done.length === 0) return;
           save();
-          // 納品はカードで知らせる（全画面の結果画面には切り替えない。振り返りはカードから開く）
+          // 納品は全画面の結果画面に切り替えずに知らせる。直轄の案件は一時停止してモーダルで、
+          // 管理者に任せた案件はカードで（操作を止めない）。振り返りはどちらからも開ける
           if (store.state().board) {
-            const cards = done.flatMap((id) => {
-              const card = deliveryView(store.state(), id);
-              return card ? [card] : [];
+            const views = done.flatMap((id) => {
+              const view = deliveryView(store.state(), id);
+              return view ? [view] : [];
             });
+            milestones.showDeliveries(views.filter((v) => v.direct));
+            const cards = views.filter((v) => !v.direct);
             setDeliveries((prev) => [...prev, ...cards].slice(-uiLayout.flow.deliveryCards));
             for (const c of cards) later(() => closeDelivery(c.projectId), uiLayout.flow.deliveryCardMs);
           }
@@ -427,6 +430,18 @@ export function App(props: {
       <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} links={sessionLinks} />}</Show>
       <Show when={fiscal() !== null && recap() === null && !bankrupt() ? fiscal() : null}>
         {(no) => <FiscalScreen store={game()} no={no()} onNext={resume} onTitle={toTitle} />}
+      </Show>
+      <Show when={milestones.delivery()} keyed>
+        {(d) => (
+          <DeliveryModal
+            delivery={d}
+            onNext={milestones.closeDelivery}
+            onReview={() => {
+              milestones.closeDelivery();
+              review(d.projectId);
+            }}
+          />
+        )}
       </Show>
       <Show when={bankrupt()}>
         <BankruptScreen

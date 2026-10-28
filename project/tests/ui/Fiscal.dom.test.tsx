@@ -9,7 +9,7 @@ import type { GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
 import { CompanyStrip } from '../../src/ui/company/CompanyStrip';
-import { DeliveryCards } from '../../src/ui/company/DeliveryCard';
+import { DeliveryCards, DeliveryModal } from '../../src/ui/company/DeliveryCard';
 import { BankruptScreen } from '../../src/ui/screens/BankruptScreen';
 import { FiscalScreen } from '../../src/ui/screens/FiscalScreen';
 import { deliveryView, fiscalView } from '../../src/view/fiscal';
@@ -152,5 +152,29 @@ describe('倒産の画面と納品のカード', () => {
     expect(q(`[data-delivery="${id}"]`)?.textContent).toContain(ja.delivery.title(card.name));
     q<HTMLButtonElement>('[data-review]')?.click();
     expect(onReview).toHaveBeenCalledWith(id);
+  });
+
+  it('直轄の納品のモーダルは、利益 / 人日・納期・品質・評判の変化を出し、「振り返りを見る」と「続ける」を置く', () => {
+    const state = growCompany('delivery-ui', 3).state;
+    const id = Object.values(state.projects).find((p) => p.completedAt !== null)?.projectId ?? '';
+    const view = deliveryView(state, id);
+    if (!view) throw new Error('納品した案件がない');
+    const onReview = vi.fn();
+    const onNext = vi.fn();
+    const q = mount(() => <DeliveryModal delivery={view} onReview={onReview} onNext={onNext} />);
+    const dialog = q('[data-delivery-modal] [role="dialog"]');
+    expect(dialog?.textContent).toContain(ja.delivery.title(view.name));
+    expect(q('[data-delivery-on-time]')?.textContent).toContain(view.onTime ? ja.delivery.onTime : ja.delivery.late);
+    expect(q('[data-delivery-reputation]')?.textContent).toContain(ja.delivery.reputation(view.reputation));
+    // 品質が低ければ、色だけでなくアイコンとラベルでも示す
+    const low = mount(() => (
+      <DeliveryModal delivery={{ ...view, quality: 0.4, qualityGood: false }} onReview={() => {}} onNext={() => {}} />
+    ));
+    expect(low('[data-delivery-quality="low"]')?.textContent).toContain(ja.delivery.qualityLow);
+    expect(document.activeElement?.hasAttribute('data-next')).toBe(true);
+    q<HTMLButtonElement>('[data-review]')?.click();
+    expect(onReview).toHaveBeenCalledOnce();
+    q<HTMLButtonElement>('[data-next]')?.click();
+    expect(onNext).toHaveBeenCalledOnce();
   });
 });

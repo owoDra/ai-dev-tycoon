@@ -253,3 +253,7 @@ export const menuFeatures: Readonly<Record<MenuSpot, readonly FeatureId[]>> = {
 /** 解放したときに「NEW」の印を付ける機能か（担当カードかメニューの入口に出す場所がある） */
 export const hasNewBadge = (feature: FeatureId): boolean =>
   feature.startsWith('mode:') || Object.values(menuFeatures).some((fs) => fs.includes(feature));
+
+/** その機能を開くメニューの入口（解放のカードの「開く」）。入口のない機能（担当モード・ドックの項目など）は undefined */
+export const menuSpotOf = (feature: FeatureId): MenuSpot | undefined =>
+  (Object.keys(menuFeatures) as MenuSpot[]).find((spot) => menuFeatures[spot].includes(feature));

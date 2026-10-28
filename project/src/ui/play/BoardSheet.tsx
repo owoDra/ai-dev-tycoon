@@ -17,7 +17,7 @@ const outcomeIcon = { won: 'trophy', lost: 'failure', passed: 'clock' } as const
 /**
  * 案件ボードのシート（ホームとプレイの上に、ほかのシートと同じ場所に開く）。営業日ごとに届く引き合いに見積（価格と納期）を出し、
  * その日の夕方の締切のコンペに勝つと受注する。見積は出す前に勝率を Before / After で見せる（Before は出した見積か基準の見積）。
- * 最近のコンペの結果も並べる。進行中の案件はドックのタブで、納品した案件は社員と Seat のシートの「実績」で見る。
+ * 最近のコンペの結果も並べ、受注した案件は進行中ならフロアを開き、納品済みなら振り返りを開ける（ドックのタブと、社員と Seat のシートの「実績」でも見られる）。
  * 「もどる」はシートを閉じるだけ（タイトルへ戻るのは設定のメニューから）
  */
 export function BoardSheet(props: {
@@ -28,6 +28,10 @@ export function BoardSheet(props: {
   /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
   maxHeight?: number;
   onClose: () => void;
+  /** 受注した案件のフロアを開く */
+  onOpen?: (projectId: string) => void;
+  /** 納品した案件の振り返りを開く */
+  onReview?: (projectId: string) => void;
 }) {
   const view = createMemo(() => boardView(props.store.state()));
   let el!: HTMLElement;
@@ -94,6 +98,11 @@ export function BoardSheet(props: {
                       {t.amount(r.amount)}・{t.winChance} {ja.score.percent(r.winChance)}
                     </span>
                   </Show>
+                  <ResultAction
+                    status={r.project}
+                    onOpen={props.onOpen && (() => props.onOpen?.(r.projectId))}
+                    onReview={props.onReview && (() => props.onReview?.(r.projectId))}
+                  />
                 </li>
               )}
             </Keyed>
@@ -101,6 +110,31 @@ export function BoardSheet(props: {
         </section>
       </Show>
     </section>
+  );
+}
+
+/** 受注した案件の行のボタン：進行中なら「開く」、納品済みなら「振り返り」 */
+function ResultAction(props: { status: 'active' | 'delivered' | null; onOpen?: () => void; onReview?: () => void }) {
+  const action = () =>
+    props.status === 'active' && props.onOpen
+      ? { label: t.openProject, icon: 'project' as const, run: props.onOpen, data: 'open' }
+      : props.status === 'delivered' && props.onReview
+        ? { label: t.reviewProject, icon: 'eval' as const, run: props.onReview, data: 'review' }
+        : null;
+  return (
+    <Show when={action()}>
+      {(a) => (
+        <button
+          type="button"
+          data-bid-result-action={a().data}
+          class="flex min-h-9 shrink-0 items-center gap-1 rounded-md border-[3px] border-line bg-primary-200 px-2 text-xs font-bold hover:bg-primary-300"
+          onClick={() => a().run()}
+        >
+          <Icon name={a().icon} />
+          {a().label}
+        </button>
+      )}
+    </Show>
   );
 }
 

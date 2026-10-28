@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { getProject } from '../../src/content/index';
-import { libraryPresets } from '../../src/content/library';
 import { allFeatures } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { getSession } from '../../src/core/context';
@@ -20,6 +19,7 @@ import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serial
 import { createInitialState, type GameState } from '../../src/core/state';
 import { ByteWriter, sealCode } from '../../src/lib/codec';
 import { runHeadless } from '../helpers/headless';
+import { sampleWorkflows } from '../helpers/workflows';
 
 const AGENT = 'agent';
 
@@ -50,6 +50,11 @@ function savedInProjectA() {
   return { draft, ...saved };
 }
 
+const prReview: WorkflowDraft = sampleWorkflows.prReview;
+
+/** PR Review の Workflow を棚に保存した state（id は custom1） */
+const withPrReview = (state: GameState) => apply(state, [{ type: 'SaveLibraryWorkflow', workflow: prReview }]).state;
+
 const sorted = (w: WorkflowDraft) => ({ ...w, parts: [...w.parts].sort() });
 
 describe('Workflow Library（core/library.ts）', () => {
@@ -57,9 +62,13 @@ describe('Workflow Library（core/library.ts）', () => {
     const { state, events, draft } = savedInProjectA();
     expect(events).toEqual([{ type: 'WorkflowSaved', workflowId: 'custom1' }]);
     expect(state.library).toEqual([{ id: 'custom1', ...draft }]);
-    expect(libraryWorkflows(state).length).toBe(libraryPresets.length + 1);
+    expect(libraryWorkflows(state).length).toBe(1);
     const again = apply(state, [{ type: 'SaveLibraryWorkflow', workflow: { ...draft, name: '2つ目' } }]);
     expect(again.state.library.map((w) => w.id)).toEqual(['custom1', 'custom2']);
+  });
+
+  it('最初の棚は空で、同梱の Workflow はない（自分で組んで保存したものだけが並ぶ）', () => {
+    expect(libraryWorkflows(createInitialState('lib-empty'))).toEqual([]);
   });
 
   it('保存して別の案件の Task に適用すると、AI Worker の構成と担当が保存したものと一致する', () => {
@@ -84,25 +93,27 @@ describe('Workflow Library（core/library.ts）', () => {
   it('適用すると、Workflow にない部品は外し、ある部品だけを付ける', () => {
     const { state: a } = savedInProjectA();
     const b = apply(a, [
+      { type: 'SaveLibraryWorkflow', workflow: prReview },
       { type: 'StartProject', projectId: 'paymentFix' },
       {
         type: 'ApplyLibraryWorkflow',
-        workflowId: 'presetPrReview',
+        workflowId: 'custom2',
         projectId: 'paymentFix',
         taskId: 'fix',
         workerId: AGENT,
       },
     ]).state;
-    const preset = libraryPresets.find((w) => w.id === 'presetPrReview');
-    expect([...harnessOf(b, AGENT).parts].sort()).toEqual([...(preset?.parts ?? [])].sort());
+    expect([...harnessOf(b, AGENT).parts].sort()).toEqual([...prReview.parts].sort());
     expect(getSession(b, AGENT).feed.mode).toBe('needed');
   });
 
   it('始まっている Task・存在しない Workflow・未解放のモードには適用できない', () => {
-    const base = apply(createInitialState('lib-c'), [{ type: 'StartProject', projectId: 'paymentFix' }]).state;
+    const base = apply(withPrReview(createInitialState('lib-c')), [
+      { type: 'StartProject', projectId: 'paymentFix' },
+    ]).state;
     const cmd: Command = {
       type: 'ApplyLibraryWorkflow',
-      workflowId: 'presetPrReview',
+      workflowId: 'custom1',
       projectId: 'paymentFix',
       taskId: 'fix',
       workerId: AGENT,
@@ -116,13 +127,13 @@ describe('Workflow Library（core/library.ts）', () => {
   });
 
   it('まだ解放されていない部品は付けずに知らせる（読み込み時の警告と同じ判定）', () => {
-    const base = apply(createInitialState('lib-d'), [{ type: 'StartProject', projectId: 'paymentFix' }]).state;
+    const base = apply(withPrReview(createInitialState('lib-d')), [
+      { type: 'StartProject', projectId: 'paymentFix' },
+    ]).state;
     const state = { ...base, unlocked: allFeatures.filter((f) => f !== 'harness:subagent') };
-    const preset = libraryPresets.find((w) => w.id === 'presetPrReview');
-    if (!preset) throw new Error('PR Review のプリセットがない');
-    expect(lockedFeatures(state, preset)).toEqual({ parts: ['subReview'], mode: false });
+    expect(lockedFeatures(state, prReview)).toEqual({ parts: ['subReview'], mode: false });
     const { state: after, events } = apply(state, [
-      { type: 'ApplyLibraryWorkflow', workflowId: preset.id, projectId: 'paymentFix', taskId: 'fix', workerId: AGENT },
+      { type: 'ApplyLibraryWorkflow', workflowId: 'custom1', projectId: 'paymentFix', taskId: 'fix', workerId: AGENT },
     ]);
     expect(events[0]).toMatchObject({ type: 'LibraryWorkflowApplied', skipped: ['subReview'] });
     expect(harnessOf(after, AGENT).parts).not.toContain('subReview');
@@ -130,24 +141,28 @@ describe('Workflow Library（core/library.ts）', () => {
   });
 
   it('使った回数と、削減した人間時間の累計を数える（会社の資産としての実績）', () => {
-    const start = apply(createInitialState('lib-e'), [{ type: 'StartProject', projectId: 'paymentFix' }]).state;
+    const start = apply(createInitialState('lib-e'), [
+      { type: 'SaveLibraryWorkflow', workflow: prReview },
+      { type: 'SaveLibraryWorkflow', workflow: { ...prReview, name: '使わない Workflow' } },
+      { type: 'StartProject', projectId: 'paymentFix' },
+    ]).state;
     const taskIds = getProject('paymentFix').tasks.map((t) => t.id);
     const commands = taskIds.map((taskId) => ({
       at: 0,
       command: {
         type: 'ApplyLibraryWorkflow',
-        workflowId: 'presetPrReview',
+        workflowId: 'custom1',
         projectId: 'paymentFix',
         taskId,
         workerId: AGENT,
       } as Command,
     }));
     const { state } = runHeadless({ seed: 'lib-e', initial: start, commands, until: 60 * 24 * 10 });
-    const stats = workflowStats(state, 'presetPrReview');
+    const stats = workflowStats(state, 'custom1');
     expect(stats.uses).toBe(taskIds.length);
     expect(state.projects.paymentFix?.completedAt).not.toBeNull();
     expect(stats.savedHumanMinutes).toBeGreaterThan(0);
-    expect(workflowStats(state, 'presetFrontend')).toEqual({ uses: 0, savedHumanMinutes: 0 });
+    expect(workflowStats(state, 'custom2')).toEqual({ uses: 0, savedHumanMinutes: 0 });
   });
 
   it('不正な下書きは保存しない', () => {
@@ -175,9 +190,8 @@ describe('Workflow Library（core/library.ts）', () => {
 });
 
 describe('Workflow の共有コード', () => {
-  it('書き出して読み込むと元の Workflow に戻る（プリセットと、日本語の名前）', () => {
-    for (const w of libraryPresets) {
-      const { id: _id, ...draft } = w;
+  it('書き出して読み込むと元の Workflow に戻る（いろいろな構成と、日本語の名前）', () => {
+    for (const draft of Object.values(sampleWorkflows)) {
       expect(decodeWorkflowCode(encodeWorkflowCode(draft))).toEqual({ ok: true, workflow: draft });
     }
     const { draft } = savedInProjectA();

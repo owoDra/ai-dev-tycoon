@@ -290,7 +290,8 @@ export function ResultScreen(props: {
               </button>
             )}
           </Show>
-          <Show when={view}>
+          {/* 保存先（onSaveWorkflow）を渡されたときだけ出す（押しても何も残らないボタンにしない） */}
+          <Show when={view && props.onSaveWorkflow}>
             <button type="button" class={ghostButton} data-save-workflow disabled={saved()} onClick={save}>
               <Icon name={saved() ? 'success' : 'workflow'} />
               {saved() ? t.savedWorkflow : t.saveWorkflow}

@@ -1,10 +1,13 @@
-import { For, onMount } from 'solid-js';
+import { For, onMount, Show } from 'solid-js';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { Icon } from '../Icon';
 import type { Notice } from '../notices';
 
-/** 短いお知らせの表示。お知らせの列に小さく出し、押せないので下のワールドやボタンの操作を妨げない */
+/**
+ * 短いお知らせの表示。お知らせの列に小さく出し、押せないので下のワールドやボタンの操作を妨げない。
+ * action を添えたお知らせだけ、そのボタンを押せる
+ */
 export function NoticeHost(props: { notices: readonly Notice[] }) {
   return (
     <div
@@ -28,6 +31,18 @@ function NoticeChip(props: { notice: Notice }) {
     >
       <Icon name={props.notice.icon} tone={props.notice.tone} class="text-lg" />
       <span class="truncate">{props.notice.text}</span>
+      <Show when={props.notice.action}>
+        {(action) => (
+          <button
+            type="button"
+            data-notice-action
+            class="pointer-events-auto -my-0.5 -mr-1.5 shrink-0 rounded-full border-2 border-line bg-primary-200 px-2 text-xs font-bold hover:bg-primary-300"
+            onClick={() => action().run()}
+          >
+            {action().label}
+          </button>
+        )}
+      </Show>
     </div>
   );
 }

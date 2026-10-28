@@ -60,6 +60,8 @@ export function TeamSheet(props: {
   maxHeight?: number;
   dispatch: (command: Command) => void;
   onClose: () => void;
+  /** 納品した案件の振り返りを開く（実績の行のボタン） */
+  onReview?: (projectId: string) => void;
 }) {
   let el!: HTMLElement;
   const [tab, setTab] = createSignal<'members' | 'candidates' | 'teams' | 'record'>('members');
@@ -140,7 +142,9 @@ export function TeamSheet(props: {
         </div>
       </Show>
       <Show when={showTeams() && props.teams}>{(v) => <TeamsPanel view={v()} dispatch={props.dispatch} />}</Show>
-      <Show when={showRecord() && props.delivered}>{(list) => <DeliveredList items={list()} />}</Show>
+      <Show when={showRecord() && props.delivered}>
+        {(list) => <DeliveredList items={list()} onReview={props.onReview} />}
+      </Show>
       <Show when={!showTeams() && !showRecord()}>
         <Show
           when={showCandidates()}
@@ -292,8 +296,8 @@ function SeatButton(props: { option: SeatOptionView; editable: boolean; dispatch
   );
 }
 
-/** 納品した案件の一覧（納品した順）。案件ごとの人間1人あたりの月の利益ペースを並べる */
-function DeliveredList(props: { items: readonly BoardProjectView[] }) {
+/** 納品した案件の一覧（納品した順）。案件ごとの人間1人あたりの月の利益ペースを並べ、振り返りを開ける */
+function DeliveredList(props: { items: readonly BoardProjectView[]; onReview?: (projectId: string) => void }) {
   return (
     <Show when={props.items.length > 0} fallback={<p class="text-sm text-ink-muted">{t.noRecord}</p>}>
       <ul class="flex flex-col gap-2">
@@ -304,7 +308,7 @@ function DeliveredList(props: { items: readonly BoardProjectView[] }) {
               data-delivered={p.projectId}
             >
               <Icon name="success" class="shrink-0 text-3xl" />
-              <div class="flex min-w-0 flex-col gap-1">
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
                 <h3 class="truncate font-heading text-base">{p.name}</h3>
                 <p class="flex flex-wrap gap-x-3 text-xs font-bold text-ink-muted tabular-nums">
                   <span>{ja.screens.select.revenue(p.revenue)}</span>
@@ -312,6 +316,19 @@ function DeliveredList(props: { items: readonly BoardProjectView[] }) {
                   <Show when={p.profitPerPersonDay}>{(v) => <span>{paceText(v())}</span>}</Show>
                 </p>
               </div>
+              <Show when={props.onReview}>
+                {(review) => (
+                  <button
+                    type="button"
+                    data-delivered-review={p.projectId}
+                    class={`${ghostButton} shrink-0`}
+                    onClick={() => review()(p.projectId)}
+                  >
+                    <Icon name="eval" />
+                    {ja.board.reviewProject}
+                  </button>
+                )}
+              </Show>
             </li>
           )}
         </Keyed>

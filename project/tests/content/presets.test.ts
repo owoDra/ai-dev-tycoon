@@ -1,40 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { getAssignMode, primaryActor } from '../../src/content/assignModes';
 import { content } from '../../src/content/index';
-import { libraryPresets } from '../../src/content/library';
 import { practiceTemplates } from '../../src/content/practice/index';
 import { validateWorkflow } from '../../src/core/library';
 import { parsePracticeJob } from '../../src/core/practice';
-import { ja } from '../../src/i18n/ja';
+import { sampleWorkflows } from '../helpers/workflows';
 
-describe('同梱の Workflow プリセット（content/library.ts）', () => {
-  it('参照先（モード・Model・部品）が存在し、スキーマの検証を通る', () => {
-    for (const w of libraryPresets) {
-      expect(validateWorkflow(w), w.id).toEqual([]);
-      expect(primaryActor(getAssignMode(w.mode)), w.id).toBe('ai');
-      expect(
-        content.models.some((m) => m.id === w.modelId),
-        w.id,
-      ).toBe(true);
-      for (const id of w.parts)
-        expect(
-          content.harnessParts.some((p) => p.id === id),
-          `${w.id}: ${id}`,
-        ).toBe(true);
-      expect(w.name).toBe(ja.library.presets[w.id as keyof typeof ja.library.presets]);
+describe('テストで使う Workflow の構成（tests/helpers/workflows.ts）', () => {
+  it('参照先（モード・Model・部品）が存在し、スキーマの検証を通る（バランステストの前提）', () => {
+    for (const [key, w] of Object.entries(sampleWorkflows)) {
+      expect(validateWorkflow(w), key).toEqual([]);
+      expect(primaryActor(getAssignMode(w.mode)), key).toBe('ai');
     }
   });
 
-  it('id が重複せず、保存した Workflow の id（custom*）とぶつからない', () => {
-    const ids = libraryPresets.map((w) => w.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const id of ids) expect(id).not.toMatch(/^custom/);
-  });
-
   it('PR Review は企画書25章の構成（Context・Skill・Tool・Subagent・Hook・Eval）をそろえている', () => {
-    const pr = libraryPresets.find((w) => w.id === 'presetPrReview');
-    const categories = pr?.parts.map((id) => content.harnessParts.find((p) => p.id === id)?.category);
-    expect(pr?.context).toBe('needed');
+    const pr = sampleWorkflows.prReview;
+    const categories = pr.parts.map((id) => content.harnessParts.find((p) => p.id === id)?.category);
+    expect(pr.context).toBe('needed');
     expect(new Set(categories)).toEqual(new Set(['skill', 'mcp', 'subagent', 'hook', 'eval']));
   });
 });

@@ -15,7 +15,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function mount() {
+function mount(save = true) {
   vi.useFakeTimers();
   const { state } = playConfigured({ projectId: P, mode: 'aiThenHumanReview', parts: ['evalAcceptance'] }, 'result-ui');
   const root = document.createElement('div');
@@ -28,7 +28,7 @@ function mount() {
         projectId={P}
         onTitle={() => {}}
         onNext={() => {}}
-        onSaveWorkflow={(s) => saved.push(s)}
+        onSaveWorkflow={save ? (s) => saved.push(s) : undefined}
       />
     ),
     root,
@@ -113,5 +113,11 @@ describe('結果画面', () => {
     expect(saved[0]?.workers[0]?.parts).toEqual(['evalAcceptance']);
     expect(saved[0]?.assignments.every((a) => a.mode === 'aiThenHumanReview')).toBe(true);
     expect(q('[data-save-workflow]')?.textContent).toContain(ja.screens.result.savedWorkflow);
+  });
+
+  it('保存先を渡されていなければ「この構成を保存する」を出さない（押しても何も残らないボタンにしない）', () => {
+    const { q } = mount(false);
+    vi.runOnlyPendingTimers();
+    expect(q('[data-save-workflow]')).toBeNull();
   });
 });

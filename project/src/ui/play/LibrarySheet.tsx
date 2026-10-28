@@ -15,7 +15,7 @@ import { ForecastMetrics } from './HarnessSheet';
 const t = ja.library;
 
 /**
- * Workflow Library（企画書25章）。会社の資産として棚に並んだ Workflow（同梱のプリセットと保存したもの）の構成と実績を見せ、
+ * Workflow Library（企画書25章）。会社の資産として棚に並んだ Workflow（プレイヤーが保存したもの）の構成と実績を見せ、
  * 共有コードの書き出しと読み込みをする。Task から開いたとき（target があるとき）は、Workflow を Task に適用できる。
  * 適用ボタンにフォーカスすると、Harness Builder と同じ Before → After の予測を出す。
  */
@@ -106,13 +106,6 @@ export function LibrarySheet(props: {
       </Show>
 
       <Shelf
-        title={t.preset}
-        entries={props.view.presets}
-        onFocus={setFocused}
-        dispatch={props.dispatch}
-        empty={null}
-      />
-      <Shelf
         title={t.custom}
         entries={props.view.saved}
         onFocus={setFocused}
@@ -127,7 +120,7 @@ export function LibrarySheet(props: {
 function Shelf(props: {
   title: string;
   entries: readonly LibraryEntryView[];
-  empty: string | null;
+  empty: string;
   onFocus: (e: LibraryEntryView) => void;
   dispatch: (command: Command) => void;
 }) {
@@ -181,7 +174,7 @@ function WorkflowCard(props: { entry: LibraryEntryView; onFocus: () => void; dis
       data-workflow-card={e().id}
     >
       <h4 class="flex items-center gap-1 font-heading text-sm leading-tight">
-        <Icon name={e().preset ? 'workflow' : 'success'} />
+        <Icon name="workflow" />
         {e().name}
       </h4>
       <Composition summary={e()} />

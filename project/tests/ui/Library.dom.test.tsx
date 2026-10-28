@@ -11,6 +11,7 @@ import { createSelection } from '../../src/ui/selection';
 import { hudView } from '../../src/view/hud';
 import { recommendWorkflows } from '../../src/view/library';
 import { islandId, worldView } from '../../src/view/world';
+import { sampleWorkflows } from '../helpers/workflows';
 
 const AGENT = 'agent';
 let dispose = () => {};
@@ -40,6 +41,12 @@ function mount(projectId: string, initial: GameState = createInitialState('libra
   return { store, root, q, selection };
 }
 
+/** 棚に Workflow を保存済みの会社（custom1 から順に、helpers/workflows.ts の並び） */
+function withShelf(keys: readonly (keyof typeof sampleWorkflows)[]): GameState {
+  const base = createInitialState('library-ui');
+  return { ...base, library: keys.map((k, i) => ({ id: `custom${i + 1}`, ...sampleWorkflows[k] })) };
+}
+
 const input = (el: HTMLInputElement | null, value: string) => {
   if (!el) throw new Error('入力欄がない');
   el.value = value;
@@ -63,17 +70,27 @@ describe('Workflow Library の UI（企画書25章）', () => {
     q<HTMLButtonElement>('[data-ai-tab="library"]')?.click();
     expect(q('[data-library-howto]')?.querySelectorAll('li')).toHaveLength(ja.library.howToSteps.length);
     expect(q('[data-workflow-card="custom1"]')?.textContent).toContain('うちのサイト実装');
-    expect(q('[data-workflow-card="presetPrReview"]')?.textContent).toContain(ja.library.presets.presetPrReview);
+    // 同梱の Workflow はなく、棚に並ぶのは自分で保存したものだけ
+    expect(q('[data-library-sheet]')?.querySelectorAll('[data-workflow-card]')).toHaveLength(1);
+  });
+
+  it('何も保存していない会社では棚が空で、Task の詳細にもおすすめの Workflow を出さない', () => {
+    const { q, selection } = mount('paymentFix');
+    selection.dispatch({ type: 'SelectEntity', entityId: islandId('fix') });
+    expect(q('[data-workflow-picks] [data-workflow-pick]')).toBeNull();
+    q<HTMLButtonElement>('[data-library-open]')?.click();
+    expect(q('[data-library-sheet]')?.querySelectorAll('[data-workflow-card]')).toHaveLength(0);
+    expect(q('[data-library-sheet]')?.textContent).toContain(ja.library.empty);
   });
 
   it('Task の詳細から Workflow を適用すると、Before → After を見てから構成と担当がまとめて決まる', () => {
-    const { store, q, selection } = mount('paymentFix');
+    const { store, q, selection } = mount('paymentFix', withShelf(['prReview']));
     selection.dispatch({ type: 'SelectEntity', entityId: islandId('fix') });
     q<HTMLButtonElement>('[data-library-open]')?.click();
     expect(q('[data-library-sheet]')).not.toBeNull();
-    const apply = q<HTMLButtonElement>('[data-apply-workflow="presetPrReview"]');
+    const apply = q<HTMLButtonElement>('[data-apply-workflow="custom1"]');
     apply?.dispatchEvent(new FocusEvent('focus'));
-    expect(q('[data-harness-preview]')?.textContent).toContain(ja.library.presets.presetPrReview);
+    expect(q('[data-harness-preview]')?.textContent).toContain(sampleWorkflows.prReview.name);
     apply?.click();
     expect(store.state().projects.paymentFix?.tasks.fix?.assignment).toEqual({
       mode: 'aiThenHumanReview',
@@ -84,7 +101,10 @@ describe('Workflow Library の UI（企画書25章）', () => {
   });
 
   it('Task の詳細に、Workflow を見込み利益の差の大きい順に出し、押すとそのまま適用する', () => {
-    const { store, q, selection } = mount('paymentFix');
+    const { store, q, selection } = mount(
+      'paymentFix',
+      withShelf(['prReview', 'weeklyReport', 'frontend', 'safeRelease']),
+    );
     selection.dispatch({ type: 'SelectEntity', entityId: islandId('fix') });
     const picks = [...(q('[data-workflow-picks]')?.querySelectorAll<HTMLButtonElement>('[data-workflow-pick]') ?? [])];
     const expected = recommendWorkflows(

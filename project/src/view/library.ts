@@ -6,7 +6,6 @@ import { type Command, reduce } from '../core/commands';
 import {
   decodeWorkflowCode,
   encodeWorkflowCode,
-  isPreset,
   libraryWorkflows,
   lockedFeatures,
   type WorkflowDraft,
@@ -38,7 +37,6 @@ export interface WorkflowSummary {
 
 export interface LibraryEntryView extends WorkflowSummary {
   readonly id: string;
-  readonly preset: boolean;
   readonly uses: number;
   /** 削減した人間時間の累計（h） */
   readonly savedHours: number;
@@ -74,7 +72,6 @@ function entry(state: GameState, w: LibraryWorkflowDef, target: LibraryTarget | 
   return {
     ...summarize(state, w),
     id: w.id,
-    preset: isPreset(w.id),
     uses: stats.uses,
     savedHours: stats.savedHumanMinutes / MINUTES_PER_HOUR,
     code: encodeWorkflowCode(w),
@@ -83,14 +80,12 @@ function entry(state: GameState, w: LibraryWorkflowDef, target: LibraryTarget | 
 }
 
 export interface LibraryView {
-  readonly presets: readonly LibraryEntryView[];
   readonly saved: readonly LibraryEntryView[];
 }
 
 /** 棚の一覧。target を渡すと、それぞれに Task へ適用する Command を付ける */
 export function libraryView(state: GameState, target: LibraryTarget | null = null): LibraryView {
-  const all = libraryWorkflows(state).map((w) => entry(state, w, target));
-  return { presets: all.filter((e) => e.preset), saved: all.filter((e) => !e.preset) };
+  return { saved: libraryWorkflows(state).map((w) => entry(state, w, target)) };
 }
 
 /** 共有コードの読み込みの結果。読めたら警告（未解放の部品）付きの要約と、ライブラリに追加する Command */
@@ -144,7 +139,7 @@ export interface WorkflowPick {
 export function recommendWorkflows(state: GameState, target: LibraryTarget, limit: number): readonly WorkflowPick[] {
   const now = hudView(state, target.projectId)?.projectedProfit ?? 0;
   const entries = libraryView(state, target);
-  return [...entries.presets, ...entries.saved]
+  return entries.saved
     .flatMap((e): WorkflowPick[] => {
       // まだ解放していない部品を含む Workflow は、適用しても部品が省かれて別物になるので勧めない
       if (!e.apply || e.locked.length > 0) return [];

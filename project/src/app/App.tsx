@@ -16,7 +16,7 @@ import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
-import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
+import { DayBreakCard, RecapCard, type SessionLinks } from '../ui/play/SessionCards';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
 import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
@@ -186,6 +186,31 @@ export function App(props: {
     save();
   };
 
+  /** 納品した案件の振り返り（結果画面）を開く */
+  const review = (projectId: string) => {
+    selection.dispatch({ type: 'SelectEntity', entityId: null });
+    screens.go({ type: 'Review', projectId });
+  };
+
+  /** 案件ボードを開く頼み（区切りとあらすじのカードから。ボードはプレイ画面のシートなので、回数を渡して開いてもらう） */
+  const [boardCall, setBoardCall] = createSignal(0);
+  /** 区切りとあらすじのカードから飛ぶ先。カードを閉じて再開してから移る */
+  const sessionLinks: SessionLinks = {
+    onOpen: (projectId) => {
+      resume();
+      selection.dispatch({ type: 'SelectEntity', entityId: null });
+      screens.go({ type: 'Switch', projectId });
+    },
+    onReview: (projectId) => {
+      resume();
+      review(projectId);
+    },
+    onBoard: () => {
+      resume();
+      setBoardCall((n) => n + 1);
+    },
+  };
+
   const toTitle = () => {
     save();
     useState(createInitialState(IDLE_SEED));
@@ -327,8 +352,7 @@ export function App(props: {
                     onClose={closeDelivery}
                     onReview={(projectId) => {
                       closeDelivery(projectId);
-                      selection.dispatch({ type: 'SelectEntity', entityId: null });
-                      screens.go({ type: 'Review', projectId });
+                      review(projectId);
                     }}
                   />
                   <TermCardList cards={terms.cards()} onClose={terms.close} />
@@ -345,6 +369,8 @@ export function App(props: {
                 selection.dispatch({ type: 'SelectEntity', entityId: null });
                 screens.go({ type: 'Home' });
               }}
+              onReview={review}
+              boardCall={boardCall}
             />
           </Match>
           <Match when={screens.screen().id === 'result'}>
@@ -352,7 +378,13 @@ export function App(props: {
               <ResultScreen
                 store={game()}
                 projectId={worldProject() ?? ''}
-                onNext={() => screens.go({ type: 'Home' })}
+                onNext={() => {
+                  // 開く前に見ていた案件がまだ進行中ならそのフロアへ、なければホームへ戻る
+                  const at = screens.screen();
+                  const from = at.id === 'result' ? at.from : undefined;
+                  const active = from !== undefined && activeProjects(game().state()).includes(from);
+                  screens.go(active ? { type: 'Return' } : { type: 'Home' });
+                }}
                 onTitle={toTitle}
               />
             </div>
@@ -387,9 +419,9 @@ export function App(props: {
         combo={() => director?.combo() ?? 0}
       />
       <Show when={dayCard() && fiscal() === null && !bankrupt() ? dayCard() : null}>
-        {(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} />}
+        {(summary) => <DayBreakCard summary={summary()} onNext={resume} onQuit={toTitle} links={sessionLinks} />}
       </Show>
-      <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} />}</Show>
+      <Show when={recap()}>{(r) => <RecapCard recap={r()} onResume={resume} links={sessionLinks} />}</Show>
       <Show when={fiscal() !== null && recap() === null && !bankrupt() ? fiscal() : null}>
         {(no) => <FiscalScreen store={game()} no={no()} onNext={resume} onTitle={toTitle} />}
       </Show>

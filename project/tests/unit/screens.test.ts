@@ -62,9 +62,22 @@ describe('画面遷移（長く遊ぶ会社）', () => {
   it('納品のカードから、プレイ（ホームを含む）でその案件の結果画面（振り返り）を開き、ホームへ戻る', () => {
     const review = { type: 'Review', projectId: 'p~1~M' } as const;
     expect(nextScreen(homeScreen, review)).toEqual({ id: 'result', projectId: 'p~1~M' });
-    expect(nextScreen({ id: 'play', projectId: 'p~2~S' }, review)).toEqual({ id: 'result', projectId: 'p~1~M' });
+    // 案件のフロアから開いたら、閉じたときに戻る先としてその案件を覚える
+    expect(nextScreen({ id: 'play', projectId: 'p~2~S' }, review)).toEqual({
+      id: 'result',
+      projectId: 'p~1~M',
+      from: 'p~2~S',
+    });
     expect(nextScreen(titleScreen, review)).toBe(titleScreen);
     expect(nextScreen({ id: 'result', projectId: 'p~1~M' }, { type: 'Home' })).toEqual(homeScreen);
+  });
+
+  it('振り返りを閉じると、開く前に見ていた案件のフロア（ホームから開いたならホーム）へ戻る', () => {
+    const fromFloor = nextScreen({ id: 'play', projectId: 'p~2~S' }, { type: 'Review', projectId: 'p~1~M' });
+    expect(nextScreen(fromFloor, { type: 'Return' })).toEqual({ id: 'play', projectId: 'p~2~S' });
+    const fromHome = nextScreen(homeScreen, { type: 'Review', projectId: 'p~1~M' });
+    expect(nextScreen(fromHome, { type: 'Return' })).toEqual(homeScreen);
+    expect(nextScreen(homeScreen, { type: 'Return' })).toBe(homeScreen);
   });
 });
 

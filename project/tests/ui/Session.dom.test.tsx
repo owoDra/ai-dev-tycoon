@@ -6,8 +6,9 @@ import { catchUp } from '../../src/core/away';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
 import { DayBreakCard, RecapCard } from '../../src/ui/play/SessionCards';
+import { UnlockCard } from '../../src/ui/play/UnlockCard';
 import { SettingsSheet } from '../../src/ui/SettingsSheet';
-import { daySummary, recapView } from '../../src/view/session';
+import { type DaySummary, daySummary, recapView } from '../../src/view/session';
 import { campaignInProgress } from '../helpers/session';
 
 let dispose = () => {};
@@ -62,6 +63,60 @@ describe('隙間時間のカード', () => {
     const q = mount(() => <RecapCard recap={recapView(s, s, [])} onResume={() => {}} />);
     expect(q('[data-session-card="recap"] p')?.textContent).toBe(ja.session.noAway);
     expect(q('[data-away]')).toBeNull();
+  });
+});
+
+describe('カードから飛ぶ先', () => {
+  it('区切りのカード：進行中の案件を開き、納品した案件の振り返りと、引き合いの案件ボードを開ける', () => {
+    const summary: DaySummary = {
+      day: 3,
+      tasksDone: 2,
+      delivered: [{ projectId: 'p~1~S', name: '納品した案件' }],
+      profit: 0,
+      humanMinutes: 0,
+      active: [{ projectId: 'p~2~M', name: '進行中の案件', done: 1, total: 4, daysLeft: 2 }],
+      next: [{ kind: 'offer', count: 3 }],
+      teams: [],
+    };
+    const links = { onOpen: vi.fn(), onReview: vi.fn(), onBoard: vi.fn() };
+    const q = mount(() => <DayBreakCard summary={summary} onNext={() => {}} onQuit={() => {}} links={links} />);
+    q<HTMLButtonElement>('[data-active="p~2~M"] [data-session-link="open"]')?.click();
+    q<HTMLButtonElement>('[data-delivered-line="p~1~S"] [data-session-link="review"]')?.click();
+    q<HTMLButtonElement>('[data-next-step="offer"] [data-session-link="board"]')?.click();
+    expect(links.onOpen).toHaveBeenCalledWith('p~2~M');
+    expect(links.onReview).toHaveBeenCalledWith('p~1~S');
+    expect(links.onBoard).toHaveBeenCalledOnce();
+  });
+
+  it('飛ぶ先を渡されていなければ、カードの行にボタンを出さない', () => {
+    const before = campaignInProgress('dom-links');
+    const q = mount(() => <RecapCard recap={recapView(before, before, [])} onResume={() => {}} />);
+    expect(q('[data-active="tutorialLp"]')).not.toBeNull();
+    expect(q('[data-session-link]')).toBeNull();
+  });
+
+  it('解放のカード：入口のある機能には「開く」を、今は開けない機能には案件を開くと使える旨を添える', () => {
+    const opened = vi.fn();
+    const onOpen = vi.fn();
+    const notes = [
+      { text: 'チーム', spot: 'team' as const },
+      { text: 'Harness', spot: 'harness' as const },
+      { text: '早送り' },
+    ];
+    const q = mount(() => (
+      <UnlockCard
+        notes={notes}
+        opener={(spot) => (spot === 'team' ? opened : null)}
+        onOpen={onOpen}
+        onClose={() => {}}
+      />
+    ));
+    q<HTMLButtonElement>('[data-unlock-open="team"]')?.click();
+    expect(opened).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledWith(notes[0]);
+    expect(q('[data-unlock-open="harness"]')).toBeNull();
+    expect(q('[data-unlock-note="harness"]')?.textContent).toContain(ja.unlocks.needsProject);
+    expect(q('[data-unlock-note=""]')?.querySelector('button')).toBeNull();
   });
 });
 

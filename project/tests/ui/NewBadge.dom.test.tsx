@@ -66,4 +66,17 @@ describe('メニューの NEW の印', () => {
     expect(q('[data-context-badge] [data-new-badge]')).toBeNull();
     expect(store.state().fresh).toEqual([]);
   });
+
+  it('Context はメニューにも入口があり（狭い形ではドックの札が「詳細」に入るため）、NEW を出して押すとシートが開く', () => {
+    const { store, q } = mount({ ...createInitialState('context-menu'), fresh: ['context'] }, 'paymentFix');
+    expect(q('[data-menu-context] [data-new-badge]')).not.toBeNull();
+    q('[data-menu-context]')?.click();
+    expect(q('[data-context-sheet]')).not.toBeNull();
+    expect(store.state().fresh).toEqual([]);
+  });
+
+  it('資料のない案件では、メニューに Context の入口を出さない', () => {
+    const { q } = mount(createInitialState('context-none'), 'ecRenewal');
+    expect(q('[data-menu-context]')).toBeNull();
+  });
 });

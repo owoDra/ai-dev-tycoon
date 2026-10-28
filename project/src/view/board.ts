@@ -116,6 +116,8 @@ export interface BidResultView {
   readonly outcome: BidOutcome;
   readonly amount: number;
   readonly winChance: number;
+  /** 受注した案件の今：進行中（フロアを開ける）・納品済み（振り返りを開ける）・記録に移した（どちらも開けない）か受注していない（null） */
+  readonly project: 'active' | 'delivered' | null;
 }
 
 export interface BoardView {
@@ -182,8 +184,15 @@ export function boardView(state: GameState): BoardView {
       outcome: r.outcome,
       amount: r.amount,
       winChance: r.winChance,
+      project: projectStatus(state, r.outcome === 'won' ? r.projectId : null),
     })),
   };
+}
+
+function projectStatus(state: GameState, projectId: string | null): BidResultView['project'] {
+  const run = projectId === null ? undefined : state.projects[projectId];
+  if (!run) return null;
+  return run.completedAt === null ? 'active' : 'delivered';
 }
 
 /** 見積の選択肢の1つ（価格か納期）と、それを選んだときの勝率 */

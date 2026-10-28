@@ -25,7 +25,7 @@ import {
 import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
-import { type MenuSpot, menuFeatures, modeFeature, unlockDefs } from '../../content/unlocks';
+import { type MenuSpot, menuFeatures, menuSpotOf, modeFeature, unlockDefs } from '../../content/unlocks';
 import type { BottleneckRef } from '../../core/bottleneck';
 import { tierOf } from '../../core/company';
 import { getIncidentDef } from '../../core/incidents';
@@ -66,7 +66,7 @@ import { ProblemToasts } from './ProblemToasts';
 import { SaveWorkflowForm } from './SaveWorkflowForm';
 import { TeamSheet } from './TeamSheet';
 import { TutorialCoach } from './TutorialCoach';
-import { UnlockCard } from './UnlockCard';
+import { UnlockCard, type UnlockNote } from './UnlockCard';
 
 /** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
 const SHEET_OVERLAP = 3;
@@ -113,6 +113,10 @@ export function PlayScreen(props: {
   onSwitch?: (projectId: string) => void;
   /** ホームへ戻る（ドックのタブの「オフィス」） */
   onHome?: () => void;
+  /** 納品した案件の振り返り（結果画面）を開く（案件ボードの受注行と、社員と Seat のシートの「実績」から） */
+  onReview?: (projectId: string) => void;
+  /** 増えるたびに案件ボードを開く（画面の外の区切りとあらすじのカードから開くため） */
+  boardCall?: Accessor<number>;
 }) {
   /** 開いている案件の id。案件の島や Task にかかわる表示は、案件を開いているときだけ作るので、そこでは必ず案件の id になる */
   const pid = () => props.projectId ?? '';
@@ -164,9 +168,12 @@ export function PlayScreen(props: {
 
   const notices = createNotices(() => form().form.notice, props.held);
   /** 「新しくできること」のカードの項目（閉じるまで残し、新しい解放は同じカードに足す） */
-  const [unlocks, setUnlocks] = createSignal<readonly string[]>([]);
-  const addUnlocks = (messages: readonly string[]) =>
-    setUnlocks((l) => [...l, ...messages.filter((m, i) => !l.includes(m) && messages.indexOf(m) === i)]);
+  const [unlocks, setUnlocks] = createSignal<readonly UnlockNote[]>([]);
+  const addUnlocks = (notes: readonly UnlockNote[]) =>
+    setUnlocks((l) => [
+      ...l,
+      ...notes.filter((n, i) => !l.some((o) => o.text === n.text) && notes.findIndex((o) => o.text === n.text) === i),
+    ]);
   onCleanup(
     props.store.onEvents((events) => {
       for (const e of events) {
@@ -255,7 +262,7 @@ export function PlayScreen(props: {
           const state = props.store.state();
           const notes = promotionNotes(state, e.from);
           notices.push({ text: ja.company.promoted(getCompanyTier(e.tier).name), icon: 'trophy', tone: 'success' });
-          addUnlocks(notes);
+          addUnlocks(notes.map((text) => ({ text })));
         }
         if (e.type === 'CompanyRanked') {
           notices.push({
@@ -319,7 +326,18 @@ export function PlayScreen(props: {
           notices.push({ text: ja.board.posted(e.projectIds.length), icon: 'project', tone: 'neutral' });
         }
         if (e.type === 'BidWon') {
-          notices.push({ text: ja.board.won(getProject(e.projectId).name), icon: 'trophy', tone: 'success' });
+          const projectId = e.projectId;
+          const open = props.onSwitch;
+          notices.push({
+            text: ja.board.won(getProject(projectId).name),
+            icon: 'trophy',
+            tone: 'success',
+            // 受注した案件のフロアへ移る入口（いま開いている案件ならいらない）
+            action:
+              open && projectId !== props.projectId
+                ? { label: ja.board.openProject, run: () => open(projectId) }
+                : undefined,
+          });
         }
         if (e.type === 'BidLost') {
           notices.push({ text: ja.board.lost(getProject(e.projectId).name), icon: 'failure', tone: 'neutral' });
@@ -344,7 +362,7 @@ export function PlayScreen(props: {
           if (props.store.state().tutorial) {
             notices.push({ text: `${ja.unlocks.badge} ${ja.unlocks[message]}`, icon: 'success', tone: 'success' });
           } else {
-            addUnlocks([ja.unlocks[message]]);
+            addUnlocks([{ text: ja.unlocks[message], spot: menuSpotOf(e.feature) }]);
           }
         }
       }
@@ -386,6 +404,8 @@ export function PlayScreen(props: {
   // Context と Harness Builder のシート。詳細のシートと同じ場所に出すので、どれか1つだけを開く
   const [contextOpen, setContextOpen] = createSignal(false);
   const context = createMemo(() => (contextOpen() && inProject() ? contextView(props.store.state(), pid()) : null));
+  /** Context のシートを開けるか（案件を開いていて、Context が解放済みで、その案件に資料がある） */
+  const contextOn = createMemo(() => inProject() && contextView(props.store.state(), pid()) !== null);
   /** 開いているシートをすべて閉じる（シートは1つだけ開く） */
   const closeSheets = () => {
     setContextOpen(false);
@@ -394,6 +414,13 @@ export function PlayScreen(props: {
     setLibraryOpen(false);
     setBoardOpen(false);
   };
+  /** シートを閉じてから、別の案件のフロアか振り返りへ移る（シートの中の「開く」「振り返り」のボタン） */
+  const leaveTo = (go: ((projectId: string) => void) | undefined) =>
+    go &&
+    ((projectId: string) => {
+      closeSheets();
+      go(projectId);
+    });
   const openContext = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
     closeSheets();
@@ -441,6 +468,15 @@ export function PlayScreen(props: {
     setBoardOpen(true);
   };
   createEffect(() => props.onBoardOpen?.(boardOpen() && boardOn()));
+  createEffect(
+    on(
+      () => props.boardCall?.() ?? 0,
+      (n) => {
+        if (n > 0 && boardOn()) openBoard();
+      },
+      { defer: true },
+    ),
+  );
   onCleanup(() => props.onBoardOpen?.(false));
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -462,6 +498,13 @@ export function PlayScreen(props: {
   createEffect(() => {
     if (props.selection.selected() !== null) closeSheets();
   });
+  /** 解放のカードの「開く」：メニューの入口ごとに、今開けるならそのシートを開く関数 */
+  const unlockOpener = (spot: MenuSpot): (() => void) | null => {
+    if (spot === 'harness') return harnessOn() ? openHarness : null;
+    if (spot === 'library') return libraryOn() ? () => openLibrary(null) : null;
+    if (spot === 'team') return teamOn() ? openTeam : null;
+    return contextOn() ? openContext : null;
+  };
 
   const selected = () => props.selection.selected();
   const detail = createMemo(() => {
@@ -597,6 +640,7 @@ export function PlayScreen(props: {
       onTeam={teamOn() ? openTeam : undefined}
       teamWarning={usageWarning(props.store.state())}
       onHarness={harnessOn() ? openHarness : undefined}
+      onContext={contextOn() ? openContext : undefined}
       onSettings={props.onSettings}
     />
   );
@@ -643,7 +687,12 @@ export function PlayScreen(props: {
         />
         {props.notices}
         <Show when={unlocks().length > 0}>
-          <UnlockCard messages={unlocks()} onClose={() => setUnlocks([])} />
+          <UnlockCard
+            notes={unlocks()}
+            opener={unlockOpener}
+            onOpen={(note) => setUnlocks((l) => l.filter((n) => n !== note))}
+            onClose={() => setUnlocks([])}
+          />
         </Show>
         <NoticeHost notices={notices.list()} />
       </div>
@@ -780,6 +829,7 @@ export function PlayScreen(props: {
             maxHeight={regions().sheet.height}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setTeamOpen(false)}
+            onReview={leaveTo(props.onReview)}
           />
         )}
       </Presence>
@@ -792,6 +842,8 @@ export function PlayScreen(props: {
             viewHeight={view().height}
             maxHeight={regions().sheet.height}
             onClose={() => setBoardOpen(false)}
+            onOpen={leaveTo(props.onSwitch)}
+            onReview={leaveTo(props.onReview)}
           />
         )}
       </Presence>

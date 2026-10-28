@@ -9,6 +9,8 @@ export interface Notice {
   readonly text: string;
   readonly icon: IconName;
   readonly tone?: IconTone;
+  /** 押せるボタンを1つ添える（受注した案件を開くなど）。添えたお知らせだけが押せる */
+  readonly action?: { readonly label: string; readonly run: () => void };
 }
 
 export interface Notices {
@@ -18,7 +20,7 @@ export interface Notices {
 
 /**
  * トースト / ポップアップの基盤。新しいものを先頭に積み、max を超えた古いものと、durationMs を過ぎたものを消す。
- * 表示は押せない（pointer-events: none）ので操作を妨げない。layout は幅で変わるので関数で受け取る。
+ * 表示は押せない（pointer-events: none）ので操作を妨げない（action を添えたお知らせのボタンだけ押せる）。layout は幅で変わるので関数で受け取る。
  * held（時間を止める画面を見ている）の間は消えるまでの時間を数えない
  */
 export function createNotices(layout: () => NoticeLayout, held?: Accessor<boolean>): Notices {

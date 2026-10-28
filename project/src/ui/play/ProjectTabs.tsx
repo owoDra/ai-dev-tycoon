@@ -31,8 +31,8 @@ export function ProjectTabs(props: {
 }) {
   const limit = () => props.limit ?? defaultLimit;
   const officeOn = () => props.home === true || props.onHome !== undefined;
-  /** オフィスのタブを並べるか（ホームを見ているときは選んでいるタブなので、いつも並べる） */
-  const officeInline = () => props.home === true || (officeOn() && limit().office);
+  /** オフィスのタブを並べるか（ホームを見ているときは、並べない設定でも省くだけで一覧には入れない） */
+  const officeInline = () => officeOn() && limit().office;
   const split = createMemo(() => {
     const selected = props.view.tabs.filter((tab) => tab.selected);
     const others = props.view.tabs.filter((tab) => !tab.selected);
@@ -49,12 +49,19 @@ export function ProjectTabs(props: {
   const menuTabs = () => [...split().inline.filter((tab) => clipped().has(tab.projectId)), ...split().rest];
   /** オフィスのタブを、並べる設定でも幅に入りきらず外したか */
   const [officeClipped, setOfficeClipped] = createSignal(false);
-  const officeInMenu = () => officeOn() && (!officeInline() || officeClipped());
+  const officeInMenu = () => officeOn() && props.home !== true && (!officeInline() || officeClipped());
   const restCount = () => menuTabs().length + (officeInMenu() ? 1 : 0);
   /** 一覧に回したタブに、担当待ちの案件がある（「ほか N 件」に警告のアイコンを出す） */
   const restStalled = () => menuTabs().some((tab) => tab.stalled);
   /** 今のタブと「+N」を1つの切り替えボタンにするか */
   const merged = () => !limit().office && limit().others === 0;
+  /**
+   * 幅が足りなくても外さず、名前を縮めて並べるタブ。選んでいるタブと、ホームでは最初の案件のタブ
+   * （ホームから案件へ移る入口を、いつも1つは見える形で残す）
+   */
+  const pinned = (projectId: string) =>
+    props.view.tabs.some((tab) => tab.projectId === projectId && tab.selected) ||
+    (props.home === true && props.view.tabs[0]?.projectId === projectId);
   let list: HTMLDivElement | undefined;
   /**
    * 並べたタブが入りきらなければ、選んでいないタブを後ろから外し、それでも入らなければオフィスのタブも外す
@@ -69,7 +76,7 @@ export function ProjectTabs(props: {
     const fits = () => list === undefined || list.scrollWidth <= list.clientWidth + 1;
     const projects = tabs.filter((tab) => tab.dataset.projectTab !== undefined);
     const candidates = [
-      ...projects.filter((tab) => tab.getAttribute('aria-selected') !== 'true').reverse(),
+      ...projects.filter((tab) => !pinned(tab.dataset.projectTab ?? '')).reverse(),
       ...tabs.filter((tab) => tab.dataset.homeTab !== undefined && tab.getAttribute('aria-selected') !== 'true'),
     ];
     for (const tab of candidates) {
@@ -121,7 +128,7 @@ export function ProjectTabs(props: {
       data-project-tab={tab.projectId}
       class={`flex h-11 min-w-0 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
         tab.selected ? 'bg-accent-200' : 'bg-sunken'
-      } ${inMenu ? 'w-full shrink-0' : tab.selected ? 'shrink' : 'shrink-0'}`}
+      } ${inMenu ? 'w-full shrink-0' : pinned(tab.projectId) ? 'shrink' : 'shrink-0'}`}
       onClick={() => pick(() => props.onSwitch(tab.projectId))}
     >
       <span class="shrink-0 rounded border-2 border-line bg-surface px-1 text-[11px] tabular-nums">

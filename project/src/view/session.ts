@@ -42,13 +42,19 @@ export interface TeamProgressView {
   readonly manager: 'human' | 'ai' | null;
 }
 
+/** 納品した案件（区切りとあらすじのカードから振り返りを開く） */
+export interface DeliveredProjectView {
+  readonly projectId: string;
+  readonly name: string;
+}
+
 /** 営業日の終わりの区切り */
 export interface DaySummary {
   /** 終わった営業日（1 から） */
   readonly day: number;
   readonly tasksDone: number;
-  /** この日に納品した案件の名前 */
-  readonly delivered: readonly string[];
+  /** この日に納品した案件 */
+  readonly delivered: readonly DeliveredProjectView[];
   /** この日の会社の利益の増減（円） */
   readonly profit: number;
   /** この日の人間の稼働（分） */
@@ -63,7 +69,7 @@ export interface Recap {
   /** 閉じていた間に進んだゲーム内の分。進めていなければ 0 */
   readonly awayMinutes: number;
   readonly tasksDone: number;
-  readonly delivered: readonly string[];
+  readonly delivered: readonly DeliveredProjectView[];
   /** 閉じていた間に起きた事件の数 */
   readonly incidents: number;
   readonly active: readonly ActiveProjectView[];
@@ -124,7 +130,7 @@ export function daySummary(start: GameState, end: GameState): DaySummary {
   const deliveredIds = Object.values(end.projects)
     .filter((p) => p.completedAt !== null && p.completedAt > start.clock && p.completedAt <= end.clock)
     .map((p) => p.projectId);
-  const delivered = deliveredIds.map((id) => getProject(id).name);
+  const delivered = deliveredIds.map((id) => ({ projectId: id, name: getProject(id).name }));
   const before = scoreCompany(start);
   const after = scoreCompany(end);
   return {
@@ -144,7 +150,9 @@ export function recapView(before: GameState, after: GameState, events: readonly 
   return {
     awayMinutes: after.clock - before.clock,
     tasksDone: events.filter((e) => e.type === 'TaskCompleted').length,
-    delivered: events.flatMap((e) => (e.type === 'ProjectCompleted' ? [getProject(e.projectId).name] : [])),
+    delivered: events.flatMap((e) =>
+      e.type === 'ProjectCompleted' ? [{ projectId: e.projectId, name: getProject(e.projectId).name }] : [],
+    ),
     incidents: events.filter((e) => e.type === 'IncidentStarted').length,
     active: activeProjectViews(after),
     next: nextSteps(after),

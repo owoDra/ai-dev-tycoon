@@ -105,7 +105,6 @@ export function Dock(props: {
         <HomeItems
           tabs={props.tabs}
           compact={props.compact}
-          limit={props.layout.tabs}
           onSwitch={(id) => props.onSwitch?.(id)}
           onBoard={props.onBoard}
           waiting={waitingOnBids(props.store.state())}
@@ -194,13 +193,18 @@ export function Dock(props: {
 }
 
 /**
+ * ホームでは HUD の項目がなく幅が空くので、進行中の案件のタブを形に関わらず並べる（受注した案件をすぐ開けるように）。
+ * 狭い形（スマホ）では、いま見ているオフィスのタブを省いて案件のタブに幅を回す。入りきらない分は ProjectTabs が幅を測って「ほか N 件」に回す
+ */
+const homeTabs = (compact: boolean): DockTabsLayout => ({ office: !compact, others: Number.POSITIVE_INFINITY });
+
+/**
  * ホームのドック：オフィスの見出し（進行中の案件があればそのタブ）・引き合いの入口（0件でも案件ボードを開ける）・結果待ちの数。
  * 結果を待つだけの間は早送りしていることを、アイコンとラベルで示す
  */
 function HomeItems(props: {
   tabs?: ProjectTabsView;
   compact: boolean;
-  limit: DockTabsLayout;
   onSwitch: (projectId: string) => void;
   onBoard?: () => void;
   waiting: boolean;
@@ -229,7 +233,7 @@ function HomeItems(props: {
             compact={props.compact}
             onSwitch={props.onSwitch}
             onBoard={() => props.onBoard?.()}
-            limit={props.limit}
+            limit={homeTabs(props.compact)}
             home
           />
         )}

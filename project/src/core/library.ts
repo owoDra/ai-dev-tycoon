@@ -2,7 +2,6 @@ import { assignModes, primaryActor } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { migratePartId } from '../content/harness/legacy';
 import { content, findWorker, getProject } from '../content/index';
-import { libraryPresets } from '../content/library';
 import type { FeatureId, LibraryWorkflowDef, WorkflowContext } from '../content/types';
 import { modeFeature } from '../content/unlocks';
 import { ja } from '../i18n/ja';
@@ -24,17 +23,17 @@ export type WorkflowDraft = Omit<LibraryWorkflowDef, 'id'>;
 const CONTEXTS: readonly WorkflowContext[] = ['needed', 'all', 'router'];
 const ROUTER = 'contextRouter';
 
-/** 棚に並ぶ Workflow。同梱のプリセットの後に、保存した順 */
+/**
+ * 棚に並ぶ Workflow（保存した順）。棚はプレイヤーが組んで保存したものだけで、最初は空。
+ * 出来合いの Workflow を最初から並べると、自分で構成を組む理由がなくなるので同梱しない
+ */
 export function libraryWorkflows(state: GameState): readonly LibraryWorkflowDef[] {
-  return [...libraryPresets, ...state.library];
+  return state.library;
 }
 
 export function findWorkflow(state: GameState, id: string): LibraryWorkflowDef | undefined {
   return libraryWorkflows(state).find((w) => w.id === id);
 }
-
-/** プリセットか（プリセットは同梱の資産なので、棚の上で区別して見せる） */
-export const isPreset = (id: string) => libraryPresets.some((w) => w.id === id);
 
 /** AI Worker の今の構成を、担当モードと組にして Workflow の下書きにする */
 export function workflowFromWorker(

@@ -15,7 +15,7 @@ const t = ja.hud;
 const phaseIcon: Record<DayPhase, IconName> = { work: 'day', lunch: 'clock', night: 'night' };
 
 /**
- * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・一時停止と速度・メニュー（案件ボード・社員と Seat・Harness・設定）。
+ * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・一時停止と速度・メニュー（案件ボード・社員と Seat・Context・Harness・設定）。
  * compact ではメニューをアイコンだけにし、速度を1つのボタンで順に切り替える。part で一部だけを出せる
  * （スマホでは時計と一時停止・速度を右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
  * 速度は解放（dock:speed）されるまで一時停止だけを出す。
@@ -29,6 +29,8 @@ export function PlayControls(props: {
   /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
   teamWarning?: boolean;
   onHarness?: () => void;
+  /** Context のシートを開く（ドックの Context の札は、狭い形では「詳細」に入って見えなくなるので、メニューにも置く） */
+  onContext?: () => void;
   onSettings?: () => void;
   /** all: すべて / clock: 時計と一時停止・速度だけ / menu: メニューだけ（枠なし） */
   part?: 'all' | 'clock' | 'menu';
@@ -69,6 +71,18 @@ export function PlayControls(props: {
                 fresh={fresh().has('team')}
                 onClick={open()}
                 data={{ 'data-team-open': '' }}
+              />
+            )}
+          </Show>
+          <Show when={props.onContext}>
+            {(open) => (
+              <MenuButton
+                compact={props.compact}
+                icon="context"
+                label={ja.context.title}
+                fresh={fresh().has('context')}
+                onClick={open()}
+                data={{ 'data-menu-context': '' }}
               />
             )}
           </Show>

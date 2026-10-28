@@ -4,7 +4,8 @@ import { type Accessor, createSignal } from 'solid-js';
  * 画面。タイトル → プレイ（3D のホーム）の順に進む。プレイは案件を開いていなくても入れ、
  * projectId のないプレイがホーム（会社のオフィスと、引き合いの入口だけのドック）になる。
  * 案件ボードはホームとプレイの上に開くシートで、画面ではない（タイトルへ戻るのは設定のメニューからだけ）。
- * 案件の結果画面（振り返り）は、納品のカードから開く（決算は App が画面の上に重ねて出す）。
+ * 案件の結果画面（振り返り）は、納品のカード・案件ボードの受注行・社員と Seat の「実績」から開き、閉じると開く前の画面へ戻る
+ * （決算は App が画面の上に重ねて出す）。
  * 会社はチュートリアルから始まり、タイトルから直接チュートリアルの案件へ進む。プレイ中はタブで案件を切り替える。
  * 「続きから」・会社で最後の案件を納品したあと・結果の後は、ホームへ戻る。
  * 実務モード（実際の仕事の試算）はタイトルから開き、タイトルへ戻る
@@ -13,7 +14,8 @@ export type Screen =
   | { readonly id: 'title' }
   /** projectId を省くとホーム */
   | { readonly id: 'play'; readonly projectId?: string }
-  | { readonly id: 'result'; readonly projectId: string }
+  /** from は振り返りを開く前に見ていた案件（ホームからなら省く。閉じたら戻る先） */
+  | { readonly id: 'result'; readonly projectId: string; readonly from?: string }
   | { readonly id: 'practice' };
 
 /** 画面遷移のきっかけ */
@@ -31,8 +33,10 @@ export type ScreenAction =
   | { readonly type: 'Home' }
   /** タイトルから実務モードを開く */
   | { readonly type: 'Practice' }
-  /** 納品のカードから、その案件の結果画面（振り返り）を開く（プレイから） */
-  | { readonly type: 'Review'; readonly projectId: string };
+  /** 納品のカードなどから、その案件の結果画面（振り返り）を開く（プレイから） */
+  | { readonly type: 'Review'; readonly projectId: string }
+  /** 振り返りを閉じて、開く前に見ていた画面（案件のフロアかホーム）へ戻る */
+  | { readonly type: 'Return' };
 
 export const titleScreen: Screen = { id: 'title' };
 export const homeScreen: Screen = { id: 'play' };
@@ -61,7 +65,13 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
     case 'Practice':
       return screen.id === 'title' ? { id: 'practice' } : screen;
     case 'Review':
-      return screen.id === 'play' ? { id: 'result', projectId: action.projectId } : screen;
+      if (screen.id !== 'play') return screen;
+      return screen.projectId === undefined
+        ? { id: 'result', projectId: action.projectId }
+        : { id: 'result', projectId: action.projectId, from: screen.projectId };
+    case 'Return':
+      if (screen.id !== 'result') return screen;
+      return screen.from === undefined ? homeScreen : { id: 'play', projectId: screen.from };
   }
 }
 

@@ -3,7 +3,7 @@ import { getAssignMode } from '../../src/content/assignModes';
 import { glossary } from '../../src/content/glossary';
 import { getModel, getTask } from '../../src/content/index';
 import type { FeatureId } from '../../src/content/types';
-import { allFeatures, unlockDefs } from '../../src/content/unlocks';
+import { allFeatures, menuSpotOf, unlockDefs } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
@@ -227,5 +227,16 @@ describe('段階的な解放（Phase 29。企画書50章「必要になる前に
     ] as const) {
       expect(isUnlocked(state, f), f).toBe(true);
     }
+  });
+});
+
+describe('解放のカードの「開く」の行き先（content/unlocks.ts の menuSpotOf）', () => {
+  it('メニューの入口がある機能はその入口へ、ない機能（担当モード・ドックの項目）は行き先なし', () => {
+    expect(menuSpotOf('harness:hook')).toBe('harness');
+    expect(menuSpotOf('mode:agentWorkflow')).toBe('library');
+    expect(menuSpotOf('hire')).toBe('team');
+    expect(menuSpotOf('context:pick')).toBe('context');
+    expect(menuSpotOf('mode:aiThenHumanReview')).toBeUndefined();
+    expect(menuSpotOf('dock:speed')).toBeUndefined();
   });
 });

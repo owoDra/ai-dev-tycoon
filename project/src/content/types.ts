@@ -543,7 +543,7 @@ export type WorkflowContext = 'needed' | 'all' | 'router';
 
 /**
  * Workflow Library の Workflow（企画書25章）。AI Worker の構成（Model・資料の渡し方・Harness 部品）と担当モードの組。
- * 同梱のプリセット（content/library.ts）と、プレイヤーが保存したもの（GameState.library）がある
+ * プレイヤーが Harness Builder で組んで保存したもの（GameState.library）だけで、同梱のものはない
  */
 export interface LibraryWorkflowDef {
   readonly id: string;

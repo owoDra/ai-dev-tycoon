@@ -53,7 +53,7 @@ describe('区切りとあらすじの ViewModel（view/session.ts）', () => {
     }
     expect(s.projects[SESSION_PROJECT]?.completedAt).not.toBeNull();
     const summary = daySummary(prev, s);
-    expect(summary.delivered).toEqual([getProject(SESSION_PROJECT).name]);
+    expect(summary.delivered).toEqual([{ projectId: SESSION_PROJECT, name: getProject(SESSION_PROJECT).name }]);
     expect(summary.active).toEqual([]);
     // 引き合いは営業日ごとに届き、見積を出さなければ締切まで残る
     const open = openInquiries(s).length;

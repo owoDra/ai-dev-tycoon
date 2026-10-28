@@ -1,7 +1,14 @@
 import { For, type JSX, onMount, Show } from 'solid-js';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
-import type { ActiveProjectView, DaySummary, NextStep, Recap, TeamProgressView } from '../../view/session';
+import type {
+  ActiveProjectView,
+  DaySummary,
+  DeliveredProjectView,
+  NextStep,
+  Recap,
+  TeamProgressView,
+} from '../../view/session';
 import { Icon } from '../Icon';
 import { ghostButton, panel, primaryButton } from '../parts';
 
@@ -13,6 +20,30 @@ function stepText(step: NextStep): string {
 }
 
 const stepIcon = { incident: 'warning', assign: 'project', offer: 'release', watch: 'ai' } as const;
+
+/** カードから飛ぶ先（どれもカードを閉じて再開してから移る）。渡されなければボタンを出さない */
+export interface SessionLinks {
+  /** 進行中の案件のフロアを開く */
+  readonly onOpen?: (projectId: string) => void;
+  /** 納品した案件の振り返りを開く */
+  readonly onReview?: (projectId: string) => void;
+  /** 案件ボードを開く（見積を出していない引き合いがあるとき） */
+  readonly onBoard?: () => void;
+}
+
+/** カードの行に添える小さなボタン */
+function LinkButton(props: { label: string; data: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-session-link={props.data}
+      class="shrink-0 rounded-full border-2 border-line bg-primary-200 px-2 text-xs font-bold hover:bg-primary-300"
+      onClick={() => props.onClick()}
+    >
+      {props.label}
+    </button>
+  );
+}
 
 /** 区切りとあらすじで共通のカードの枠。一時停止した上に出し、ボタンで閉じて再開する */
 function SessionCard(props: {
@@ -63,7 +94,7 @@ function SessionCard(props: {
   );
 }
 
-function ActiveList(props: { active: readonly ActiveProjectView[] }) {
+function ActiveList(props: { active: readonly ActiveProjectView[]; onOpen?: (projectId: string) => void }) {
   return (
     <Show when={props.active.length > 0}>
       <div>
@@ -75,7 +106,14 @@ function ActiveList(props: { active: readonly ActiveProjectView[] }) {
                 <span class="font-bold">
                   <Icon name="project" /> {p.name}
                 </span>
-                <span class="tabular-nums">{t.progress(p.done, p.total)}</span>
+                <span class="flex items-center gap-2 tabular-nums">
+                  {t.progress(p.done, p.total)}
+                  <Show when={props.onOpen}>
+                    {(open) => (
+                      <LinkButton label={ja.board.openProject} data="open" onClick={() => open()(p.projectId)} />
+                    )}
+                  </Show>
+                </span>
                 <span
                   class="w-full text-xs tabular-nums"
                   classList={{ 'text-danger-ink': p.daysLeft < 0, 'text-ink-muted': p.daysLeft >= 0 }}
@@ -114,7 +152,23 @@ function TeamList(props: { teams: readonly TeamProgressView[] }) {
   );
 }
 
-function NextList(props: { next: readonly NextStep[] }) {
+/** 納品した案件の行（振り返りを開ける） */
+function DeliveredLine(props: { project: DeliveredProjectView; onReview?: (projectId: string) => void }) {
+  return (
+    <span class="flex items-center gap-2">
+      <span>
+        <Icon name="trophy" /> {t.delivered(props.project.name)}
+      </span>
+      <Show when={props.onReview}>
+        {(review) => (
+          <LinkButton label={ja.board.reviewProject} data="review" onClick={() => review()(props.project.projectId)} />
+        )}
+      </Show>
+    </span>
+  );
+}
+
+function NextList(props: { next: readonly NextStep[]; onBoard?: () => void }) {
   return (
     <div>
       <p class="text-xs font-bold text-ink-muted">{t.next}</p>
@@ -123,7 +177,10 @@ function NextList(props: { next: readonly NextStep[] }) {
           {(s) => (
             <li class="flex items-start gap-2" data-next-step={s.kind}>
               <Icon name={stepIcon[s.kind]} class="mt-0.5" />
-              <span>{stepText(s)}</span>
+              <span class="min-w-0 flex-1">{stepText(s)}</span>
+              <Show when={s.kind === 'offer' && props.onBoard}>
+                {(board) => <LinkButton label={ja.board.board} data="board" onClick={() => board()()} />}
+              </Show>
             </li>
           )}
         </For>
@@ -133,7 +190,12 @@ function NextList(props: { next: readonly NextStep[] }) {
 }
 
 /** 営業日の終わりの区切り：その日の成果と、次にやること */
-export function DayBreakCard(props: { summary: DaySummary; onNext: () => void; onQuit: () => void }) {
+export function DayBreakCard(props: {
+  summary: DaySummary;
+  onNext: () => void;
+  onQuit: () => void;
+  links?: SessionLinks;
+}) {
   return (
     <SessionCard
       title={t.dayEnded(props.summary.day)}
@@ -160,21 +222,21 @@ export function DayBreakCard(props: { summary: DaySummary; onNext: () => void; o
         </div>
       </dl>
       <For each={props.summary.delivered}>
-        {(name) => (
-          <p class="flex items-center gap-1 text-sm font-bold">
-            <Icon name="trophy" /> {t.delivered(name)}
+        {(p) => (
+          <p class="text-sm font-bold" data-delivered-line={p.projectId}>
+            <DeliveredLine project={p} onReview={props.links?.onReview} />
           </p>
         )}
       </For>
-      <ActiveList active={props.summary.active} />
+      <ActiveList active={props.summary.active} onOpen={props.links?.onOpen} />
       <TeamList teams={props.summary.teams} />
-      <NextList next={props.summary.next} />
+      <NextList next={props.summary.next} onBoard={props.links?.onBoard} />
     </SessionCard>
   );
 }
 
 /** 再開したときのあらすじ：閉じていた間に進んだこと・進行中の案件・次にやること */
-export function RecapCard(props: { recap: Recap; onResume: () => void }) {
+export function RecapCard(props: { recap: Recap; onResume: () => void; links?: SessionLinks }) {
   const r = () => props.recap;
   return (
     <SessionCard
@@ -195,9 +257,9 @@ export function RecapCard(props: { recap: Recap; onResume: () => void }) {
             </li>
           </Show>
           <For each={r().delivered}>
-            {(name) => (
-              <li class="rounded-full border-2 border-line bg-accent-200 px-2">
-                <Icon name="trophy" /> {t.delivered(name)}
+            {(p) => (
+              <li class="rounded-full border-2 border-line bg-accent-200 px-2" data-delivered-line={p.projectId}>
+                <DeliveredLine project={p} onReview={props.links?.onReview} />
               </li>
             )}
           </For>
@@ -210,9 +272,9 @@ export function RecapCard(props: { recap: Recap; onResume: () => void }) {
           </p>
         )}
       </Show>
-      <ActiveList active={r().active} />
+      <ActiveList active={r().active} onOpen={props.links?.onOpen} />
       <TeamList teams={r().teams} />
-      <NextList next={r().next} />
+      <NextList next={r().next} onBoard={props.links?.onBoard} />
     </SessionCard>
   );
 }

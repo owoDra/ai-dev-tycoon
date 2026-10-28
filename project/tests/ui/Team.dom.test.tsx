@@ -2,6 +2,7 @@ import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
 import { getHuman, getProject } from '../../src/content/index';
+import { screenRegions, uiLayout } from '../../src/content/look/layout';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
 import { openInquiries } from '../../src/core/board';
@@ -24,13 +25,14 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-/** プレイ画面を開く。projectId が null ならホーム */
-function mount(state: GameState, projectId: string | null = P) {
+/** プレイ画面を開く。projectId が null ならホーム。size を渡すとその大きさの画面の形で開く */
+function mount(state: GameState, projectId: string | null = P, size?: { width: number; height: number }) {
   const store = createGameStore(state);
   const selection = createSelection();
   const root = document.createElement('div');
   document.body.append(root);
   const switched: string[] = [];
+  const reviewed: string[] = [];
   let homes = 0;
   dispose = render(
     () => (
@@ -41,12 +43,14 @@ function mount(state: GameState, projectId: string | null = P) {
         vm={() => worldView(store.state(), projectId, worldLooks[defaultWorldLookId])}
         onSwitch={(id) => switched.push(id)}
         onHome={() => homes++}
+        onReview={(id) => reviewed.push(id)}
+        regions={size ? () => screenRegions(uiLayout, size) : undefined}
       />
     ),
     root,
   );
   const q = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel);
-  return { store, root, q, switched, homes: () => homes };
+  return { store, root, q, switched, reviewed, homes: () => homes };
 }
 
 /** チュートリアルを飛ばして始め、最初の引き合いが届いた会社（進行中の案件はない） */
@@ -204,6 +208,83 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
     expect(tab?.textContent).toContain(ja.team.recordTab(1));
     tab?.click();
     expect(q(`[data-delivered="${P}"]`)?.textContent).toContain(getProject(P).name);
+  });
+});
+
+/** 見積を1件出し、勝つことにして締切まで進めた会社と、受注した案件の id。進めずに締切の直前で止めた state も返す */
+function wonCompany() {
+  const store = createGameStore(offeredCompany());
+  const id = openInquiries(store.state())[0] ?? '';
+  store.dispatch({ type: 'SubmitBid', projectId: id, price: 'base', deadline: 'standard' });
+  const s = store.state();
+  const inquiries =
+    s.board?.inquiries.map((i) => (i.projectId === id && i.bid ? { ...i, bid: { ...i.bid, winChance: 1 } } : i)) ?? [];
+  const closesAt = s.board?.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
+  const before = { ...s, board: s.board ? { ...s.board, inquiries } : null };
+  return { id, before, minutes: closesAt - s.clock, after: step(before, closesAt - s.clock).state };
+}
+
+/** 案件の Task をすべて終えて納品した state */
+function delivered(state: GameState, projectId: string): GameState {
+  const run = state.projects[projectId];
+  if (!run) throw new Error('案件が始まっていない');
+  const tasks = Object.fromEntries(Object.entries(run.tasks).map(([id, t]) => [id, { ...t, status: 'done' as const }]));
+  return { ...state, projects: { ...state.projects, [projectId]: { ...run, tasks, completedAt: state.clock } } };
+}
+
+describe('受注・納品した案件への導線', () => {
+  it('ホームでは、狭い形でも受注した案件のタブを「ほか N 件」に隠さずに並べる', () => {
+    const { id, after } = wonCompany();
+    // 狭い PC（選んでいない案件のタブを並べない形）とスマホ（今のタブと「+N」を1つにまとめる形）
+    for (const size of [
+      { width: 820, height: 900 },
+      { width: 390, height: 800 },
+    ]) {
+      const { q, switched } = mount(after, null, size);
+      expect(q('[data-more-tabs]')).toBeNull();
+      q<HTMLButtonElement>(`[data-project-tab="${id}"]`)?.click();
+      expect(switched).toEqual([id]);
+      dispose();
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('別の案件を開いている間に受注すると、お知らせの「開く」でその案件へ移れる', () => {
+    const { id, before, minutes } = wonCompany();
+    const store0 = createGameStore(before);
+    store0.dispatch({ type: 'StartProject', projectId: P });
+    const { store, q, switched } = mount(store0.state(), P);
+    store.advance(minutes);
+    const action = q<HTMLButtonElement>('[data-notice-action]');
+    expect(action?.textContent).toBe(ja.board.openProject);
+    action?.click();
+    expect(switched).toEqual([id]);
+  });
+
+  it('案件ボードの結果の受注行から、進行中なら案件を開き、納品済みなら振り返りを開く', () => {
+    const { id, after } = wonCompany();
+    const open = mount(after, null);
+    open.q<HTMLButtonElement>('[data-board-open]')?.click();
+    open.q<HTMLButtonElement>('[data-bid-result-action="open"]')?.click();
+    expect(open.switched).toEqual([id]);
+    expect(open.q('[data-board-sheet]')).toBeNull();
+    dispose();
+    document.body.innerHTML = '';
+    const done = mount(delivered(after, id), null);
+    done.q<HTMLButtonElement>('[data-board-open]')?.click();
+    expect(done.q('[data-bid-result-action="open"]')).toBeNull();
+    done.q<HTMLButtonElement>('[data-bid-result-action="review"]')?.click();
+    expect(done.reviewed).toEqual([id]);
+  });
+
+  it('社員と Seat のシートの「実績」から、納品した案件の振り返りを開ける', () => {
+    const { id, after } = wonCompany();
+    const s = { ...delivered(after, id), unlocked: [...after.unlocked, 'hire' as const] };
+    const { q, reviewed } = mount(s, null);
+    q<HTMLButtonElement>('[data-team-open]')?.click();
+    q<HTMLButtonElement>('[data-team-tab="record"]')?.click();
+    q<HTMLButtonElement>(`[data-delivered-review="${id}"]`)?.click();
+    expect(reviewed).toEqual([id]);
   });
 });
 

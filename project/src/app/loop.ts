@@ -1,6 +1,5 @@
 import { balance } from '../content/balance';
-import { untilWork } from '../core/clock';
-import { awaitingAssignment, idleHours, playSpeed, toGameMinutes } from '../core/step';
+import { awaitingAssignment, playSpeed, skipUntil, toGameMinutes } from '../core/step';
 import type { GameStore } from './store';
 
 /** 1フレームで進める実時間の上限（秒）。復帰直後やカクつきで一度に大量のステップを回さないため */
@@ -10,7 +9,7 @@ const STOP_EPSILON = 1e-6;
 
 /**
  * requestAnimationFrame でゲームループを回す。
- * 実時間を速度に応じたゲーム内の分に換算して store.advance に渡し（人間が帰っていて AI も働いていない間は始業まで早送りする。core/step.ts の playSpeed）、固定ステップの端数は core の
+ * 実時間を速度に応じたゲーム内の分に換算して store.advance に渡し（人間が帰っていて AI も働いていない間は始業まで、見積の結果を待つだけの間は締切まで早送りする。core/step.ts の playSpeed）、固定ステップの端数は core の
  * carryMinutes が持ち越す（アキュムレータ）。描画には次のステップまでの補間係数 alpha（0〜1）を渡す。
  * タブが非表示の間と、一時停止中は次のフレームを要求しない（ループが止まる）。再開すると回り始める。
  * stopAt を渡すと、そのゲーム内時刻（分）を越えて進めない（営業日の終わりの区切り。null なら制限しない）。
@@ -35,8 +34,8 @@ export function startLoop(
     const dt = toGameMinutes(dtSeconds, playSpeed(state));
     const stop = stopAt();
     const { clock, carryMinutes } = state;
-    // 早送りは始業までにとどめる（人間が働き始めたら選んだ速度に戻す）
-    const wake = idleHours(state) ? clock + untilWork(clock) : null;
+    // 早送りは始業や見積の締切までにとどめる（人間が働き始めたら・結果が出たら選んだ速度に戻す）
+    const wake = skipUntil(state);
     const room = Math.min(stop ?? Number.POSITIVE_INFINITY, wake ?? Number.POSITIVE_INFINITY) - clock - carryMinutes;
     if (room > 0 && !held() && !awaitingAssignment(state)) store.advance(dt >= room ? room + STOP_EPSILON : dt);
     render(store.state().carryMinutes / balance.time.tickMinutes);

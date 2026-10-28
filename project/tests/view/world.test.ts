@@ -45,6 +45,17 @@ const island = (vm: WorldViewModel, taskId: string) => vm.islands.find((i) => i.
 const actor = (vm: WorldViewModel, id: string) => vm.actors.find((a) => a.id === id);
 
 describe('worldView', () => {
+  it('ホーム（案件を開いていない）では、チュートリアルの床ではなく会社のオフィス：島も荷物もなく、会社の全員が休憩所にいる', () => {
+    const state = createInitialState('w', { board: true, tutorial: false });
+    const vm = worldView(state, null, look);
+    expect(vm.projectId).toBeNull();
+    expect(vm.islands).toEqual([]);
+    expect(vm.packets).toEqual([]);
+    expect(vm.actors.map((a) => [a.kind, a.islandId, a.activity])).toEqual(
+      Object.keys(state.team).map(() => ['human', null, 'idle']),
+    );
+  });
+
   it('開始前は Task ごとの島だけがあり、人間は休憩所で待機している', () => {
     const vm = worldView(createInitialState('w'), P, look);
     expect(vm.started).toBe(false);

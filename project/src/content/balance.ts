@@ -289,8 +289,13 @@ export const balance = {
    * 数と規模の分布は会社の規模（balance.company.tiers）で決まる
    */
   board: {
-    /** 応募の締切（届いた営業日から数えて何営業日目の終わりか） */
-    closeDays: 2,
+    /**
+     * 応募の締切の時刻（0:00 からの分）。引き合いは届いた営業日のこの時刻に締め切り、結果が出る（当日に確定する）。
+     * 締切まで minOpenMinutes 未満で届いたとき（チュートリアルを夕方に終えたときなど）は、次の営業日のこの時刻にする
+     */
+    closeAt: 1020,
+    /** 届いてから締切までに少なくとも残す時間（ゲーム内の分） */
+    minOpenMinutes: 120,
     /** 案件ボードに残す最近のコンペの結果の数 */
     history: 10,
   },
@@ -309,7 +314,7 @@ export const balance = {
     personDayStep: 0.5,
     /** 金額を丸める刻み（円） */
     amountStep: 10_000,
-    temperature: 0.1,
+    temperature: 0.105,
     focus: {
       price: { price: 1.5, proposal: 0.4, deadline: 0.4 },
       quality: { price: 0.7, proposal: 1.2, deadline: 0.4 },

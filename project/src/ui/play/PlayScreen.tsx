@@ -17,7 +17,7 @@ import { teamName } from '../../core/teams';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
 import { type Advice, adviseProblems } from '../../view/advice';
-import { projectTabs } from '../../view/board';
+import { deliveredProjects, projectTabs } from '../../view/board';
 import { type BottleneckMove, bottleneckMove, stageRows } from '../../view/bottleneck';
 import { contextView, toggleDoc } from '../../view/context';
 import { detailView } from '../../view/detail';
@@ -33,6 +33,7 @@ import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
 import type { Selection } from '../selection';
+import { BoardSheet } from './BoardSheet';
 import { BottleneckGuide } from './BottleneckGuide';
 import { ContextSheet } from './ContextSheet';
 import { DetailSheet } from './DetailSheet';
@@ -55,10 +56,13 @@ const SHEET_OVERLAP = 3;
  * 下部のドック（HUD）・上のトースト（次に対応すべき問題）・下から出るシート（詳細と担当変更）・島のラベル・お知らせを置く。
  * state は読むだけで、変更は store.dispatch（Command）で行う。選択は UI の state（Selection）。
  * チュートリアル中はコーチマークを重ね、「次に対応すべき問題」は解放されるまで出さない。
+ * 案件を開いていない（projectId が null）ときはホーム：3D は会社のオフィスで、ドックは引き合いの入口と会社の状態だけを出す。
+ * 案件ボードは、ホームでもプレイ中でもほかのシートと同じ場所に開く。
  */
 export function PlayScreen(props: {
   store: GameStore;
-  projectId: string;
+  /** 開いている案件。null ならホーム */
+  projectId: string | null;
   selection: Selection;
   vm: Accessor<WorldViewModel | undefined>;
   world?: Accessor<World | undefined>;
@@ -66,9 +70,12 @@ export function PlayScreen(props: {
   onSettings?: () => void;
   /** 別の案件のタブへ切り替える（複数案件の同時進行） */
   onSwitch?: (projectId: string) => void;
-  /** 案件ボードへ戻る（新しい依頼の受注） */
-  onBoard?: () => void;
+  /** ホームへ戻る（ドックのタブの「オフィス」） */
+  onHome?: () => void;
 }) {
+  /** 開いている案件の id。案件の島や Task にかかわる表示は、案件を開いているときだけ作るので、そこでは必ず案件の id になる */
+  const pid = () => props.projectId ?? '';
+  const inProject = () => props.projectId !== null;
   const layout = () => props.layout ?? uiLayout;
   const [view, setView] = createSignal({ width: window.innerWidth, height: window.innerHeight });
   const onResize = () => setView({ width: window.innerWidth, height: window.innerHeight });
@@ -87,7 +94,7 @@ export function PlayScreen(props: {
   const sheetHeight = () => view().height * form().form.sheet.heightRatio;
 
   // 問題は中身が同じなら同じ配列を返し、トーストを毎フレーム作り直さない
-  const problems = createMemo(() => adviseProblems(props.store.state(), props.projectId), [], {
+  const problems = createMemo(() => (inProject() ? adviseProblems(props.store.state(), pid()) : []), [], {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
   const [dismissed, setDismissed] = createSignal<ReadonlySet<string>>(new Set());
@@ -260,6 +267,9 @@ export function PlayScreen(props: {
         if (e.type === 'BidLost') {
           notices.push({ text: ja.board.lost(getProject(e.projectId).name), icon: 'failure', tone: 'neutral' });
         }
+        if (e.type === 'InquiryPassed') {
+          notices.push({ text: ja.board.passed(getProject(e.projectId).name), icon: 'clock', tone: 'neutral' });
+        }
         if (e.type === 'ProjectCompleted' && e.projectId !== props.projectId) {
           notices.push({ text: ja.board.delivered(getProject(e.projectId).name), icon: 'success', tone: 'success' });
         }
@@ -293,22 +303,28 @@ export function PlayScreen(props: {
   createEffect(() => {
     const entity = ringAt();
     const state = props.store.state();
-    if (!entity || !pending || state.tutorial || !isUnlocked(state, 'problems')) return;
-    const next = bottleneckMove(props.projectId, guided, pending);
+    if (!entity || !pending || !inProject() || state.tutorial || !isUnlocked(state, 'problems')) return;
+    const next = bottleneckMove(pid(), guided, pending);
     if (!next || next.entityId !== entity) return;
     guided = pending;
     setMove(next);
   });
-  const rows = createMemo(() => (move() && compare() ? stageRows(props.store.state(), props.projectId) : []));
+  const rows = createMemo(() => (move() && compare() && inProject() ? stageRows(props.store.state(), pid()) : []));
 
   // Context と Harness Builder のシート。詳細のシートと同じ場所に出すので、どれか1つだけを開く
   const [contextOpen, setContextOpen] = createSignal(false);
-  const context = createMemo(() => (contextOpen() ? contextView(props.store.state(), props.projectId) : null));
-  const openContext = () => {
-    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+  const context = createMemo(() => (contextOpen() && inProject() ? contextView(props.store.state(), pid()) : null));
+  /** 開いているシートをすべて閉じる（シートは1つだけ開く） */
+  const closeSheets = () => {
+    setContextOpen(false);
     setHarnessOpen(false);
     setTeamOpen(false);
     setLibraryOpen(false);
+    setBoardOpen(false);
+  };
+  const openContext = () => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    closeSheets();
     setContextOpen(true);
   };
   // Workflow Library（企画書25章）。Task の詳細から開くと、その Task に適用できる
@@ -316,16 +332,14 @@ export function PlayScreen(props: {
   const [libraryTask, setLibraryTask] = createSignal<string | null>(null);
   const libraryTarget = () => {
     const taskId = libraryTask();
-    return taskId ? { projectId: props.projectId, taskId, workerId: harnessWorker() } : null;
+    return taskId && inProject() ? { projectId: pid(), taskId, workerId: harnessWorker() } : null;
   };
   const library = createMemo(() =>
-    libraryOpen() && harnessOn() ? libraryView(props.store.state(), libraryTarget()) : null,
+    libraryOpen() && harnessOn() && inProject() ? libraryView(props.store.state(), libraryTarget()) : null,
   );
   const openLibrary = (taskId: string | null) => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    setContextOpen(false);
-    setHarnessOpen(false);
-    setTeamOpen(false);
+    closeSheets();
     setLibraryTask(taskId);
     setLibraryOpen(true);
   };
@@ -335,42 +349,45 @@ export function PlayScreen(props: {
   const teamOn = () => isUnlocked(props.store.state(), 'team') || isUnlocked(props.store.state(), 'hire');
   const team = createMemo(() => (teamOpen() ? teamView(props.store.state()) : null));
   const teams = createMemo(() => (teamOpen() && props.store.state().board ? teamsView(props.store.state()) : null));
+  const delivered = createMemo(() =>
+    teamOpen() && props.store.state().board ? deliveredProjects(props.store.state()) : null,
+  );
   const openTeam = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    setContextOpen(false);
-    setHarnessOpen(false);
-    setLibraryOpen(false);
+    closeSheets();
     setTeamOpen(true);
+  };
+  // 案件ボード（ホームとプレイの上に開くシート）。チュートリアルの間は開かない
+  const [boardOpen, setBoardOpen] = createSignal(false);
+  const boardOn = () => props.store.state().board !== null && props.store.state().tutorial === null;
+  const openBoard = () => {
+    props.selection.dispatch({ type: 'SelectEntity', entityId: null });
+    closeSheets();
+    setBoardOpen(true);
   };
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
-  const harnessWorker = () => projectAgent(props.store.state(), props.projectId);
-  const harnessOn = () => isUnlocked(props.store.state(), 'harness');
+  const harnessWorker = () => projectAgent(props.store.state(), pid());
+  // Harness Builder は案件の AI Worker を組むので、案件を開いているときだけ
+  const harnessOn = () => isUnlocked(props.store.state(), 'harness') && inProject();
   const harness = createMemo(() =>
-    harnessOpen() && harnessOn() ? harnessView(props.store.state(), props.projectId, harnessWorker()) : null,
+    harnessOpen() && harnessOn() ? harnessView(props.store.state(), pid(), harnessWorker()) : null,
   );
   const openHarness = () => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
-    setContextOpen(false);
-    setTeamOpen(false);
-    setLibraryOpen(false);
+    closeSheets();
     setHarnessOpen(true);
   };
   createEffect(() => {
-    if (props.selection.selected() !== null) {
-      setContextOpen(false);
-      setHarnessOpen(false);
-      setTeamOpen(false);
-      setLibraryOpen(false);
-    }
+    if (props.selection.selected() !== null) closeSheets();
   });
 
   const selected = () => props.selection.selected();
   const detail = createMemo(() => {
     const id = selected();
     const vm = props.vm();
-    return id && vm ? detailView(props.store.state(), props.projectId, vm, id) : null;
+    return id && vm && inProject() ? detailView(props.store.state(), pid(), vm, id) : null;
   });
 
   let sheetEl: HTMLElement | undefined;
@@ -405,12 +422,12 @@ export function PlayScreen(props: {
     setFresh((s) => new Set([...s].filter((f) => f !== modeFeature(mode))));
     props.store.dispatch({
       type: 'AssignTask',
-      projectId: props.projectId,
+      projectId: pid(),
       taskId,
       mode,
-      workerId: defaultWorkerFor(mode, props.store.state(), props.projectId),
+      workerId: defaultWorkerFor(mode, props.store.state(), pid()),
     });
-    notices.push({ text: ja.assign.assigned(getTask(props.projectId, taskId).name, ja.modes[mode]), icon: 'success' });
+    notices.push({ text: ja.assign.assigned(getTask(pid(), taskId).name, ja.modes[mode]), icon: 'success' });
     if (!layout().flow.keepDetailAfterAssign) close();
   };
 
@@ -435,12 +452,9 @@ export function PlayScreen(props: {
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
-        if (contextOpen() || harnessOpen() || teamOpen() || libraryOpen()) {
+        if (contextOpen() || harnessOpen() || teamOpen() || libraryOpen() || boardOpen()) {
           e.preventDefault();
-          setContextOpen(false);
-          setHarnessOpen(false);
-          setTeamOpen(false);
-          setLibraryOpen(false);
+          closeSheets();
           return;
         }
         if (selected() === null) return;
@@ -486,7 +500,7 @@ export function PlayScreen(props: {
     <PlayControls
       store={props.store}
       compact={form().compact}
-      onBoard={props.store.state().tutorial ? undefined : props.onBoard}
+      onBoard={boardOn() ? openBoard : undefined}
       onTeam={teamOn() ? openTeam : undefined}
       teamWarning={usageWarning(props.store.state())}
       onHarness={harnessOn() ? openHarness : undefined}
@@ -551,7 +565,7 @@ export function PlayScreen(props: {
               sheetEl = el;
             }}
             store={props.store}
-            projectId={props.projectId}
+            projectId={pid()}
             detail={d()}
             layout={form().form.sheet}
             scrollCards={form().form.assignCards === 'scroll'}
@@ -565,7 +579,7 @@ export function PlayScreen(props: {
             picks={(taskId) =>
               recommendWorkflows(
                 props.store.state(),
-                { projectId: props.projectId, taskId, workerId: harnessWorker() },
+                { projectId: pid(), taskId, workerId: harnessWorker() },
                 layout().flow.workflowPicks,
               )
             }
@@ -573,11 +587,11 @@ export function PlayScreen(props: {
               props.store.dispatch(command);
               if (!layout().flow.keepDetailAfterAssign) close();
             }}
-            workflow={(taskId) => workflowTasks(props.store.state(), props.projectId, taskId)}
+            workflow={(taskId) => workflowTasks(props.store.state(), pid(), taskId)}
             onWorkflow={(taskIds) => {
               props.store.dispatch({
                 type: 'AssignWorkflow',
-                projectId: props.projectId,
+                projectId: pid(),
                 taskIds,
                 workerId: harnessWorker(),
               });
@@ -594,7 +608,7 @@ export function PlayScreen(props: {
             bottom={sheetBottom()}
             viewHeight={view().height}
             dispatch={(c) => props.store.dispatch(c)}
-            toggleDoc={(docId) => toggleDoc(props.store.state(), props.projectId, v().workerId, docId)}
+            toggleDoc={(docId) => toggleDoc(props.store.state(), pid(), v().workerId, docId)}
             onClose={() => setContextOpen(false)}
           />
         )}
@@ -606,14 +620,14 @@ export function PlayScreen(props: {
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
-            forecast={(command) => harnessForecast(props.store.state(), props.projectId, v().workerId, command)}
+            forecast={(command) => harnessForecast(props.store.state(), pid(), v().workerId, command)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setHarnessOpen(false)}
             tabs={aiTabs('harness')}
             footer={
               <SaveWorkflowForm
                 modes={saveModes(props.store.state())}
-                defaultMode={defaultSaveMode(props.store.state(), props.projectId, v().workerId)}
+                defaultMode={defaultSaveMode(props.store.state(), pid(), v().workerId)}
                 defaultName={defaultWorkflowName(props.store.state())}
                 onSave={(name, mode) =>
                   props.store.dispatch({
@@ -630,11 +644,11 @@ export function PlayScreen(props: {
         {(v) => (
           <LibrarySheet
             view={v()}
-            target={libraryTask() ? getTask(props.projectId, libraryTask() ?? '').name : null}
+            target={libraryTask() ? getTask(pid(), libraryTask() ?? '').name : null}
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
-            forecast={(command) => harnessForecast(props.store.state(), props.projectId, harnessWorker(), command)}
+            forecast={(command) => harnessForecast(props.store.state(), pid(), harnessWorker(), command)}
             readCode={(code) => importPreview(props.store.state(), code)}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setLibraryOpen(false)}
@@ -647,11 +661,23 @@ export function PlayScreen(props: {
           <TeamSheet
             view={v()}
             teams={teams()}
+            delivered={delivered()}
             layout={form().form.sheet}
             bottom={sheetBottom()}
             viewHeight={view().height}
             dispatch={(c) => props.store.dispatch(c)}
             onClose={() => setTeamOpen(false)}
+          />
+        )}
+      </Presence>
+      <Presence when={boardOpen() && boardOn()} enter={false} class="pointer-events-auto">
+        {() => (
+          <BoardSheet
+            store={props.store}
+            layout={form().form.sheet}
+            bottom={sheetBottom()}
+            viewHeight={view().height}
+            onClose={() => setBoardOpen(false)}
           />
         )}
       </Presence>
@@ -670,7 +696,8 @@ export function PlayScreen(props: {
           onContext={openContext}
           tabs={props.onSwitch ? tabs() : undefined}
           onSwitch={props.onSwitch}
-          onBoard={props.onBoard}
+          onBoard={boardOn() ? openBoard : undefined}
+          onHome={props.onHome}
           controls={form().compact ? controls() : undefined}
         />
       </div>

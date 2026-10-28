@@ -4,6 +4,7 @@ import type { GameStore } from '../../app/store';
 import { getProject } from '../../content/index';
 import type { DockLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
+import { waitingOnBids } from '../../core/step';
 import { isUnlocked } from '../../core/unlocks';
 import { reducedMotion } from '../../fx/reduced';
 import { ja } from '../../i18n/ja';
@@ -22,12 +23,13 @@ const PROFIT_CHIP_MIN = 100;
 
 /**
  * 下部のドック（D3「ゲームのドック」）。いま見ている案件の状態だけを出す：先頭に案件名（見出しで、常時表示の項目には数えない）か案件のタブ、
- * 続けて dock.items の項目を並べる。スマホ（compact）では画面幅いっぱいの2段にし、上部に出せない操作の列（controls）を最後に入れる。
+ * 続けて dock.items の項目を並べる。ホーム（projectId が null）では案件の項目の代わりに、進行中の案件のタブ・引き合いの入口・結果待ちの数を出す。スマホ（compact）では画面幅いっぱいの2段にし、上部に出せない操作の列（controls）を最後に入れる。
  * 値は view/hud.ts から読む。解放の対象になっている項目（content/unlocks.ts の dockFeature）は、解放されるまで出さない。
  */
 export function Dock(props: {
   store: GameStore;
-  projectId: string;
+  /** いま見ている案件。null ならホーム（会社のオフィス） */
+  projectId: string | null;
   layout: DockLayout;
   compact: boolean;
   problemCount: number;
@@ -37,16 +39,19 @@ export function Dock(props: {
   /** 案件のタブ（複数の案件を進めているか、新しい依頼があるときに案件名の代わりに出す） */
   tabs?: ProjectTabsView;
   onSwitch?: (projectId: string) => void;
+  /** 案件ボードのシートを開く */
   onBoard?: () => void;
+  /** ホームへ戻る（タブの「オフィス」） */
+  onHome?: () => void;
   /** ドックの最後に入れる操作の列（スマホで、時計・速度・メニューを入れる） */
   controls?: JSX.Element;
   ref?: (el: HTMLElement) => void;
 }) {
   const showTabs = () => {
     const tabs = props.tabs;
-    return tabs !== undefined && (tabs.tabs.length > 1 || tabs.offers > 0) ? tabs : null;
+    return tabs !== undefined && props.projectId !== null && (tabs.tabs.length > 1 || tabs.offers > 0) ? tabs : null;
   };
-  const hud = createMemo(() => hudView(props.store.state(), props.projectId));
+  const hud = createMemo(() => (props.projectId === null ? null : hudView(props.store.state(), props.projectId)));
   const items = createMemo(() =>
     props.layout.items.filter((id) => {
       const feature = dockFeature[id];
@@ -71,30 +76,42 @@ export function Dock(props: {
             compact={props.compact}
             onSwitch={(id) => props.onSwitch?.(id)}
             onBoard={() => props.onBoard?.()}
+            onHome={props.onHome}
           />
         )}
       </Show>
-      <Show when={props.layout.projectName && !showTabs()}>
-        <h1
-          class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
-        >
-          <Icon name="project" class={props.compact ? 'text-lg' : 'text-2xl'} />
-          <span class="truncate">{getProject(props.projectId).name}</span>
-        </h1>
+      <Show when={props.projectId === null}>
+        <HomeItems
+          tabs={props.tabs}
+          compact={props.compact}
+          onSwitch={(id) => props.onSwitch?.(id)}
+          onBoard={props.onBoard}
+          waiting={waitingOnBids(props.store.state())}
+        />
       </Show>
-      <Show when={hud()}>
-        {(h) => (
+      <Show when={props.layout.projectName && !showTabs() && props.projectId}>
+        {(projectId) => (
+          <h1
+            class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
+          >
+            <Icon name="project" class={props.compact ? 'text-lg' : 'text-2xl'} />
+            <span class="truncate">{getProject(projectId()).name}</span>
+          </h1>
+        )}
+      </Show>
+      <Show when={hud() && props.projectId ? { h: hud() as HudView, projectId: props.projectId } : null}>
+        {(v) => (
           <For each={items()}>
             {(id) => (
               <div data-hud-item={id} class="flex min-w-0 items-center">
                 <HudItem
                   id={id}
-                  hud={h()}
+                  hud={v().h}
                   store={props.store}
                   dense={props.compact}
                   problemCount={props.problemCount}
                   onProblems={props.onProblems}
-                  projectId={props.projectId}
+                  projectId={v().projectId}
                   onContext={props.onContext}
                 />
               </div>
@@ -104,6 +121,74 @@ export function Dock(props: {
       </Show>
       {props.controls}
     </nav>
+  );
+}
+
+/**
+ * ホームのドック：オフィスの見出し（進行中の案件があればそのタブ）・引き合いの入口（0件でも案件ボードを開ける）・結果待ちの数。
+ * 結果を待つだけの間は早送りしていることを、アイコンとラベルで示す
+ */
+function HomeItems(props: {
+  tabs?: ProjectTabsView;
+  compact: boolean;
+  onSwitch: (projectId: string) => void;
+  onBoard?: () => void;
+  waiting: boolean;
+}) {
+  const b = ja.board;
+  return (
+    <>
+      <Show
+        when={props.tabs && props.tabs.tabs.length > 0 ? props.tabs : null}
+        fallback={
+          <h1
+            class={`flex min-w-0 items-center gap-2 font-heading whitespace-nowrap ${props.compact ? 'basis-full text-sm' : 'text-base'}`}
+            data-home
+          >
+            <Icon name="human" class={props.compact ? 'text-lg' : 'text-2xl'} />
+            <span class="truncate">{b.home}</span>
+            <span class="text-[11px] font-bold text-ink-muted">{b.homeLead}</span>
+          </h1>
+        }
+      >
+        {(tabs) => (
+          <ProjectTabs
+            view={{ ...tabs(), offers: 0 }}
+            compact={props.compact}
+            onSwitch={props.onSwitch}
+            onBoard={() => props.onBoard?.()}
+            home
+          />
+        )}
+      </Show>
+      <Show when={props.onBoard}>
+        {(open) => (
+          <button
+            type="button"
+            data-board-open
+            class={`flex h-11 shrink-0 items-center gap-1.5 rounded-md border-[3px] border-line px-3 text-sm font-bold whitespace-nowrap ${
+              (props.tabs?.offers ?? 0) > 0 ? 'bg-primary-200' : 'bg-surface'
+            }`}
+            onClick={() => open()()}
+          >
+            <Icon name="board" class="text-lg" />
+            {b.inquiriesEntry(props.tabs?.offers ?? 0)}
+          </button>
+        )}
+      </Show>
+      <Show when={(props.tabs?.pending ?? 0) > 0}>
+        <span class="flex items-center gap-1 text-xs font-bold whitespace-nowrap tabular-nums" data-pending>
+          <Icon name="clock" class="text-lg" />
+          {b.pending(props.tabs?.pending ?? 0)}
+          <Show when={props.waiting}>
+            <span class="flex items-center gap-0.5 text-ink-muted" data-waiting>
+              <Icon name="automation" />
+              {b.waiting}
+            </span>
+          </Show>
+        </span>
+      </Show>
+    </>
   );
 }
 

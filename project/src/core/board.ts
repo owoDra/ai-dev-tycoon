@@ -12,7 +12,7 @@ import type { System } from './system';
 
 /*
  * 案件ボード。チュートリアルを終えた会社には、営業日ごとに引き合い（生成した案件）が届く。
- * 引き合いには応募の締切があり、締切に見積のコンペの結果が出る（core/bidding.ts）。
+ * 引き合いには応募の締切（届いた営業日の夕方）があり、締切に見積のコンペの結果が出る（core/bidding.ts）。
  * 届く案件は、ゲームの seed と営業日から決まる（state の乱数は使わない）。
  */
 
@@ -27,6 +27,19 @@ export function inquiriesOn(gameSeed: string, day: number, tier: CompanyTierDef)
     );
     return generatedProjectId(String(hashSeed(key)), size);
   });
+}
+
+/**
+ * その時刻に届いた引き合いの応募の締切（ゲーム内時刻）。その営業日の balance.board.closeAt の時刻で、
+ * 残りが minOpenMinutes 未満なら次の営業日の同じ時刻にする
+ */
+export function closingTime(clock: number): number {
+  const { closeAt, minOpenMinutes } = balance.board;
+  const day = balance.time.minutesPerDay;
+  // 営業日は始業（balance.time.origin）から始まるので、締切の時刻を営業日の頭からの分に直す
+  const offset = (((closeAt - balance.time.origin) % day) + day) % day;
+  const today = businessDay(clock) * day + offset;
+  return today - clock >= minOpenMinutes ? today : today + day;
 }
 
 /** 始めていて、まだ納品していない案件（始めた順） */
@@ -57,7 +70,7 @@ export function postInquiries(state: GameState, emit: (e: GameEvent) => void): G
   const board = state.board;
   const day = businessDay(state.clock);
   if (!board || state.tutorial !== null || board.day === day) return state;
-  const closesAt = (day + balance.board.closeDays) * balance.time.minutesPerDay;
+  const closesAt = closingTime(state.clock);
   const projectIds = inquiriesOn(state.seed, day, tierOf(state)).filter(
     (id) => !state.projects[id] && !board.inquiries.some((i) => i.projectId === id),
   );

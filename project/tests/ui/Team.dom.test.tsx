@@ -1,15 +1,14 @@
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
-import { balance } from '../../src/content/balance';
-import { getHuman } from '../../src/content/index';
+import { getHuman, getProject } from '../../src/content/index';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
+import { openInquiries } from '../../src/core/board';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
-import { ProjectBoard } from '../../src/ui/screens/ProjectBoard';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
@@ -23,13 +22,14 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-function mount(state: GameState, projectId = P) {
+/** プレイ画面を開く。projectId が null ならホーム */
+function mount(state: GameState, projectId: string | null = P) {
   const store = createGameStore(state);
   const selection = createSelection();
   const root = document.createElement('div');
   document.body.append(root);
   const switched: string[] = [];
-  let boards = 0;
+  let homes = 0;
   dispose = render(
     () => (
       <PlayScreen
@@ -38,14 +38,17 @@ function mount(state: GameState, projectId = P) {
         selection={selection}
         vm={() => worldView(store.state(), projectId, worldLooks[defaultWorldLookId])}
         onSwitch={(id) => switched.push(id)}
-        onBoard={() => boards++}
+        onHome={() => homes++}
       />
     ),
     root,
   );
   const q = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel);
-  return { store, root, q, switched, boards: () => boards };
+  return { store, root, q, switched, homes: () => homes };
 }
+
+/** チュートリアルを飛ばして始め、最初の引き合いが届いた会社（進行中の案件はない） */
+const offeredCompany = () => step(createInitialState('c', { board: true, tutorial: false }), 1).state;
 
 /** テスト（test）が得意な、採用した社員 */
 const [tester] = findTalents((h) => h.strengths.includes('test'), 1);
@@ -122,28 +125,87 @@ describe('複数案件の同時進行', () => {
     expect(q('[data-project-tab]')).toBeNull();
   });
 
-  it('案件ボードに見積を出していない引き合いがあると、案件ボードへ戻るボタンが出る', () => {
-    const store = createGameStore(createInitialState('c', { board: true }));
-    store.dispatch({ type: 'StartProject', projectId: 'tutorialLp' });
+  it('案件を進めている間に見積を出していない引き合いがあると、案件ボードのシートを開くボタンとオフィスのタブが出る', () => {
+    const store = createGameStore(createInitialState('c', { board: true, tutorial: false }));
+    store.dispatch({ type: 'StartProject', projectId: P });
     const s = store.state();
-    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 960, bid: null };
+    const inquiry = { projectId: 'p~1~S', postedDay: 0, closesAt: 420, bid: null };
     const offered: GameState = { ...s, board: { day: 0, inquiries: [inquiry], results: [] } };
-    const { q, boards } = mount(offered, 'tutorialLp');
+    const { q, homes } = mount(offered, P);
     const button = q<HTMLButtonElement>('[data-board-open]');
     expect(button?.textContent).toContain(ja.board.offers(1));
     button?.click();
-    expect(boards()).toBe(1);
+    expect(q('[data-board-sheet]')).not.toBeNull();
+    q<HTMLButtonElement>('[data-home-tab]')?.click();
+    expect(homes()).toBe(1);
+  });
+});
+
+describe('3D ホーム（案件を開いていないプレイ画面）', () => {
+  it('案件が0件でも、ドックにオフィスの見出しと引き合いの入口が出る（案件の項目は出さない）', () => {
+    const s = offeredCompany();
+    expect(Object.keys(s.projects)).toEqual([]);
+    const { q } = mount(s, null);
+    expect(q('[data-home]')?.textContent).toContain(ja.board.home);
+    expect(q('[data-board-open]')?.textContent).toContain(ja.board.inquiriesEntry(openInquiries(s).length));
+    expect(q('[data-hud-item]')).toBeNull();
+    expect(q('[data-project-tab]')).toBeNull();
+  });
+
+  it('引き合いの入口で案件ボードのシートが開き、「閉じる」でシートだけが閉じてホームに残る', () => {
+    const { q, homes } = mount(offeredCompany(), null);
+    q<HTMLButtonElement>('[data-board-open]')?.click();
+    const sheet = q('[data-board-sheet]');
+    expect(sheet).not.toBeNull();
+    expect(sheet?.querySelectorAll('[data-inquiry]').length).toBeGreaterThan(0);
+    // ボードは「引き合い」と「コンペ結果」だけ（進行中の案件の一覧と「再開」はない）
+    expect(sheet?.querySelector('[data-resume]')).toBeNull();
+    expect(sheet?.querySelector('[data-board-project]')).toBeNull();
+    q<HTMLButtonElement>('[data-board-close]')?.click();
+    expect(q('[data-board-sheet]')).toBeNull();
+    expect(q('[data-home]')).not.toBeNull();
+    expect(homes()).toBe(0);
+  });
+
+  it('引き合いの締切は HUD の時計と同じ「N日目 HH:MM」で出る', () => {
+    const { q } = mount(offeredCompany(), null);
+    q<HTMLButtonElement>('[data-board-open]')?.click();
+    expect(q('[data-closes]')?.textContent).toBe(ja.board.closes(1, '17:00'));
+  });
+
+  it('見積をすべて出して結果を待つだけになると、結果待ちの数と早送りの印が出る', () => {
+    const store = createGameStore(offeredCompany());
+    for (const projectId of openInquiries(store.state())) {
+      store.dispatch({ type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
+    }
+    const { q } = mount(store.state(), null);
+    expect(q('[data-pending]')?.textContent).toContain(ja.board.pending(2));
+    expect(q('[data-waiting]')?.textContent).toContain(ja.board.waiting);
+  });
+
+  it('社員と Seat のシートの「実績」に、納品した案件が並ぶ（案件ボードからは外した一覧）', () => {
+    const single = createGameStore(createInitialState('d'));
+    single.dispatch({ type: 'StartProject', projectId: P });
+    const run = single.state().projects[P];
+    if (!run) throw new Error('案件が始まっていない');
+    const tasks = Object.fromEntries(
+      Object.entries(run.tasks).map(([id, t]) => [id, { ...t, status: 'done' as const }]),
+    );
+    const s = { ...offeredCompany(), projects: { [P]: { ...run, tasks, completedAt: 1 } } };
+    const { q } = mount(s, null);
+    q<HTMLButtonElement>('[data-team-open]')?.click();
+    const tab = q<HTMLButtonElement>('[data-team-tab="record"]');
+    expect(tab?.textContent).toContain(ja.team.recordTab(1));
+    tab?.click();
+    expect(q(`[data-delivered="${P}"]`)?.textContent).toContain(getProject(P).name);
   });
 });
 
 describe('案件ボードとタイトル', () => {
-  it('案件ボードで見積を出すと結果待ちになり、コンペに勝って受注した案件を開ける', () => {
+  it('案件ボードで見積を出すと結果待ちになり、コンペに勝って受注した案件がドックのタブに並ぶ', () => {
     const base = createInitialState('c', { board: true, tutorial: false });
-    const store = createGameStore(step(base, 1).state);
-    const opened: string[] = [];
-    const root = document.createElement('div');
-    document.body.append(root);
-    dispose = render(() => <ProjectBoard store={store} onOpen={(id) => opened.push(id)} onBack={() => {}} />, root);
+    const { store, root } = mount(step(base, 1).state, null);
+    root.querySelector<HTMLButtonElement>('[data-board-open]')?.click();
     const cards = [...root.querySelectorAll<HTMLElement>('[data-inquiry]')].map((e) => e.dataset.inquiry ?? '');
     expect(cards.length).toBe(2);
     const id = cards[0] ?? '';
@@ -159,23 +221,18 @@ describe('案件ボードとタイトル', () => {
     const after1 = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
     expect(after1?.querySelector('[data-submitted]')).not.toBeNull();
     expect(after1?.querySelector('[data-price="minus20"]')?.getAttribute('aria-pressed')).toBe('true');
-    // 勝ったことにして締切まで進めると受注し、進行中の案件に並んで開ける（売上は見積額）
+    // 勝ったことにして締切まで進めると受注し、ホームのドックのタブに並んで開ける（売上は見積額）
     dispose?.();
-    root.replaceChildren();
+    document.body.innerHTML = '';
     const s = store.state();
     const won = bid ? { ...bid, winChance: 1 } : null;
     const inquiries = s.board?.inquiries.map((i) => (i.projectId === id ? { ...i, bid: won } : i)) ?? [];
-    const after = step(
-      { ...s, board: s.board ? { ...s.board, inquiries } : null },
-      balance.board.closeDays * balance.time.minutesPerDay,
-    ).state;
+    const closesAt = s.board?.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
+    const after = step({ ...s, board: s.board ? { ...s.board, inquiries } : null }, closesAt - s.clock).state;
     expect(after.projects[id]?.revenue).toBe(bid?.amount);
-    dispose = render(
-      () => <ProjectBoard store={createGameStore(after)} onOpen={(x) => opened.push(x)} onBack={() => {}} />,
-      root,
-    );
-    root.querySelector<HTMLButtonElement>(`[data-board-project="${id}"] [data-resume]`)?.click();
-    expect(opened).toEqual([id]);
+    const home = mount(after, null);
+    home.q<HTMLButtonElement>(`[data-project-tab="${id}"]`)?.click();
+    expect(home.switched).toEqual([id]);
   });
 
   it('以前の形式のセーブが残っていれば、タイトルで読み込めないことを知らせる', () => {

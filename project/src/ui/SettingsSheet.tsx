@@ -1,4 +1,4 @@
-import { For, onCleanup, onMount } from 'solid-js';
+import { For, onCleanup, onMount, Show } from 'solid-js';
 import { type MotionPreference, motionPreferences, settings, updateSettings } from '../app/settings';
 import type { AudioVolumes } from '../audio/engine';
 import { audio } from '../audio/index';
@@ -24,8 +24,9 @@ function setVolume(key: (typeof VOLUME_KEYS)[number], value: number) {
  * 音量（全体・効果音・BGM）とミュート、遊び方（1日の終わりの区切り・閉じている間の進行）。
  * 設定はゲームの state ではないので Command を通さず、app/settings.ts が localStorage に保存する。
  * 開いている間もゲームは止めない。Esc か「閉じる」で閉じ、開いたボタンにフォーカスを戻す。
+ * 会社を遊んでいる間は「タイトルへ」を出す（タイトルへ戻る入口はここだけ。会社は自動セーブして「続きから」で再開できる）。
  */
-export function SettingsSheet(props: { onClose: () => void }) {
+export function SettingsSheet(props: { onClose: () => void; onTitle?: () => void }) {
   let el!: HTMLDivElement;
   const opener = document.activeElement as HTMLElement | null;
   const close = () => {
@@ -146,9 +147,26 @@ export function SettingsSheet(props: { onClose: () => void }) {
           </For>
           <p class="text-xs text-ink-muted">{t.playHint(DAY_REAL_MINUTES)}</p>
         </fieldset>
-        <button type="button" class={`${ghostButton} self-end`} onClick={close}>
-          {t.close}
-        </button>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <Show when={props.onTitle} fallback={<span />}>
+            {(toTitle) => (
+              <button
+                type="button"
+                data-settings-title
+                class={ghostButton}
+                onClick={() => {
+                  props.onClose();
+                  toTitle()();
+                }}
+              >
+                {t.toTitle}
+              </button>
+            )}
+          </Show>
+          <button type="button" class={ghostButton} onClick={close}>
+            {t.close}
+          </button>
+        </div>
       </div>
     </div>
   );

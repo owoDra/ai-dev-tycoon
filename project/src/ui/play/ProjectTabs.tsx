@@ -8,17 +8,36 @@ const t = ja.board;
 
 /**
  * 案件のタブ（複数の案件の同時進行）。進行中の案件ごとに1つのフロアがあり、タブで見るフロアを切り替える。
- * 新しい依頼があれば、案件ボードへ戻るボタンを添える。
+ * 先頭にホーム（会社のオフィス）のタブを置き（home なら選択中）、新しい依頼があれば案件ボードを開くボタンを添える。
  */
 export function ProjectTabs(props: {
   view: ProjectTabsView;
   compact: boolean;
   onSwitch: (projectId: string) => void;
   onBoard: () => void;
+  /** ホームのタブを押したとき（渡さなければ、ホームのタブは home のときだけ出す） */
+  onHome?: () => void;
+  /** いまホームを見ている */
+  home?: boolean;
 }) {
   return (
     <div class={`flex min-w-0 items-center gap-1.5 ${props.compact ? 'basis-full overflow-x-auto' : ''}`}>
       <div role="tablist" aria-label={t.tabs} class="flex min-w-0 items-center gap-1.5">
+        <Show when={props.home || props.onHome}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={props.home === true}
+            data-home-tab
+            class={`flex h-11 shrink-0 items-center gap-1.5 rounded-md border-[3px] border-line px-2 text-sm font-bold whitespace-nowrap ${
+              props.home ? 'bg-accent-200' : 'bg-sunken'
+            }`}
+            onClick={() => props.onHome?.()}
+          >
+            <Icon name="human" class="text-lg" />
+            {t.home}
+          </button>
+        </Show>
         <Keyed each={props.view.tabs} by={(tab) => tab.projectId}>
           {(tab) => (
             <button

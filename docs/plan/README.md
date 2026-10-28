@@ -146,6 +146,10 @@ view/     ── state → ViewModel のセレクタ（純粋・テスト可能�
 | 20 | [phase-20-generated-projects-bidding.md](phase-20-generated-projects-bidding.md) | 案件の自動生成・コンペ（見積額＋提案力）・キャンペーンの廃止 | 19 |
 | 21 | [phase-21-growth-teams.md](phase-21-growth-teams.md) | 会社の成長・複数チーム・人間 PM / AI PM への委任（序盤は全員の担当をプレイヤーが決める） | 20 |
 | 22 | [phase-22-long-play.md](phase-22-long-play.md) | 決算・目標と実績・後半の要素・長期のバランステスト | 21 |
+| 24 | [phase-24-home-and-board.md](phase-24-home-and-board.md) | 3D ホーム・案件ボードのシート化・見積の当日確定・架空の名前 | 23 |
+| 25 | [phase-25-responsive.md](phase-25-responsive.md) | レスポンシブな画面構成（領域・3つの形・スマホのドック） | 24 |
+| 26 | [phase-26-harness-claude-code.md](phase-26-harness-claude-code.md) | Harness を最新の Claude Code に寄せる（**D6** Builder の見た目・設定例・`.claude/` の書き出し） | 25 |
+| 27 | [phase-27-practice-explain.md](phase-27-practice-explain.md) | 実務モードの計算の根拠（内訳・式・前提） | 26 |
 
 ## 7. `/goal` の使い方
 

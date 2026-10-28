@@ -4,8 +4,9 @@ import type { HumanWorkerDef } from './types';
 /**
  * 固定の社員。チュートリアルを一緒に始める創業メンバーの2人で、ほかの社員は採用市場で
  * seed から生成する（core/talent.ts）。創業メンバーは何でもこなし（得意分野なし）、速さと正確さが市場の平均より高いぶん売値も高い。
- * 佐藤はボブの女性のディレクター、鈴木は眼鏡の男性のエンジニア（見た目は content/look/world.ts）。
- * Seat は全員 Standard で入社し、変えるのはプレイヤー（Command の SetSeat）
+ * 安斗露 そね子（id は sato）はボブの女性のディレクター、錆田 おぱ助（id は suzuki）は眼鏡の男性のエンジニア（見た目は content/look/world.ts）。
+ * Seat は全員 Standard で入社し、変えるのはプレイヤー（Command の SetSeat）。
+ * id（sato・suzuki）は以前の名前のままにしている。セーブデータと見た目の割り当てが id で引くので、名前を変えても形式を上げずに済む
  */
 export const staff: readonly HumanWorkerDef[] = [
   {

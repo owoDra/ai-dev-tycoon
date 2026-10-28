@@ -4,6 +4,8 @@ import type { SheetLayout } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
+import type { BoardProjectView } from '../../view/board';
+import { paceText } from '../../view/hud';
 import type {
   CandidateView,
   Level,
@@ -15,6 +17,7 @@ import type {
 } from '../../view/team';
 import type { TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
+import { Keyed } from '../Keyed';
 import { ghostButton, Meter, panel, primaryButton } from '../parts';
 import { TeamsPanel } from './TeamsPanel';
 
@@ -42,11 +45,14 @@ export function SeatPreviewLine(props: { preview: SeatPreview }) {
  * 使用量は時間とともに変わるので、行は Index で並べて要素を作り直さない（押したボタンのフォーカスを保つ）。
  * 採用が解放されたら、社員と採用候補のタブで切り替える。どちらのカードも売値・原価・速度・正確さ・得意分野を
  * 同じ並びで出し、平均との比較を色だけでなく矢印とラベルでも示す。
+ * 案件ボードのある会社では、納品した案件の一覧を「実績」のタブに出す。
  */
 export function TeamSheet(props: {
   view: TeamView;
   /** チームと会社の規模（案件ボードのある会社だけ） */
   teams?: TeamsView | null;
+  /** 納品した案件（案件ボードのある会社だけ。「実績」のタブ） */
+  delivered?: readonly BoardProjectView[] | null;
   layout: SheetLayout;
   bottom: number;
   viewHeight: number;
@@ -54,9 +60,10 @@ export function TeamSheet(props: {
   onClose: () => void;
 }) {
   let el!: HTMLElement;
-  const [tab, setTab] = createSignal<'members' | 'candidates' | 'teams'>('members');
+  const [tab, setTab] = createSignal<'members' | 'candidates' | 'teams' | 'record'>('members');
   const showCandidates = () => props.view.hiring && tab() === 'candidates';
   const showTeams = () => (props.teams ? tab() === 'teams' : false);
+  const showRecord = () => (props.delivered ? tab() === 'record' : false);
   onMount(() => {
     audio.play('panelOpen');
     onCleanup(() => audio.play('panelClose'));
@@ -90,7 +97,7 @@ export function TeamSheet(props: {
           {t.close}
         </button>
       </div>
-      <Show when={props.view.hiring || props.teams}>
+      <Show when={props.view.hiring || props.teams || props.delivered}>
         <div role="tablist" aria-label={t.tabs} class="flex flex-wrap gap-1.5">
           <TabButton
             selected={tab() === 'members'}
@@ -117,10 +124,22 @@ export function TeamSheet(props: {
               onSelect={() => setTab('teams')}
             />
           </Show>
+          <Show when={props.delivered}>
+            {(list) => (
+              <TabButton
+                selected={tab() === 'record'}
+                id="record"
+                icon="success"
+                label={t.recordTab(list().length)}
+                onSelect={() => setTab('record')}
+              />
+            )}
+          </Show>
         </div>
       </Show>
       <Show when={showTeams() && props.teams}>{(v) => <TeamsPanel view={v()} dispatch={props.dispatch} />}</Show>
-      <Show when={!showTeams()}>
+      <Show when={showRecord() && props.delivered}>{(list) => <DeliveredList items={list()} />}</Show>
+      <Show when={!showTeams() && !showRecord()}>
         <Show
           when={showCandidates()}
           fallback={
@@ -268,6 +287,34 @@ function SeatButton(props: { option: SeatOptionView; editable: boolean; dispatch
         {(p) => <SeatPreviewLine preview={p()} />}
       </Show>
     </button>
+  );
+}
+
+/** 納品した案件の一覧（納品した順）。案件ごとの人間1人あたりの月の利益ペースを並べる */
+function DeliveredList(props: { items: readonly BoardProjectView[] }) {
+  return (
+    <Show when={props.items.length > 0} fallback={<p class="text-sm text-ink-muted">{t.noRecord}</p>}>
+      <ul class="flex flex-col gap-2">
+        <Keyed each={props.items} by={(p) => p.projectId}>
+          {(p) => (
+            <li
+              class="flex items-center gap-3 rounded-lg border-[3px] border-line bg-sunken p-3"
+              data-delivered={p.projectId}
+            >
+              <Icon name="success" class="shrink-0 text-3xl" />
+              <div class="flex min-w-0 flex-col gap-1">
+                <h3 class="truncate font-heading text-base">{p.name}</h3>
+                <p class="flex flex-wrap gap-x-3 text-xs font-bold text-ink-muted tabular-nums">
+                  <span>{ja.screens.select.revenue(p.revenue)}</span>
+                  <span>{ja.screens.select.tasks(p.tasks)}</span>
+                  <Show when={p.profitPerPersonDay}>{(v) => <span>{paceText(v())}</span>}</Show>
+                </p>
+              </div>
+            </li>
+          )}
+        </Keyed>
+      </ul>
+    </Show>
   );
 }
 

@@ -123,7 +123,8 @@ export interface IncidentBugView {
 }
 
 export interface WorldViewModel {
-  readonly projectId: string;
+  /** 映している案件（フロア）。null は案件を開いていないホーム（会社のオフィス） */
+  readonly projectId: string | null;
   readonly started: boolean;
   readonly paused: boolean;
   readonly islands: readonly IslandView[];
@@ -229,7 +230,41 @@ export function agentRoleOf(taskId: string): AgentRole {
   return agentRoleByTask[taskId] ?? fallbackAgentRole;
 }
 
-export function worldView(state: GameState, projectId: string, look: WorldViewLook): WorldViewModel {
+/**
+ * 会社のオフィス（ホーム）。案件の島・コンベア・荷物はなく、会社の全員が休憩所で待っている。
+ * ライブラリ棚のバインダー（会社の資産）だけは、どのフロアとも同じに出す
+ */
+export function officeView(state: GameState): WorldViewModel {
+  const actors: ActorView[] = teamMembers(state).map((h) => ({
+    id: humanActorId(h.id),
+    kind: 'human',
+    model: humanModelOf(h.id),
+    label: h.name,
+    islandId: null,
+    activity: 'idle',
+    expression: 'normal',
+    bottleneck: 0,
+    isBottleneck: false,
+    gear: NO_GEAR,
+  }));
+  return {
+    projectId: null,
+    started: false,
+    paused: state.paused,
+    islands: [],
+    actors,
+    packets: [],
+    bottleneck: null,
+    lanes: [],
+    incidents: [],
+    tidiness: 0,
+    binders: libraryWorkflows(state).length,
+  };
+}
+
+/** 案件のフロアのワールド。projectId が null なら会社のオフィス（officeView） */
+export function worldView(state: GameState, projectId: string | null, look: WorldViewLook): WorldViewModel {
+  if (projectId === null) return officeView(state);
   const def = getProject(projectId);
   const run = state.projects[projectId];
   const now = state.clock + state.carryMinutes;

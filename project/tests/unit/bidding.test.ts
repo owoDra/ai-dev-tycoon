@@ -151,13 +151,19 @@ describe('勝率の表示と実際の判定', () => {
     if (!board) throw new Error('案件ボードがない');
     const inquiries = board.inquiries.map((i) => (i.projectId === id ? { ...i, bid: { ...bid, winChance: 1 } } : i));
     const events: GameEvent[] = [];
+    const closesAt = board.inquiries.find((i) => i.projectId === id)?.closesAt ?? 0;
     const next = closeInquiries(
-      { ...s, clock: DAY * balance.board.closeDays, board: { ...board, inquiries } },
+      { ...s, clock: closesAt, board: { ...board, inquiries } },
       () => 0.5,
       (e) => events.push(e),
     );
     expect(next.projects[id]).toMatchObject({ revenue: bid.amount, deadlineDays: bid.deadlineDays, completedAt: null });
-    expect(events).toEqual([{ type: 'BidWon', projectId: id, amount: bid.amount }]);
+    // 見積を出さなかったほかの引き合いは、同じ締切で見送ったことを知らせる
+    const others = openInquiries(s).filter((o) => o !== id);
+    expect(events).toEqual([
+      { type: 'BidWon', projectId: id, amount: bid.amount },
+      ...others.map((projectId) => ({ type: 'InquiryPassed', projectId })),
+    ]);
     expect(next.board?.results[0]).toMatchObject({ projectId: id, won: true, amount: bid.amount });
     expect(next.board?.inquiries).toEqual([]);
   });
@@ -169,7 +175,7 @@ describe('勝率の表示と実際の判定', () => {
     const s = company();
     expect(reduce(s, cmd).state).toBe(s);
     const id = openInquiries(s)[0] ?? '';
-    const closed = { ...s, clock: DAY * balance.board.closeDays };
+    const closed = { ...s, clock: s.board?.inquiries[0]?.closesAt ?? 0 };
     expect(reduce(closed, { ...cmd, projectId: id }).state).toBe(closed);
   });
 });

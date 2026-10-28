@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { founders } from '../../src/content/staff';
-import { activeProjects, canStartProject, inquiriesOn, openInquiries } from '../../src/core/board';
+import {
+  activeProjects,
+  canStartProject,
+  closingTime,
+  inquiriesOn,
+  openInquiries,
+  pendingBids,
+} from '../../src/core/board';
+import { calendarDay, minuteOfDay } from '../../src/core/clock';
 import { type Command, reduce } from '../../src/core/commands';
 import { tierOf } from '../../src/core/company';
 import type { GameEvent } from '../../src/core/events';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
-import { step } from '../../src/core/step';
+import { playSpeed, skipUntil, step, waitingOnBids } from '../../src/core/step';
 import { boardView, projectTabs } from '../../src/view/board';
+import { hhmm } from '../../src/view/hud';
 
 /*
  * 案件ボードの進行（以前のキャンペーンの進行のテストを、引き合いとコンペで表し直したもの）。
@@ -38,6 +47,11 @@ function win(state: GameState, projectId: string): GameState {
   );
   const ready = { ...s, board: { ...board, inquiries }, paused: false };
   return step(ready, inquiry.closesAt - s.clock).state;
+}
+
+/** 次の営業日の始業まで進める（その日の引き合いが届き、まだ締め切られていない） */
+function nextMorning(state: GameState): GameState {
+  return step({ ...state, paused: false }, DAY - (state.clock % DAY)).state;
 }
 
 /** チュートリアルを納品して、最初の引き合いが届いた会社 */
@@ -88,8 +102,15 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(activeProjects(s)).toEqual([a, b].filter((id) => s.projects[id]));
     // b の見積も同じ締切で結果が出ている（勝敗は乱数）。どちらにしても a は進行中
     expect(s.board?.inquiries).toEqual(expect.not.arrayContaining([expect.objectContaining({ projectId: a })]));
-    const runA = s.projects[a];
-    expect(runA?.revenue).toBe(boardView(s).active.find((p) => p.projectId === a)?.revenue);
+    // 進行中の案件は案件ボードではなくタブに並び、売上は見積額
+    const quoteA = reduce(afterTutorial().state, {
+      type: 'SubmitBid',
+      projectId: a,
+      price: 'base',
+      deadline: 'standard',
+    }).state.board?.inquiries.find((i) => i.projectId === a)?.bid;
+    expect(s.projects[a]?.revenue).toBe(quoteA?.amount);
+    expect(projectTabs(s, null).tabs.map((t) => t.projectId)).toContain(a);
     if (s.projects[b]) {
       expect(s.projects[b]?.revenue).toBe(bidB?.amount);
       expect(s.projects[b]?.deadlineDays).toBe(bidB?.deadlineDays);
@@ -100,7 +121,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     }
   });
 
-  it('終わりはなく、営業日ごとに新しい引き合いが届き続ける。見積を出さなかった引き合いは締切で消える', () => {
+  it('終わりはなく、営業日ごとに新しい引き合いが届き続ける。見積を出さなかった引き合いは締切で見送り、通知する', () => {
     let s = { ...afterTutorial().state, paused: false };
     const events: GameEvent[] = [];
     for (let day = 1; day <= 5; day++) {
@@ -109,9 +130,11 @@ describe('案件ボードの進行（core/board.ts）', () => {
       events.push(...r.events);
     }
     expect(events.filter((e) => e.type === 'InquiriesPosted')).toHaveLength(5);
-    // 締切は届いた営業日から balance.board.closeDays 営業日目の終わり
-    expect(s.board?.inquiries.map((i) => i.postedDay)).toEqual([4, 4, 5, 5]);
+    // 締切は届いた営業日の夕方なので、残っているのは今日（5日目の朝）届いた分だけ
+    expect(s.board?.inquiries.map((i) => i.postedDay)).toEqual([5, 5]);
     expect(events.some((e) => e.type === 'BidWon' || e.type === 'BidLost')).toBe(false);
+    // 1〜4日目に届いた分（と最初の日の分）は、締切で「見送った」と知らせる
+    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(2 * 5);
   });
 
   it('作った Harness（会社の資産）は次の案件へ持ち越し、導入コストを二度払わない', () => {
@@ -121,8 +144,8 @@ describe('案件ボードの進行（core/board.ts）', () => {
     s = reduce(s, { type: 'EquipPart', workerId: 'agent', partId: 'skillFrontend' }).state;
     expect(s.ownedParts).toEqual(['skillFrontend']);
     s = reduce(deliver(s, a), pause).state;
-    const [next = ''] = openInquiries(step({ ...s, paused: false }, DAY).state);
-    s = win(step({ ...s, paused: false }, DAY).state, next);
+    const [next = ''] = openInquiries(nextMorning(s));
+    s = win(nextMorning(s), next);
     expect(s.projects[next]).toBeDefined();
     expect(s.harnesses.agent?.parts).toEqual(['skillFrontend']);
     s = reduce(s, { type: 'RemovePart', workerId: 'agent', partId: 'skillFrontend' }).state;
@@ -144,9 +167,11 @@ describe('案件ボードの進行（core/board.ts）', () => {
     let s = afterTutorial().state;
     const [a = '', b = ''] = openInquiries(s);
     s = win(s, a);
-    s = reduce(step({ ...s, paused: false }, DAY).state, {
+    const morning = nextMorning(s);
+    expect(openInquiries(morning).length).toBeGreaterThan(0);
+    s = reduce(morning, {
       type: 'SubmitBid',
-      projectId: openInquiries(step({ ...s, paused: false }, DAY).state)[0] ?? b,
+      projectId: openInquiries(morning)[0] ?? b,
       price: 'plus10',
       deadline: 'short',
     }).state;
@@ -154,5 +179,72 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(loaded).toEqual(s);
     expect(activeProjects(loaded)).toContain(a);
     expect(step(loaded, DAY * 2)).toEqual(step(s, DAY * 2));
+  });
+});
+
+describe('見積の当日確定（core/board.ts・core/step.ts）', () => {
+  it('締切は届いた営業日の夕方（balance.board.closeAt）で、HUD の時計と同じ「N日目 HH:MM」で読める', () => {
+    const s = afterTutorial().state;
+    const inquiry = s.board?.inquiries[0];
+    if (!inquiry) throw new Error('引き合いがない');
+    expect(minuteOfDay(inquiry.closesAt)).toBe(balance.board.closeAt);
+    expect(calendarDay(inquiry.closesAt)).toBe(calendarDay(s.clock));
+    expect(boardView(s).inquiries[0]?.closes).toEqual({ day: 1, time: hhmm(balance.board.closeAt) });
+    expect(hhmm(balance.board.closeAt)).toBe('17:00');
+  });
+
+  it('締切までの残りが短い時刻に届いたら（夕方にチュートリアルを終えたなど）、次の営業日の夕方を締切にする', () => {
+    const closeOffset = balance.board.closeAt - balance.time.origin;
+    expect(closingTime(0)).toBe(closeOffset);
+    expect(closingTime(closeOffset - balance.board.minOpenMinutes)).toBe(closeOffset);
+    expect(closingTime(closeOffset - balance.board.minOpenMinutes + 1)).toBe(closeOffset + DAY);
+    expect(closingTime(DAY - 1)).toBe(closeOffset + DAY);
+  });
+
+  it('進行中の案件がなく、見積を出して結果を待つだけのときは、締切まで早送りする', () => {
+    let s = afterTutorial().state;
+    // 見積を考えている途中（出していない引き合いが残っている）は早送りしない
+    expect(waitingOnBids(s)).toBe(false);
+    expect(playSpeed(s)).toBe(s.speed);
+    for (const projectId of openInquiries(s)) {
+      s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
+    }
+    expect(pendingBids(s)).toHaveLength(2);
+    expect(waitingOnBids(s)).toBe(true);
+    expect(playSpeed(s)).toBe(balance.time.idleSkip);
+    // 早送りは最初の締切（結果が出る時刻）まで
+    const closesAt = s.board?.inquiries[0]?.closesAt ?? 0;
+    expect(skipUntil(s)).toBe(closesAt);
+    // 結果が出たら早送りをやめる（受注すれば担当を決めるまで、負ければ次の引き合いまで）
+    const after = step({ ...s, paused: false }, closesAt - s.clock).state;
+    expect(pendingBids(after)).toEqual([]);
+    expect(waitingOnBids(after)).toBe(false);
+  });
+
+  it('進行中の案件があれば、結果待ちの見積があっても早送りしない（勤務時間の間）', () => {
+    const first = afterTutorial().state;
+    const [a = ''] = openInquiries(first);
+    const won = win(first, a);
+    // 翌朝の引き合いにすべて見積を出す
+    let s = nextMorning(won);
+    expect(openInquiries(s).length).toBeGreaterThan(0);
+    for (const projectId of openInquiries(s)) {
+      s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
+    }
+    expect(pendingBids(s).length).toBeGreaterThan(0);
+    expect(activeProjects(s)).toContain(a);
+    expect(waitingOnBids(s)).toBe(false);
+  });
+
+  it('見積を出さずに締切が過ぎた引き合いは、InquiryPassed で知らせて消える', () => {
+    const s = { ...afterTutorial().state, paused: false };
+    const ids = openInquiries(s);
+    const closesAt = s.board?.inquiries[0]?.closesAt ?? 0;
+    const { state, events } = step(s, closesAt - s.clock);
+    expect(events.filter((e) => e.type === 'InquiryPassed')).toEqual(
+      ids.map((projectId) => ({ type: 'InquiryPassed', projectId })),
+    );
+    expect(state.board?.inquiries).toEqual([]);
+    expect(state.board?.results).toEqual([]);
   });
 });

@@ -102,3 +102,14 @@ describe('折れ線の上の位置', () => {
     expect(pointAlong(path, 2).at).toEqual({ x: 2, z: 2 });
   });
 });
+
+describe('会社のオフィス（ホーム）', () => {
+  it('島が0個でも、休憩所と出口を含む範囲を返す（カメラが範囲に合わせられる）', () => {
+    const office = layoutProject([], params);
+    expect(office.islands).toEqual([]);
+    expect(office.conveyors).toEqual([]);
+    expect(office.bounds.maxX).toBeGreaterThan(office.bounds.minX);
+    expect(office.bounds.maxZ).toBeGreaterThan(office.bounds.minZ);
+    expect(office.lounge.x).toBeGreaterThanOrEqual(office.bounds.minX);
+  });
+});

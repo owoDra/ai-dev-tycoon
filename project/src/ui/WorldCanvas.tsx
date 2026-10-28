@@ -14,7 +14,8 @@ import type { Selection } from './selection';
  */
 export function WorldCanvas(props: {
   store: GameStore;
-  projectId: string;
+  /** 映す案件。null なら会社のオフィス（ホーム） */
+  projectId: string | null;
   look: Accessor<WorldLook>;
   selection: Selection;
   onWorld?: (world: World, vm: Accessor<WorldViewModel>) => void;

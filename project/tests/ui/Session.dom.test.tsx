@@ -83,4 +83,16 @@ describe('遊び方の設定', () => {
     q<HTMLInputElement>('[data-setting="awayProgress"]')?.click();
     expect(settings().awayProgress).toBe(false);
   });
+
+  it('タイトルへ戻る入口は設定シート（会社を遊んでいる間だけ）。押すとシートを閉じてタイトルへ', () => {
+    const calls: string[] = [];
+    const q = mount(() => <SettingsSheet onClose={() => calls.push('close')} onTitle={() => calls.push('title')} />);
+    q<HTMLButtonElement>('[data-settings-title]')?.click();
+    expect(calls).toEqual(['close', 'title']);
+  });
+
+  it('タイトル画面などで開いた設定シートには「タイトルへ」を出さない', () => {
+    const q = mount(() => <SettingsSheet onClose={() => {}} />);
+    expect(q('[data-settings-title]')).toBeNull();
+  });
 });

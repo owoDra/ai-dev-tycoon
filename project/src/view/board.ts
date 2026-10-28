@@ -13,9 +13,11 @@ import {
   proposalOf,
   quoteBid,
 } from '../core/bidding';
-import { activeProjects, openInquiries } from '../core/board';
+import { activeProjects, openInquiries, pendingBids } from '../core/board';
+import { calendarDay, minuteOfDay } from '../core/clock';
 import { scoreProject } from '../core/scoring';
 import type { GameState } from '../core/state';
+import { hhmm } from './hud';
 import { projectTeamBadge } from './teams';
 
 /** 案件のタブ（プレイ中の切り替え。3D では案件ごとのフロア） */
@@ -35,6 +37,8 @@ export interface ProjectTabsView {
   readonly tabs: readonly ProjectTabView[];
   /** まだ見積を出していない引き合いの数 */
   readonly offers: number;
+  /** 見積を出して結果を待っている引き合いの数 */
+  readonly pending: number;
 }
 
 const doneRatio = (state: GameState, projectId: string) => {
@@ -42,10 +46,10 @@ const doneRatio = (state: GameState, projectId: string) => {
   return tasks.length > 0 ? tasks.filter((t) => t.status === 'done').length / tasks.length : 0;
 };
 
-/** プレイ中のタブ。進行中の案件（と、いま開いている案件）を始めた順に並べる */
-export function projectTabs(state: GameState, current: string): ProjectTabsView {
+/** プレイ中のタブ。進行中の案件（と、いま開いている案件）を始めた順に並べる。ホーム（current が null）では進行中の案件だけ */
+export function projectTabs(state: GameState, current: string | null): ProjectTabsView {
   const ids = activeProjects(state);
-  if (!ids.includes(current) && state.projects[current]) ids.push(current);
+  if (current !== null && !ids.includes(current) && state.projects[current]) ids.push(current);
   return {
     tabs: ids.map((projectId, i) => ({
       projectId,
@@ -56,10 +60,11 @@ export function projectTabs(state: GameState, current: string): ProjectTabsView 
       team: projectTeamBadge(state, projectId),
     })),
     offers: openInquiries(state).length,
+    pending: pendingBids(state).length,
   };
 }
 
-/** 案件ボードの進行中・納品済みの1件 */
+/** 納品した案件の1件（社員と Seat のシートの「実績」） */
 export interface BoardProjectView {
   readonly projectId: string;
   readonly name: string;
@@ -91,8 +96,8 @@ export interface InquiryView {
   readonly base: number;
   /** 標準の納期（営業日） */
   readonly deadlineDays: number;
-  /** 応募の締切までの残り（ゲーム内の分） */
-  readonly closesIn: number;
+  /** 応募の締切（HUD の時計と同じ「N日目 HH:MM」の日付と時刻） */
+  readonly closes: { readonly day: number; readonly time: string };
   /** 出した見積。まだなら null */
   readonly bid: BidRun | null;
 }
@@ -110,27 +115,31 @@ export interface BoardView {
   /** 会社の評判（0〜100） */
   readonly reputation: number;
   readonly inquiries: readonly InquiryView[];
-  readonly active: readonly BoardProjectView[];
-  readonly done: readonly BoardProjectView[];
   readonly results: readonly BidResultView[];
 }
 
-/** 案件ボード：引き合い（届いた順）・進行中の案件（始めた順）・納品した案件（納品した順）・最近のコンペの結果 */
+/** 納品した案件（納品した順） */
+export function deliveredProjects(state: GameState): BoardProjectView[] {
+  return Object.values(state.projects)
+    .filter((p) => p.completedAt !== null)
+    .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0))
+    .map((run) => {
+      const def = getProject(run.projectId);
+      const score = scoreProject(state, run.projectId);
+      return {
+        projectId: run.projectId,
+        name: def.name,
+        revenue: run.revenue,
+        deadlineDays: run.deadlineDays,
+        tasks: def.tasks.length,
+        progress: doneRatio(state, run.projectId),
+        profitPerPersonDay: score?.completed ? score.profitPerPersonDay : null,
+      };
+    });
+}
+
+/** 案件ボード：引き合い（届いた順）と最近のコンペの結果。進行中の案件はドックのタブ、納品した案件は社員と Seat のシートで見る */
 export function boardView(state: GameState): BoardView {
-  const item = (projectId: string): BoardProjectView => {
-    const def = getProject(projectId);
-    const run = state.projects[projectId];
-    const score = scoreProject(state, projectId);
-    return {
-      projectId,
-      name: def.name,
-      revenue: run?.revenue ?? def.revenue,
-      deadlineDays: run?.deadlineDays ?? def.deadlineDays,
-      tasks: def.tasks.length,
-      progress: doneRatio(state, projectId),
-      profitPerPersonDay: score?.completed ? score.profitPerPersonDay : null,
-    };
-  };
   const inquiries = (state.board?.inquiries ?? []).flatMap((i): InquiryView[] => {
     const def = getProject(i.projectId);
     const brief = def.brief;
@@ -150,20 +159,14 @@ export function boardView(state: GameState): BoardView {
         laborEstimate: estimatePersonDays(def) * balance.talent.rate.mean * balance.staff.costRatio,
         base: baseAmount(def),
         deadlineDays: def.deadlineDays,
-        closesIn: Math.max(0, i.closesAt - state.clock),
+        closes: { day: calendarDay(i.closesAt) + 1, time: hhmm(minuteOfDay(i.closesAt)) },
         bid: i.bid,
       },
     ];
   });
-  const done = Object.values(state.projects)
-    .filter((p) => p.completedAt !== null)
-    .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0))
-    .map((p) => item(p.projectId));
   return {
     reputation: state.reputation,
     inquiries,
-    active: activeProjects(state).map(item),
-    done,
     results: (state.board?.results ?? []).map((r) => ({
       projectId: r.projectId,
       name: getProject(r.projectId).name,

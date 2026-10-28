@@ -13,7 +13,6 @@ import { AudioHost } from '../ui/audio/AudioHost';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards } from '../ui/company/DeliveryCard';
 import { FxHost } from '../ui/fx/FxHost';
-import { PlayControls } from '../ui/play/PlayControls';
 import { PlayScreen } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
 import { TermCards } from '../ui/play/TermCards';
@@ -21,7 +20,6 @@ import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { BankruptScreen } from '../ui/screens/BankruptScreen';
 import { FiscalScreen } from '../ui/screens/FiscalScreen';
-import { ProjectBoard } from '../ui/screens/ProjectBoard';
 import { ResultScreen } from '../ui/screens/ResultScreen';
 import { TitleScreen } from '../ui/screens/TitleScreen';
 import { createSelection } from '../ui/selection';
@@ -34,7 +32,7 @@ import { PARTICLE_TOTAL } from '../world/vfx/particles';
 import { startLoop } from './loop';
 import { markTutorialDone, progress } from './progress';
 import { clearCompany, hasOutdatedSave, loadCompany, loadSavedAt, saveCompany } from './save';
-import { createScreens } from './screens';
+import { afterDelivery, createScreens } from './screens';
 import { settings } from './settings';
 import { createGameStore, type GameStore } from './store';
 
@@ -56,10 +54,10 @@ const IDLE_SEED = 'title';
 const AUTOSAVE_MS = 5000;
 
 /**
- * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → 案件ボード → プレイ → 結果、タイトル → 実務モード）を重ねる。
- * 会社1つごとに新しい GameStore を作り、ゲームループを回す。会社はチュートリアル案件から始まり、終えると案件ボードに引き合いが届く。
+ * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → プレイ（ホーム）→ 結果、タイトル → 実務モード）を重ねる。
+ * 会社1つごとに新しい GameStore を作り、ゲームループを回す。会社はチュートリアル案件から始まり、終えると案件ボード（ホームの上のシート）に引き合いが届く。
  * 進み具合（解放・社員・Harness・案件・評判）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
- * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したら結果画面へ進む。
+ * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したらホーム（会社のオフィス）へ戻る。
  * 隙間時間に少しずつ遊べるよう、営業日の終わりで一時停止してその日の成果を出し（設定で切り替え）、
  * 「続きから」では閉じていた間の進行（core/away.ts）を適用して、一時停止したままあらすじを出す。
  */
@@ -85,11 +83,11 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   const openSettings = () => setSettingsOpen(true);
   let director: FxDirector | undefined;
 
-  /** ワールドに映す案件（フロア）。案件ボードでは進行中の案件のどれか */
-  const worldProject = () => {
+  /** ワールドに映す案件（フロア）。ホームでは null（会社のオフィス）、タイトルと実務モードではチュートリアルの案件 */
+  const worldProject = (): string | null => {
     const s = screens.screen();
-    if (s.id === 'play' || s.id === 'result') return s.projectId;
-    return activeProjects(game().state())[0] ?? tutorialScript.projectId;
+    if (s.id === 'play' || s.id === 'result') return s.projectId ?? null;
+    return tutorialScript.projectId;
   };
 
   const useState = (state: GameState) => {
@@ -104,11 +102,8 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     setGame(createGameStore(state));
   };
 
-  /** 営業日の終わりで区切るか（設定・会社の進行中の案件か結果待ちの見積・案件ボードかプレイ画面） */
-  const breaksAtDayEnd = () => {
-    const id = screens.screen().id;
-    return settings().dayBreak && (id === 'play' || id === 'select') && runsUnattended(game().state());
-  };
+  /** 営業日の終わりで区切るか（設定・会社の進行中の案件か結果待ちの見積・プレイ画面（ホームを含む）） */
+  const breaksAtDayEnd = () => settings().dayBreak && screens.screen().id === 'play' && runsUnattended(game().state());
 
   /** 区切りやあらすじのカード・決算を閉じて再開する。閉じている間に締めた決算があれば、あらすじの後に出す */
   const resume = () => {
@@ -132,7 +127,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
     setOutdated(false);
   };
 
-  /** 会社をはじめから始める。最初の案件（チュートリアル）をすぐに始めてプレイへ進む。終えると案件ボードへ */
+  /** 会社をはじめから始める。最初の案件（チュートリアル）をすぐに始めてプレイへ進む。終えるとホームへ */
   const newCampaign = () => {
     clearCompany();
     useState(createInitialState(tutorialScript.seed, { board: true }));
@@ -143,7 +138,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
 
   /**
    * チュートリアルなしで会社を始める。最初の社員は seed から生成した平均的な2人で、seed は毎回変える。
-   * 機能をすべて解放した状態で、引き合いの届いた案件ボードへ進む
+   * 機能をすべて解放した状態で、引き合いの届いたホームへ進む
    */
   const quickCampaign = () => {
     clearCompany();
@@ -153,7 +148,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
   };
 
   /**
-   * 保存した会社を読み込んで案件ボードへ進む。閉じていた間の進行を適用し、一時停止したままあらすじを出す
+   * 保存した会社を読み込んでホームへ進む（進行中の案件はドックのタブから開く）。閉じていた間の進行を適用し、一時停止したままあらすじを出す
    * （チュートリアル中はあらすじを出さずにそのまま続ける）
    */
   const continueCampaign = () => {
@@ -226,6 +221,12 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
             setRecap(null);
           }
           if (events.some((e) => e.type === 'SeatChanged' || e.type === 'BidWon' || e.type === 'BidSubmitted')) save();
+          // ホームで受注したら、その案件のフロアへ移る（担当を決めるまで時間は進まないので、すぐ見せる）
+          const won = events.flatMap((e) => (e.type === 'BidWon' ? [e.projectId] : [])).at(0);
+          const at = screens.screen();
+          if (won !== undefined && at.id === 'play' && at.projectId === undefined) {
+            screens.go({ type: 'Switch', projectId: won });
+          }
           // 期の終わり：一時停止して決算を出す（その日の区切りのカードの代わり）
           const closed = events.flatMap((e) => (e.type === 'FiscalClosed' ? [e.no] : [])).at(-1);
           if (closed !== undefined && store.state().board) {
@@ -252,22 +253,13 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
             setDeliveries((prev) => [...prev, ...cards].slice(-uiLayout.flow.deliveryCards));
             for (const c of cards) setTimeout(() => closeDelivery(c.projectId), uiLayout.flow.deliveryCardMs);
           }
-          const screen = screens.screen();
-          if (screen.id !== 'play') return;
-          // 進行中の案件が残っていれば、そのフロアへ移って続ける。会社で最後の案件を納品したら案件ボードへ
+          // 進行中の案件が残っていれば、そのフロアへ移って続ける。会社で最後の案件を納品したらホームへ
           // （単発のプレイは、これまでどおり結果画面へ）
-          const rest = activeProjects(store.state());
-          if (rest.length === 0) {
+          const screen = screens.screen();
+          const next = afterDelivery(screen, done, activeProjects(store.state()), store.state().board !== null);
+          if (next !== screen) {
             selection.dispatch({ type: 'SelectEntity', entityId: null });
-            if (store.state().board) {
-              screens.go({ type: 'Board' });
-              return;
-            }
-            if (!done.includes(screen.projectId)) screens.go({ type: 'Switch', projectId: done.at(-1) ?? '' });
-            screens.go({ type: 'Complete' });
-          } else if (done.includes(screen.projectId)) {
-            selection.dispatch({ type: 'SelectEntity', entityId: null });
-            screens.go({ type: 'Switch', projectId: rest[0] ?? screen.projectId });
+            screens.set(next);
           }
         }),
       );
@@ -301,17 +293,6 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         <Match when={screens.screen().id === 'practice'}>
           <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
         </Match>
-        <Match when={screens.screen().id === 'select'}>
-          <ProjectBoard
-            store={game()}
-            onOpen={(projectId) => {
-              selection.dispatch({ type: 'SelectEntity', entityId: null });
-              screens.go({ type: 'Choose', projectId });
-            }}
-            onBack={toTitle}
-            controls={<PlayControls store={game()} compact />}
-          />
-        </Match>
         <Match when={screens.screen().id === 'play'}>
           <PlayScreen
             store={game()}
@@ -324,17 +305,17 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
               selection.dispatch({ type: 'SelectEntity', entityId: null });
               screens.go({ type: 'Switch', projectId });
             }}
-            onBoard={() => {
+            onHome={() => {
               selection.dispatch({ type: 'SelectEntity', entityId: null });
-              screens.go({ type: 'Board' });
+              screens.go({ type: 'Home' });
             }}
           />
         </Match>
         <Match when={screens.screen().id === 'result'}>
           <ResultScreen
             store={game()}
-            projectId={worldProject()}
-            onNext={() => screens.go({ type: 'Board' })}
+            projectId={worldProject() ?? ''}
+            onNext={() => screens.go({ type: 'Home' })}
             onTitle={toTitle}
           />
         </Match>
@@ -356,7 +337,7 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
       />
-      <Show when={screens.screen().id === 'play' || screens.screen().id === 'select'}>
+      <Show when={screens.screen().id === 'play'}>
         {/* 左上の列：会社の帯と、その下に積む納品のカード */}
         <div class="pointer-events-none absolute top-2 left-2 z-30 flex w-[min(20rem,calc(100%-1rem))] flex-col gap-2">
           <CompanyStrip store={game()} />
@@ -392,7 +373,10 @@ export function App(props: { tweak: boolean; log?: boolean; perf?: boolean }) {
       </Show>
       <TermCards store={game()} durationMs={uiLayout.flow.termCardMs} />
       <Show when={settingsOpen()}>
-        <SettingsSheet onClose={() => setSettingsOpen(false)} />
+        <SettingsSheet
+          onClose={() => setSettingsOpen(false)}
+          onTitle={screens.screen().id === 'play' || screens.screen().id === 'result' ? toTitle : undefined}
+        />
       </Show>
       <Show when={(import.meta.env.DEV || props.perf) && world()}>
         {(w) => <DevStats world={w().world} perf={props.perf === true} />}

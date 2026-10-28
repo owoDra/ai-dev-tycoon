@@ -9,7 +9,7 @@ import type { GameState } from '../core/state';
 import { ja } from '../i18n/ja';
 import { type EntityId, humanActorId, islandId } from './world';
 
-/** ボトルネックの名前（工程なら「QA」「API 実装のレビュー」、人なら「佐藤（ディレクター）の手」） */
+/** ボトルネックの名前（工程なら「QA」「API 実装のレビュー」、人なら「安斗露 そね子（ディレクター）の手」） */
 export function bottleneckName(ref: BottleneckRef): string {
   if (ref.kind === 'human') return ja.bottleneck.human(findWorker(ref.humanId)?.name ?? ref.humanId);
   const name = getTask(ref.projectId, ref.taskId).name;

@@ -77,6 +77,8 @@ export type GameEvent =
   /** コンペに勝って受注した。案件が始まる */
   | { readonly type: 'BidWon'; readonly projectId: string; readonly amount: number }
   | { readonly type: 'BidLost'; readonly projectId: string }
+  /** 見積を出さないまま、引き合いの締切が過ぎた（見送った） */
+  | { readonly type: 'InquiryPassed'; readonly projectId: string }
   /** 納品で評判が変わった（delta は変化量、reputation は変化後の値） */
   | {
       readonly type: 'ReputationChanged';

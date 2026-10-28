@@ -185,7 +185,7 @@ export function submitBid(state: GameState, projectId: string, price: PriceStep,
 
 /**
  * 締切を迎えた引き合いの結果を出す。見積を出していれば、出したときの勝率で勝敗を決め（乱数は random から1つ引く）、
- * 受注したら見積額と提案した納期で案件を始める。見積を出していない引き合いは消える
+ * 受注したら見積額と提案した納期で案件を始める。見積を出していない引き合いは見送ったことにして消す（InquiryPassed で知らせる）
  */
 export function closeInquiries(state: GameState, random: () => number, emit: (e: GameEvent) => void): GameState {
   const board = state.board;
@@ -196,7 +196,10 @@ export function closeInquiries(state: GameState, random: () => number, emit: (e:
   const results: BidResult[] = [];
   for (const inquiry of due) {
     const bid = inquiry.bid;
-    if (!bid) continue;
+    if (!bid) {
+      emit({ type: 'InquiryPassed', projectId: inquiry.projectId });
+      continue;
+    }
     const won = random() < bid.winChance;
     const result = { projectId: inquiry.projectId, won, amount: bid.amount, winChance: bid.winChance, at: state.clock };
     results.unshift(result);

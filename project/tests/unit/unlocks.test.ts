@@ -4,7 +4,7 @@ import { glossary } from '../../src/content/glossary';
 import { getModel, getTask } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { FeatureId } from '../../src/content/types';
-import { allFeatures, menuSpotOf, tutorialFeatures, unlockDefs } from '../../src/content/unlocks';
+import { allFeatures, basicFeatures, menuSpotOf, unlockDefs } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
@@ -188,17 +188,19 @@ describe('段階的な解放（Phase 29。企画書50章「必要になる前に
     // 経験を十分に積んだ（納品・レビュー・AI のミスの数がそろった）会社
     const ledger = { ...s.ledger, delivered: 5, defectsEscaped: 5, modeCompleted: { aiThenHumanReview: 10 } };
     let state: GameState = { ...s, ledger };
-    // 同じ営業日のうちは、チュートリアルの納品で渡した分のほかに増えない
-    expect(applyUnlocks(state, () => {}).unlocked).toEqual(s.unlocked);
     const perDay: FeatureId[][] = [];
-    for (let day = 1; day <= 8; day++) {
+    for (let day = 0; day <= 8; day++) {
       const events: GameEvent[] = [];
       state = applyUnlocks({ ...state, clock: s.clock + day * DAY }, (e) => events.push(e));
       perDay.push(events.flatMap((e) => (e.type === 'FeatureUnlocked' ? [e.feature] : [])));
     }
-    // 毎日1つの解放（連鎖は同じ日）。Harness Builder と「お願い」と「Hook」は同じ日に届く
+    // 毎日1つの解放（連鎖は同じ日）。基本の機能は順番待ちにせず、条件を満たした日にほかと一緒に届く。
+    // Harness Builder と「お願い」と「Hook」は同じ日に届く
+    expect(perDay[0]).toEqual(expect.arrayContaining(['mode:aiThenHumanReview', 'mode:aiThenEval']));
     for (const day of perDay.filter((d) => d.length > 0)) {
-      const roots = day.filter((f) => unlockDefs.find((u) => u.feature === f)?.when.type !== 'unlocked');
+      const roots = day.filter(
+        (f) => !basicFeatures.includes(f) && unlockDefs.find((u) => u.feature === f)?.when.type !== 'unlocked',
+      );
       expect(roots, day.join(',')).toHaveLength(1);
     }
     expect(perDay.find((d) => d.includes('harness'))).toContain('harness:hook');
@@ -243,7 +245,10 @@ describe('解放のカードの「開く」の行き先（content/unlocks.ts の
   });
 });
 
-describe('チュートリアルを飛ばした会社の解放', () => {
+/** チュートリアルの案件の、最初に担当を決められる Task */
+const getTutorialFirstTask = () => tutorialScript.steps[0]?.allow?.[0]?.taskId ?? '';
+
+describe('チュートリアルを遊んでも飛ばしても、進め方は変わらない', () => {
   /** 台本どおりにチュートリアルを遊び切った会社（各ステップで許された担当のうち、人間以外を選ぶ） */
   const playTutorial = (): GameState => {
     let s = reduce(createInitialState(tutorialScript.seed, { board: true }), {
@@ -268,18 +273,47 @@ describe('チュートリアルを飛ばした会社の解放', () => {
     return s;
   };
 
-  it('チュートリアルを遊び切ったときに解放済みの機能が、tutorialFeatures とちょうど一致する', () => {
+  const startFeatures = unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature);
+
+  it('チュートリアルを台本どおりに遊び切ると、ちょうど基本の機能（basicFeatures）が解放済みになる', () => {
     const s = playTutorial();
     expect(s.tutorial).toBeNull();
-    expect([...s.unlocked].sort()).toEqual([...tutorialFeatures].sort());
+    expect([...s.unlocked].sort()).toEqual([...basicFeatures].sort());
   });
 
-  it('チュートリアルなしで始めた会社も同じところから始まり、Workflow・Harness・採用はまだ渡さない', () => {
-    const s = createInitialState('quick', { board: true, tutorial: false, talent: true });
-    expect([...s.unlocked].sort()).toEqual([...tutorialFeatures].sort());
+  it('飛ばしても機能は渡さず、最初の案件と start の機能だけが残る（チュートリアルなしの会社も同じ）', () => {
+    const started = reduce(createInitialState('skip', { board: true }), {
+      type: 'StartProject',
+      projectId: tutorialScript.projectId,
+    }).state;
+    const r = reduce(started, { type: 'SkipTutorial' });
+    expect(r.state.tutorial).toBeNull();
+    expect(r.state.unlocked).toEqual(startFeatures);
+    expect(r.events).toContainEqual({ type: 'TutorialEnded', skipped: true });
+    expect(r.events.some((e) => e.type === 'FeatureUnlocked')).toBe(false);
+    expect(r.state.projects[tutorialScript.projectId]).toBeDefined();
+    // チュートリアルでない状態（単発のプレイ・テスト・開発用）だけが、すべて解放済みで始まる
+    expect(createInitialState('single').unlocked).toEqual(allFeatures);
+  });
+
+  it('飛ばした会社も、遊んだ会社と同じ条件で基本の機能を手に入れ、順番待ちにしない', () => {
+    const started = reduce(createInitialState('skip-basic', { board: true }), {
+      type: 'StartProject',
+      projectId: tutorialScript.projectId,
+    }).state;
+    const skipped = reduce(started, { type: 'SkipTutorial' }).state;
+    // 最初の仕事を始めて終えると、同じ営業日のうちに早送りと稼働の表示が届く（1日1つの順番待ちにしない）
+    const assigned = reduce(skipped, {
+      type: 'AssignTask',
+      projectId: tutorialScript.projectId,
+      taskId: getTutorialFirstTask(),
+      mode: 'ai',
+      workerId: skipped.agents[0] ?? '',
+    }).state;
+    const s = step(assigned, 120).state;
+    expect(isUnlocked(s, 'dock:speed')).toBe(true);
+    expect(isUnlocked(s, 'dock:utilization')).toBe(true);
     for (const f of ['mode:agentWorkflow', 'harness', 'hire', 'context'] as const)
       expect(isUnlocked(s, f), f).toBe(false);
-    // 案件ボードのない単発のプレイ（テスト）だけが、すべて解放済みで始まる
-    expect(createInitialState('single').unlocked).toEqual(allFeatures);
   });
 });

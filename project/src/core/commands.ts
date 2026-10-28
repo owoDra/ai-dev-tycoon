@@ -5,7 +5,7 @@ import { harnessPresets } from '../content/harness/guide';
 import { content, findProject, findWorker } from '../content/index';
 import { seats } from '../content/seats';
 import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
-import { modeFeature, tutorialFeatures } from '../content/unlocks';
+import { modeFeature } from '../content/unlocks';
 import { type DeadlineStep, type PriceStep, submitBid } from './bidding';
 import { canStartProject } from './board';
 import { answerPoach } from './companyEvents';
@@ -206,11 +206,8 @@ function apply(state: GameState, command: Command): Transition {
     }
     case 'SkipTutorial': {
       if (!state.tutorial) return unchanged(state);
-      // 飛ばしても、チュートリアルを終えたのと同じところまでしか渡さない（残りは解放のはしごで1つずつ）
-      const added = tutorialFeatures.filter((f) => !state.unlocked.includes(f));
-      const events: GameEvent[] = added.map((feature) => ({ type: 'FeatureUnlocked', feature }));
-      events.push({ type: 'TutorialEnded', skipped: true });
-      return { state: { ...state, tutorial: null, unlocked: [...state.unlocked, ...added] }, events };
+      // 案内をやめるだけで、機能は渡さない（解放は遊んだ人と同じ条件で起きる）
+      return { state: { ...state, tutorial: null }, events: [{ type: 'TutorialEnded', skipped: true }] };
     }
     case 'Hire': {
       if (!isUnlocked(state, 'hire')) return unchanged(state);

@@ -1,6 +1,6 @@
 import { glossary } from '../content/glossary';
 import type { FeatureId, TermId } from '../content/types';
-import { hasNewBadge, type MenuSpot, menuFeatures, unlockDefs } from '../content/unlocks';
+import { basicFeatures, hasNewBadge, type MenuSpot, menuFeatures, unlockDefs } from '../content/unlocks';
 import { businessDay } from './clock';
 import { holds } from './conditions';
 import type { GameEvent } from './events';
@@ -36,11 +36,11 @@ export function isRevealed(state: GameState, term: TermId): boolean {
 /**
  * 条件を満たした機能を解放し、用語の名前を明かす。解放は他の解放を条件にできるので、新しく解放がなくなるまで繰り返す。
  * Command の適用後と、時間を進めた各ステップの最後に呼ぶ（core/progress.ts）。
- * 案件ボードのある会社では、チュートリアルの後は1営業日に1つずつ渡す（paced）。ただし同じ条件で同時に満たしたものと、
- * 解放そのものを条件にする連鎖（when が unlocked）は同じ日にまとめる。残りは条件を満たしたまま次の営業日に回る
+ * 案件ボードのある会社では1営業日に1つずつ渡す（チュートリアル中かどうかで変えない）。ただし同じ条件で同時に満たしたものと、
+ * 解放そのものを条件にする連鎖（when が unlocked）は同じ日にまとめる。残りは条件を満たしたまま次の営業日に回る。
+ * 基本の機能（basicFeatures）は順番待ちにせず、すぐ渡す（チュートリアルを遊んだ会社と飛ばした会社で進み方が変わらないように）
  */
 export function applyUnlocks(state: GameState, emit: (e: GameEvent) => void): GameState {
-  const paced = state.board !== null && state.tutorial === null;
   const today = businessDay(state.clock);
   let unlocked = state.unlocked;
   let unlockDay = state.unlockDay;
@@ -51,10 +51,9 @@ export function applyUnlocks(state: GameState, emit: (e: GameEvent) => void): Ga
     changed = false;
     for (const u of unlockDefs) {
       if (unlocked.includes(u.feature) || !holds({ ...state, unlocked }, u.when)) continue;
-      if (state.board !== null && u.when.type !== 'unlocked') {
-        // チュートリアル中の解放も「その日に渡した」と記録し、チュートリアルを終えた日にさらに重ねない
+      if (state.board !== null && u.when.type !== 'unlocked' && !basicFeatures.includes(u.feature)) {
         const key = JSON.stringify(u.when);
-        if (paced && unlockDay === today && !todays.has(key)) continue;
+        if (unlockDay === today && !todays.has(key)) continue;
         todays.add(key);
         unlockDay = today;
       }

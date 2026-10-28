@@ -154,13 +154,16 @@ export function App(props: {
 
   /**
    * チュートリアルなしで会社を始める。最初の社員は seed から生成した平均的な2人で、seed は毎回変える。
-   * チュートリアルを終えたのと同じ機能から始め（残りは遊びながら1つずつ解放する）、引き合いの届いたホームへ進む
+   * チュートリアルを始めてすぐ飛ばしたのと同じ状態（最初の案件はあり、案内だけがない）にし、その案件へ進む。
+   * 機能の解放は、チュートリアルを遊んだ会社と同じ条件で起きる（進め方を変えない）
    */
   const quickCampaign = () => {
     clearCompany();
-    useState(createInitialState(`run-${Date.now().toString(36)}`, { board: true, talent: true, tutorial: false }));
+    useState(createInitialState(`run-${Date.now().toString(36)}`, { board: true, talent: true }));
+    game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
+    game().dispatch({ type: 'SkipTutorial' });
     save();
-    screens.go({ type: 'Open' });
+    screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
   };
 
   /**

@@ -18,7 +18,7 @@ import type {
   Stage,
   TermId,
 } from '../content/types';
-import { allFeatures, tutorialFeatures, unlockDefs } from '../content/unlocks';
+import { allFeatures, unlockDefs } from '../content/unlocks';
 import type { BidResult, InquiryRun } from './bidding';
 import type { BottleneckRef } from './bottleneck';
 import type { ScheduledEvent } from './events';
@@ -491,8 +491,9 @@ export interface InitialStateOptions {
 
 /**
  * ゲームの初期状態。会社（案件ボード）は既定でチュートリアルから始まり、解放の進み具合を案件をまたいで持ち越す。
- * チュートリアルなしで始めた会社は、チュートリアルを終えたところ（tutorialFeatures）から始め、残りの機能と用語は遊びながら渡す。
- * 単発の案件・テスト（案件ボードなし）は、すべての機能を解放し、すべての用語を明かした状態で始める。
+ * ゲームの会社はいつもチュートリアルから始まる（「チュートリアルなしで始める」も、始めてすぐ飛ばすだけ）ので、遊んでも飛ばしても
+ * start の機能だけから同じ条件で解放していく。チュートリアルでない状態（単発の案件・テスト・開発用の確認ページ）は、
+ * すべての機能を解放し、すべての用語を明かした状態で始める。
  */
 export function createInitialState(seed: string, options: InitialStateOptions = {}): GameState {
   const isBoard = options.board === true;
@@ -511,14 +512,10 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     humanQueues: createHumanQueues(team),
     bottleneck: null,
     pendingEvents: [],
-    unlocked: tutorial
-      ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature)
-      : isBoard
-        ? tutorialFeatures
-        : allFeatures,
+    unlocked: tutorial ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature) : allFeatures,
     unlockDay: null,
     fresh: [],
-    revealed: tutorial || isBoard ? [] : glossary.map((g) => g.id),
+    revealed: tutorial ? [] : glossary.map((g) => g.id),
     tutorial: tutorial ? { step: 0 } : null,
     sessions: createSessions(),
     incidents: [],

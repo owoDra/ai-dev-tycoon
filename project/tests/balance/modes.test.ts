@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assignModes } from '../../src/content/assignModes';
+import { balance } from '../../src/content/balance';
 import { content, getModel, getProject, humans } from '../../src/content/index';
 import type { AssignModeId, ProjectDef, TaskDef } from '../../src/content/types';
 import { expectWithSetup, harnessSetup } from '../../src/core/expectation';
@@ -17,7 +18,11 @@ import { representativeProjects } from '../helpers/generated';
  * 判断が中心の仕事（企画・設計・文章）ではすり抜けが多く、人間レビューの方が良い。
  */
 const model = getModel('standard');
-const dailyRate = humans.reduce((sum, h) => sum + h.dailyRate, 0) / humans.length;
+/**
+ * 人間のゲーム内の1人日の値（円）。社員の平均の売値に、作業時間の縮尺（ゲーム内の1人日は請求の何人日分か）を掛ける
+ * （見逃しの損害と同じく、縮めた時間を請求の時間に戻して換算する）
+ */
+const dailyRate = (humans.reduce((sum, h) => sum + h.dailyRate, 0) / humans.length) * balance.staff.timeScale;
 
 /** モードで処理したときの見込みの損失（円）。人間の時間（納品後の修正を含む）・AI の費用・事故・見逃しの損害 */
 function expectedLoss(task: TaskDef, mode: AssignModeId): number {

@@ -84,15 +84,18 @@ export const balance = {
      * 1人日は8時間（balance.project.minutesPerPersonDay）なので、月160時間働いた場合の利益になる
      */
     workDaysPerMonth: 20,
-    /** 見逃した失敗が納品後に起こす損害（値引き・補償、円）＝ effort（分）× qualityReq × この値 */
-    escapedDefectCostPerEffortMinute: 300,
+    /**
+     * 見逃した失敗が納品後に起こす損害（値引き・補償、円）＝ effort（分）× qualityReq × この値。
+     * effort はゲーム内の縮めた時間なので、人件費と同じく作業時間の縮尺（balance.staff.timeScale）を掛けた額にしてある
+     */
+    escapedDefectCostPerEffortMinute: 1_800,
     /**
      * 見逃した失敗を納品後に人間が直す時間（effort に対する割合）。本番での修正は最初から直すより重い。
      * レビューを省く手は「失敗が少なければ大勝ち、多ければ大損」の賭けになる
      */
     escapedFixShare: 1.2,
-    /** 納品後の修正にかかる人件費（円/人日） */
-    escapedFixDailyCost: 40_000,
+    /** 納品後の修正にかかる人件費（円/ゲーム内の人日。社員の平均的な原価） */
+    escapedFixDailyCost: 240_000,
   },
   /** Context（企画書9〜11章）。大きさは資料の size と同じ単位 */
   context: {
@@ -181,8 +184,8 @@ export const balance = {
     evalShare: 0.1,
     /** Eval → Repair → Eval を繰り返す上限。超えたら残った失敗のまま次の工程へ進む */
     maxRepairLoops: 3,
-    /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる */
-    accidentCost: 50_000,
+    /** 事故（権限・Tool の誤用）1件の損害（円）。作業は失敗扱いになる。人件費と同じく作業時間の縮尺を掛けた額 */
+    accidentCost: 300_000,
   },
   /** Autonomy（企画書23章）。人間が介入せずに AI が処理を続けた時間 */
   autonomy: {
@@ -205,8 +208,14 @@ export const balance = {
   staff: {
     /** 得意分野の Task の人間の工程の速度の倍率 */
     strengthSpeed: 1.25,
-    /** 原価率。社員の1人日あたりの原価（給与）＝売値（dailyRate）× この値 */
+    /** 原価率。請求の1人日あたりの原価（給与）＝売値（dailyRate）× この値 */
     costRatio: 0.5,
+    /**
+     * 作業時間の縮尺。ゲーム内の1人日（minutesPerPersonDay 分）の仕事は、請求の何人日分にあたるか。
+     * 案件の作業量は、見積の請求人日（core/bidding.ts の estimatePersonDays）よりこの割合で短く縮めてあるので、
+     * 給与も同じ割合で上げ、人間だけで進めたときの人件費を見積の「人間だけの人件費」と揃える
+     */
+    timeScale: 6,
   },
   /**
    * 人材の生成（core/talent.ts）。速度と正確さは [min, max] の三角分布（中央が最も多い）で、平均は中央の値。
@@ -276,7 +285,7 @@ export const balance = {
         copies: 2,
         dropOptional: false,
         qualityReq: 0.1,
-        failRisk: 0.1,
+        failRisk: 0.15,
         docScale: 2.4,
       },
     },
@@ -288,9 +297,9 @@ export const balance = {
     priceStep: 10_000,
     /** 発注者の性格ごとの予算の上限（標準価格に対する倍率の範囲） */
     budget: {
-      price: { min: 1.02, max: 1.12 },
-      quality: { min: 1.12, max: 1.3 },
-      deadline: { min: 1.06, max: 1.22 },
+      price: { min: 1.05, max: 1.15 },
+      quality: { min: 1.15, max: 1.35 },
+      deadline: { min: 1.08, max: 1.25 },
     },
     /** 競合の数の範囲 */
     rivals: { min: 2, max: 4 },
@@ -334,9 +343,9 @@ export const balance = {
     amountStep: 10_000,
     temperature: 0.105,
     focus: {
-      price: { price: 1.5, proposal: 0.4, deadline: 0.4 },
-      quality: { price: 0.7, proposal: 1.2, deadline: 0.4 },
-      deadline: { price: 0.7, proposal: 0.4, deadline: 1.2 },
+      price: { price: 1.2, proposal: 0.4, deadline: 0.4 },
+      quality: { price: 0.5, proposal: 1.2, deadline: 0.4 },
+      deadline: { price: 0.5, proposal: 0.4, deadline: 1.2 },
     },
     /** 提案力（0〜1）= 評判 × reputation ＋ 同業種の実績（trackCap 件で頭打ち）× track ＋ AI 体制（aiCap で頭打ち）× ai */
     proposal: { reputation: 1, track: 0.15, trackCap: 3, ai: 0.15, aiCap: 4 },
@@ -373,29 +382,29 @@ export const balance = {
         maxAiWorkers: 1,
         maxTeams: 1,
         managers: false,
-        inquiries: 2,
+        inquiries: 3,
         sizes: { S: 1, M: 1, L: 0, XL: 0 },
         candidates: 3,
         officeDaily: 0,
       },
       startup: {
-        requires: { profit: 3_000_000, reputation: 55, delivered: 8 },
+        requires: { profit: 15_000_000, reputation: 55, delivered: 15 },
         maxStaff: 5,
         maxAiWorkers: 2,
         maxTeams: 1,
         managers: false,
-        inquiries: 2,
+        inquiries: 3,
         sizes: { S: 1, M: 2, L: 0, XL: 0 },
         candidates: 3,
         officeDaily: 10_000,
       },
       small: {
-        requires: { profit: 60_000_000, reputation: 65, delivered: 40 },
+        requires: { profit: 80_000_000, reputation: 65, delivered: 60 },
         maxStaff: 8,
         maxAiWorkers: 3,
         maxTeams: 2,
         managers: true,
-        inquiries: 3,
+        inquiries: 4,
         sizes: { S: 1, M: 2, L: 1, XL: 0 },
         candidates: 4,
         officeDaily: 30_000,
@@ -406,18 +415,18 @@ export const balance = {
         maxAiWorkers: 4,
         maxTeams: 3,
         managers: true,
-        inquiries: 3,
+        inquiries: 4,
         sizes: { S: 1, M: 2, L: 2, XL: 1 },
         candidates: 4,
         officeDaily: 60_000,
       },
       large: {
-        requires: { profit: 1_500_000_000, reputation: 85, delivered: 700 },
+        requires: { profit: 1_000_000_000, reputation: 85, delivered: 1_500 },
         maxStaff: 18,
         maxAiWorkers: 6,
         maxTeams: 4,
         managers: true,
-        inquiries: 4,
+        inquiries: 5,
         sizes: { S: 0, M: 2, L: 2, XL: 2 },
         candidates: 5,
         officeDaily: 120_000,
@@ -429,7 +438,7 @@ export const balance = {
    * 人員などの上限は大手のまま増やさず、格付けごとにオフィスの固定費と、規模 XL の引き合いの重みだけを上げる
    */
   ranks: {
-    perRank: { profit: 1_000_000_000, delivered: 250 },
+    perRank: { profit: 500_000_000, delivered: 250 },
     reputation: 85,
     officePerRank: 30_000,
     xlPerRank: 0.5,
@@ -453,7 +462,7 @@ export const balance = {
    * graceDays 営業日続けてマイナスなら倒産する（ゲームオーバー）
    */
   funds: {
-    initial: 3_000_000,
+    initial: 12_000_000,
     graceDays: 20,
   },
   /**
@@ -490,8 +499,8 @@ export const balance = {
    * 見逃しの損害は、納品後の損害と修正の人件費（balance.score）
    */
   manager: {
-    /** 評価で人間の時間に掛ける原価（円/人日）。社員の平均的な原価 */
-    wage: 40_000,
+    /** 評価で人間の時間に掛ける原価（円/ゲーム内の人日）。社員の平均的な原価（平均売値 × 原価率 × 作業時間の縮尺） */
+    wage: 240_000,
     /** 利益 / 人日 を上げるため、人間の時間（人日）を費用とは別に重く見る量（円/人日） */
     personDayValue: 40_000,
     human: {
@@ -532,8 +541,11 @@ export const balance = {
     counterfactualTop: 2,
     /** 再シミュレーションで、Task ごとに seed を変えて平均する回数 */
     counterfactualSamples: 6,
-    /** この大きさ（円換算）に満たない寄与は、振り返りのカードに出さない */
-    minCardValue: 1_000,
+    /**
+     * この大きさ（円換算）に満たない寄与は、振り返りのカードに出さない。平均的な社員の人間の時間でおよそ12分
+     * （人件費は作業時間の縮尺 balance.staff.timeScale を掛けた原価で換算する）
+     */
+    minCardValue: 6_000,
   },
   /**
    * 閉じている間の進行（core/away.ts）。隙間時間に少しずつ遊べるよう、タブを閉じていた実時間の分だけ再開時に進める。

@@ -5,6 +5,7 @@ import { getHuman, getProject } from '../../src/content/index';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { getSeat } from '../../src/content/seats';
 import { openInquiries } from '../../src/core/board';
+import { tierOf } from '../../src/core/company';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { ja } from '../../src/i18n/ja';
@@ -179,11 +180,12 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
 
   it('見積をすべて出して結果を待つだけになると、結果待ちの数と早送りの印が出る', () => {
     const store = createGameStore(offeredCompany());
-    for (const projectId of openInquiries(store.state())) {
+    const offered = openInquiries(store.state());
+    for (const projectId of offered) {
       store.dispatch({ type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' });
     }
     const { q } = mount(store.state(), null);
-    expect(q('[data-pending]')?.textContent).toContain(ja.board.pending(2));
+    expect(q('[data-pending]')?.textContent).toContain(ja.board.pending(offered.length));
     expect(q('[data-waiting]')?.textContent).toContain(ja.board.waiting);
   });
 
@@ -211,7 +213,7 @@ describe('案件ボードとタイトル', () => {
     const { store, root } = mount(step(base, 1).state, null);
     root.querySelector<HTMLButtonElement>('[data-board-open]')?.click();
     const cards = [...root.querySelectorAll<HTMLElement>('[data-inquiry]')].map((e) => e.dataset.inquiry ?? '');
-    expect(cards.length).toBe(2);
+    expect(cards.length).toBe(tierOf(base).inquiries);
     const id = cards[0] ?? '';
     const card = root.querySelector<HTMLElement>(`[data-inquiry="${id}"]`);
     card?.querySelector<HTMLButtonElement>('[data-price="minus20"]')?.click();

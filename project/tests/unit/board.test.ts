@@ -152,7 +152,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     }
     expect(events.some((e) => e.type === 'BidWon' || e.type === 'BidLost')).toBe(false);
     // それより前に届いた分（最初の日の分を含む6日分）は、締切で「見送った」と知らせる
-    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(2 * 6 - remaining.length);
+    expect(events.filter((e) => e.type === 'InquiryPassed')).toHaveLength(tierOf(s).inquiries * 6 - remaining.length);
   });
 
   it('作った Harness（会社の資産）は次の案件へ持ち越し、導入コストを二度払わない', () => {
@@ -244,7 +244,7 @@ describe('見積の締切（core/board.ts・core/step.ts）', () => {
     for (const projectId of openInquiries(s)) {
       s = reduce(s, { type: 'SubmitBid', projectId, price: 'base', deadline: 'standard' }).state;
     }
-    expect(pendingBids(s)).toHaveLength(2);
+    expect(pendingBids(s)).toHaveLength(tierOf(s).inquiries);
     expect(waitingOnBids(s)).toBe(true);
     expect(playSpeed(s)).toBe(balance.time.idleSkip);
     // 早送りは最初の締切（結果が出る時刻）まで

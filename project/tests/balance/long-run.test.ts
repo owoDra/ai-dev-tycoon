@@ -7,7 +7,7 @@ import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { talentId } from '../../src/core/talent';
-import { clumsy, type LongRunResult, type LongStrategy, runLong, skilled } from '../helpers/longRun';
+import { clumsy, type LongRunResult, type LongStrategy, reckless, runLong, skilled } from '../helpers/longRun';
 
 /**
  * 長く遊ぶ設計意図（Phase 22）。自動戦略でチュートリアルなしの会社を3年分（720営業日）ヘッドレスで経営し、次を確かめる。
@@ -46,6 +46,8 @@ const run = (s: LongStrategy) => {
 
 beforeAll(() => {
   for (const s of [...variants, clumsy]) runs.set(s.name, runLong(s, SEED, YEAR * YEARS));
+  // 無理な受注は1年で十分（倒産するかどうかだけを見る）
+  runs.set(reckless.name, runLong(reckless, SEED, YEAR));
   const lines = [...variants, clumsy].map((s) => {
     const r = run(s);
     const byYear = Array.from({ length: YEARS }, (_, y) => {
@@ -76,6 +78,11 @@ describe('長く遊ぶ（数年分の自動戦略）', () => {
     expect(bad.bankruptDay === null || bad.bankruptDay > YEAR).toBe(true);
     const lastYear = (r: LongRunResult) => r.quarters.slice(-4).reduce((sum, q) => sum + q.report.profit, 0);
     expect(lastYear(bad)).toBeLessThan(lastYear(good) / 10);
+    // 無理な受注（人手を見ずに、すべてに高めの見積を出し続ける）は、1年のうちに倒産する
+    // （序盤は失敗しても立て直せるが、放置や無理な受注を続けると倒産する。2026-10-28 のユーザー回答）
+    const wild = run(reckless);
+    expect(wild.bankruptDay).not.toBeNull();
+    expect(wild.bankruptDay ?? Infinity).toBeLessThanOrEqual(YEAR);
   });
 
   it('後半ほど大きい案件が増え、大きい案件ほど AI と Harness で 利益 / 人日 が伸びる', () => {

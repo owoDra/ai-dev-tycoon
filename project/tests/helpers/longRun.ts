@@ -77,16 +77,24 @@ export const skilled: LongStrategy = {
   retain: true,
 };
 
-/** 下手な戦略：すべて人間で進め、AI にも人材にも投資せず、届いた引き合いすべてに高めの見積を出す */
+/** 下手な戦略：すべて人間で進め、AI にも人材にも投資しない（見積と抱える量は上手な戦略と同じ） */
 export const clumsy: LongStrategy = {
   name: '下手（すべて人間・投資なし）',
   assign: 'human',
   harness: false,
-  price: 'plus10',
+  price: 'base',
   manager: null,
   hire: false,
-  loadCap: Number.POSITIVE_INFINITY,
+  loadCap: 0.6,
   retain: false,
+};
+
+/** 無理な受注を続ける戦略：下手な戦略で、届いた引き合いすべてに高めの見積を出し続ける（人手を見ずに抱え込む） */
+export const reckless: LongStrategy = {
+  ...clumsy,
+  name: '無理な受注（すべて人間・すべてに高めの見積）',
+  price: 'plus10',
+  loadCap: Number.POSITIVE_INFINITY,
 };
 
 export interface QuarterRow {

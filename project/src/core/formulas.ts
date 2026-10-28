@@ -63,9 +63,12 @@ export function laborCost(minutes: number, dailyCost: number): number {
   return personDays(minutes) * dailyCost;
 }
 
-/** 社員の1人日あたりの原価（給与）。売値（dailyRate）に原価率を掛ける */
+/**
+ * 社員のゲーム内の1人日あたりの原価（給与）。売値（dailyRate、請求の1人日あたり）に原価率と作業時間の縮尺
+ * （balance.staff.timeScale。ゲーム内の1人日は請求の何人日分の仕事か）を掛ける
+ */
 export function dailyCost(worker: { readonly dailyRate: number }): number {
-  return worker.dailyRate * balance.staff.costRatio;
+  return worker.dailyRate * balance.staff.costRatio * balance.staff.timeScale;
 }
 
 /** レビューで失敗が見つかったときの手戻りにかかる人間の時間（分） */

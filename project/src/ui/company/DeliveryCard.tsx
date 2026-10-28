@@ -33,6 +33,7 @@ function Card(props: { card: DeliveryView; onReview: (id: string) => void; onClo
       ref={el}
       class={`${panel} pointer-events-auto flex w-full max-w-72 flex-col gap-1 p-3 text-sm`}
       data-delivery={c().projectId}
+      data-fit-item
     >
       <p class="flex items-center gap-1 font-heading">
         <Icon name="trophy" /> {t.title(c().name)}

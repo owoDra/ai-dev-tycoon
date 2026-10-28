@@ -1,11 +1,16 @@
+import { createRoot } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
 import { screenRegions, uiLayout } from '../../src/content/look/layout';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { createInitialState } from '../../src/core/state';
+import { ja } from '../../src/i18n/ja';
+import { FIT_ITEM, fitColumn } from '../../src/ui/fitColumn';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
+import { ProjectTabs } from '../../src/ui/play/ProjectTabs';
 import { createSelection } from '../../src/ui/selection';
+import type { ProjectTabsView } from '../../src/view/board';
 import { worldView } from '../../src/view/world';
 
 const P = 'ecRenewal';
@@ -80,5 +85,136 @@ describe('画面の形ごとの構成', () => {
     expect(notices?.style.left).toBe(`${r.notices.x}px`);
     expect(notices?.style.width).toBe(`${r.notices.width}px`);
     expect(notices?.querySelector('section')).not.toBeNull();
+  });
+});
+
+describe('スクロールしない列とタブ', () => {
+  /** jsdom はレイアウトを計算しないので、大きさと位置を決めておく */
+  const box = (el: HTMLElement, props: Record<string, unknown>) => {
+    for (const [k, v] of Object.entries(props)) Object.defineProperty(el, k, { configurable: true, value: v });
+  };
+
+  it('お知らせの列は、入りきらないカードから後ろを隠し、空けば戻す', async () => {
+    const column = document.createElement('div');
+    document.body.append(column);
+    box(column, { clientHeight: 100 });
+    const cards = [0, 1, 2].map((i) => {
+      const el = document.createElement('div');
+      el.setAttribute(FIT_ITEM, '');
+      box(el, { offsetTop: i * 50, offsetHeight: 45, offsetParent: column });
+      column.append(el);
+      return el;
+    });
+    const dispose = createRoot((d) => {
+      fitColumn(column);
+      return d;
+    });
+    await Promise.resolve();
+    expect(cards.map((c) => c.style.display)).toEqual(['', '', 'none']);
+    // 先頭のカードが消えると、後ろのカードが繰り上がって入る
+    cards[0]?.remove();
+    box(cards[1] as HTMLElement, { offsetTop: 0 });
+    box(cards[2] as HTMLElement, { offsetTop: 50 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cards.slice(1).map((c) => c.style.display)).toEqual(['', '']);
+    // 先頭のカードは、列より高くても出す
+    box(cards[1] as HTMLElement, { offsetHeight: 300 });
+    cards[2]?.remove();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cards[1]?.style.display).toBe('');
+    dispose();
+  });
+
+  const view: ProjectTabsView = {
+    tabs: ['a', 'b', 'c'].map((id, i) => ({
+      projectId: id,
+      name: `案件${id}`,
+      floor: i + 1,
+      progress: 0,
+      selected: id === 'b',
+      team: null,
+    })),
+    offers: 0,
+    pending: 0,
+  } as unknown as ProjectTabsView;
+
+  it('スマホの案件のタブはスクロールせず、今の案件と「+N」の1つのボタンにまとめ、一覧から切り替える', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const switched: string[] = [];
+    let home = 0;
+    dispose = render(
+      () => (
+        <ProjectTabs
+          view={view}
+          compact
+          limit={uiLayout.compact.dock.tabs}
+          onSwitch={(id) => switched.push(id)}
+          onBoard={() => {}}
+          onHome={() => home++}
+        />
+      ),
+      root,
+    );
+    expect(root.querySelector('[data-project-tab]')).toBeNull();
+    expect(root.querySelector('[data-home-tab]')).toBeNull();
+    const more = root.querySelector<HTMLButtonElement>('[data-more-tabs]');
+    // 今の案件の名前と、ほかの3件（オフィスと選んでいない2つの案件）
+    expect(more?.textContent).toContain('案件b');
+    expect(more?.textContent).toContain(ja.board.moreTabsShort(3));
+    expect(root.innerHTML).not.toMatch(/overflow-(x|y)-auto/);
+    more?.click();
+    const menu = root.querySelector('[data-tabs-menu]');
+    expect(
+      [...(menu?.querySelectorAll<HTMLElement>('[data-project-tab]') ?? [])].map((t) => t.dataset.projectTab),
+    ).toEqual(['a', 'c']);
+    menu?.querySelector<HTMLButtonElement>('[data-project-tab="c"]')?.click();
+    expect(switched).toEqual(['c']);
+    expect(root.querySelector('[data-tabs-menu]')).toBeNull();
+    more?.click();
+    root.querySelector<HTMLButtonElement>('[data-tabs-menu] [data-home-tab]')?.click();
+    expect(home).toBe(1);
+  });
+
+  it('PC では並べる数の上限を超えたタブを「ほか N 件」にまとめる', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(
+      () => (
+        <ProjectTabs
+          view={view}
+          compact={false}
+          limit={{ office: true, others: 1 }}
+          onSwitch={() => {}}
+          onBoard={() => {}}
+          onHome={() => {}}
+        />
+      ),
+      root,
+    );
+    const inline = [...root.querySelectorAll<HTMLElement>('[role="tablist"] [data-project-tab]')];
+    expect(inline.map((t) => t.dataset.projectTab)).toEqual(['a', 'b']);
+    expect(root.querySelector('[data-more-tabs]')?.textContent).toContain(ja.board.moreTabs(1));
+  });
+
+  it('広い PC では、オフィスと案件のタブを並べる', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(
+      () => (
+        <ProjectTabs
+          view={view}
+          compact={false}
+          limit={uiLayout.wide.dock.tabs}
+          onSwitch={() => {}}
+          onBoard={() => {}}
+          onHome={() => {}}
+        />
+      ),
+      root,
+    );
+    expect(root.querySelector('[data-home-tab]')).not.toBeNull();
+    expect(root.querySelectorAll('[data-project-tab]')).toHaveLength(3);
+    expect(root.querySelector('[data-more-tabs]')).toBeNull();
   });
 });

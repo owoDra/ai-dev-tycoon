@@ -2,7 +2,7 @@ import { animate } from 'motion';
 import { createEffect, createMemo, createSignal, For, type JSX, Match, onCleanup, Show, Switch } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { getProject } from '../../content/index';
-import type { DockLayout, HudItemId } from '../../content/look/layout';
+import type { DockLayout, DockTabsLayout, HudItemId } from '../../content/look/layout';
 import { dockFeature } from '../../content/unlocks';
 import { waitingOnBids } from '../../core/step';
 import { isUnlocked } from '../../core/unlocks';
@@ -96,6 +96,7 @@ export function Dock(props: {
             onSwitch={(id) => props.onSwitch?.(id)}
             onBoard={() => props.onBoard?.()}
             onHome={props.onHome}
+            limit={props.layout.tabs}
           />
         )}
       </Show>
@@ -103,6 +104,7 @@ export function Dock(props: {
         <HomeItems
           tabs={props.tabs}
           compact={props.compact}
+          limit={props.layout.tabs}
           onSwitch={(id) => props.onSwitch?.(id)}
           onBoard={props.onBoard}
           waiting={waitingOnBids(props.store.state())}
@@ -197,6 +199,7 @@ export function Dock(props: {
 function HomeItems(props: {
   tabs?: ProjectTabsView;
   compact: boolean;
+  limit: DockTabsLayout;
   onSwitch: (projectId: string) => void;
   onBoard?: () => void;
   waiting: boolean;
@@ -225,6 +228,7 @@ function HomeItems(props: {
             compact={props.compact}
             onSwitch={props.onSwitch}
             onBoard={() => props.onBoard?.()}
+            limit={props.limit}
             home
           />
         )}

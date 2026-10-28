@@ -44,6 +44,7 @@ import { teamView, usageWarning } from '../../view/team';
 import { promotionNotes, teamsView } from '../../view/teams';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
+import { fitColumn } from '../fitColumn';
 import { Icon } from '../Icon';
 import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
@@ -572,8 +573,10 @@ export function PlayScreen(props: {
         <div class="flex min-w-0 flex-1">{props.strip}</div>
         <div class="pointer-events-auto shrink-0">{controls(form().form.controls === 'dock' ? 'clock' : 'all')}</div>
       </div>
+      {/* お知らせの列：大事な順（問題 → 納品 → 用語 → 短いお知らせ）に並べ、入りきらない分は出さない（ui/fitColumn.ts） */}
       <div
-        class="pointer-events-none absolute z-20 flex flex-col items-end gap-2 overflow-x-hidden overflow-y-auto"
+        ref={fitColumn}
+        class="pointer-events-none absolute z-20 flex flex-col items-end gap-2 overflow-hidden"
         style={rectStyle(regions().notices)}
         data-region="notices"
       >

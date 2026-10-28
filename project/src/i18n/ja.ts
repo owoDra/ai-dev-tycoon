@@ -369,6 +369,8 @@ export const ja = {
     tabs: '案件の切り替え',
     floor: (n: number) => `${n}F`,
     offers: (n: number) => `新しい引き合い ${n}件`,
+    moreTabs: (n: number) => `ほか ${n}件`,
+    moreTabsShort: (n: number) => `+${n}`,
     board: '案件ボード',
     lead: '引き合いに見積を出し、コンペに勝つと受注できる。売上は見積額になる',
     inquiries: '引き合い（コンペ）',

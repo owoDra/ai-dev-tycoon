@@ -36,10 +36,19 @@ export interface DockLayout {
   items: readonly HudItemId[];
   /** 「詳細」のボタンで開く項目（ドックの上に開く。空ならボタンを出さない） */
   details: readonly HudItemId[];
+  tabs: DockTabsLayout;
   /** ドックの項目を小さく出すか（使った金額は見込み利益だけにする。内訳は「詳細」で開く） */
   dense: boolean;
   /** 画面の下端からの距離（px）。0 なら下端に付けて角丸を上側だけにする */
   bottom: number;
+}
+
+/** ドックの案件のタブの出し方（ui/play/ProjectTabs.tsx）。選んでいるタブはいつも出し、出さないタブは「ほか N 件」にまとめる */
+export interface DockTabsLayout {
+  /** オフィスのタブを並べるか（並べなければ「ほか N 件」に入れる） */
+  office: boolean;
+  /** 選んでいない案件のタブを並べる数の上限（幅に入りきらなければ減らす） */
+  others: number;
 }
 
 /** 下から出るシート（選んだものの詳細） */
@@ -152,7 +161,14 @@ export const uiLayout: UiLayout = {
   wide: {
     regions: { gutter: 8, top: 60, notices: { place: 'side', width: 384 }, dock: 100 },
     controls: 'labeled',
-    dock: { projectName: true, items: dockItems, details: [], dense: false, bottom: 12 },
+    dock: {
+      projectName: true,
+      items: dockItems,
+      details: [],
+      tabs: { office: true, others: 2 },
+      dense: false,
+      bottom: 12,
+    },
     sheet: { maxWidth: 760, heightRatio: 0.42, swipeClose: 60 },
     assignCards: 'grid',
     toast: { max: 3, width: 384 },
@@ -161,7 +177,14 @@ export const uiLayout: UiLayout = {
   narrow: {
     regions: { gutter: 8, top: 60, notices: { place: 'side', width: 300 }, dock: 100 },
     controls: 'icons',
-    dock: { projectName: true, items: narrowItems, details: ['spend', 'utilization'], dense: true, bottom: 8 },
+    dock: {
+      projectName: true,
+      items: narrowItems,
+      details: ['spend', 'utilization'],
+      tabs: { office: true, others: 0 },
+      dense: true,
+      bottom: 8,
+    },
     sheet: { maxWidth: 760, heightRatio: 0.5, swipeClose: 60 },
     assignCards: 'grid',
     toast: { max: 2, width: 300 },
@@ -171,7 +194,14 @@ export const uiLayout: UiLayout = {
     // スマホのドックは2段（案件名と利益・納期 / 問題・詳細・メニュー）
     regions: { gutter: 6, top: 48, notices: { place: 'stack', height: 136 }, dock: 112 },
     controls: 'dock',
-    dock: { projectName: true, items: narrowItems, details: ['spend', 'utilization'], dense: true, bottom: 0 },
+    dock: {
+      projectName: true,
+      items: narrowItems,
+      details: ['spend', 'utilization'],
+      tabs: { office: false, others: 0 },
+      dense: true,
+      bottom: 0,
+    },
     sheet: { maxWidth: 760, heightRatio: 0.6, swipeClose: 60 },
     assignCards: 'scroll',
     toast: { max: 1, width: null },

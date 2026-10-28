@@ -61,6 +61,7 @@ function ProblemCard(props: {
     <article
       ref={el}
       data-problem={props.advice.id}
+      data-fit-item
       class={`${panel} pointer-events-auto flex items-center gap-2 p-2.5`}
       classList={{
         'border-danger-600': props.advice.severity === 'danger',

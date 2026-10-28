@@ -23,6 +23,7 @@ function NoticeChip(props: { notice: Notice }) {
   return (
     <div
       ref={el}
+      data-fit-item
       class="flex max-w-full items-center gap-1.5 rounded-full border-[3px] border-line bg-surface px-3 py-1 text-sm font-bold shadow-pop"
     >
       <Icon name={props.notice.icon} tone={props.notice.tone} class="text-lg" />

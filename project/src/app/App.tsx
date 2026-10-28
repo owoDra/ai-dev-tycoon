@@ -12,6 +12,7 @@ import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards } from '../ui/company/DeliveryCard';
+import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
 import { DayBreakCard, RecapCard } from '../ui/play/SessionCards';
@@ -379,7 +380,8 @@ export function App(props: {
         {/* プレイ画面の外（結果画面など）では、用語のカードを同じお知らせの列の位置に出す */}
         <Show when={screens.screen().id !== 'play'}>
           <div
-            class="pointer-events-none absolute z-30 flex flex-col items-end gap-2 overflow-y-auto"
+            ref={fitColumn}
+            class="pointer-events-none absolute z-30 flex flex-col items-end gap-2 overflow-hidden"
             style={rectStyle(regions().notices)}
           >
             <TermCardList cards={terms.cards()} onClose={terms.close} />

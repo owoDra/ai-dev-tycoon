@@ -61,6 +61,7 @@ function TermCard(props: { id: TermId; onClose: () => void }) {
       ref={el}
       role="status"
       data-term-card={props.id}
+      data-fit-item
       class={`${panel} pointer-events-auto flex w-full max-w-80 flex-col gap-1 px-4 py-3`}
     >
       <div class="flex items-center justify-between gap-2">

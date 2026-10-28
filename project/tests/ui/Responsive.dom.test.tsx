@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createRoot, createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
@@ -7,6 +7,7 @@ import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { createInitialState } from '../../src/core/state';
 import { ja } from '../../src/i18n/ja';
 import { FIT_ITEM, fitColumn } from '../../src/ui/fitColumn';
+import { Dock } from '../../src/ui/play/Dock';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { ProjectTabs } from '../../src/ui/play/ProjectTabs';
 import { createSelection } from '../../src/ui/selection';
@@ -216,5 +217,51 @@ describe('スクロールしない列とタブ', () => {
     expect(root.querySelector('[data-home-tab]')).not.toBeNull();
     expect(root.querySelectorAll('[data-project-tab]')).toHaveLength(3);
     expect(root.querySelector('[data-more-tabs]')).toBeNull();
+  });
+});
+
+describe('画面の大きさを変えたとき', () => {
+  it('スマホの形から PC の形へ戻しても、ドックの見出しと案件のタブが消えない', () => {
+    const base = createInitialState('resize');
+    const store = createGameStore(base);
+    store.dispatch({ type: 'StartProject', projectId: P });
+    const root = document.createElement('div');
+    document.body.append(root);
+    const [compact, setCompact] = createSignal(false);
+    const tabs = {
+      tabs: [
+        { projectId: P, name: 'P', floor: 1, progress: 0, selected: true, team: null },
+        { projectId: 'other', name: 'Q', floor: 2, progress: 0, selected: false, team: null },
+      ],
+      offers: 0,
+      pending: 0,
+    } as unknown as ProjectTabsView;
+    dispose = render(
+      () => (
+        <Dock
+          store={store}
+          projectId={P}
+          layout={compact() ? uiLayout.compact.dock : uiLayout.wide.dock}
+          compact={compact()}
+          problemCount={0}
+          onProblems={() => {}}
+          tabs={tabs}
+          onSwitch={() => {}}
+          onHome={() => {}}
+        />
+      ),
+      root,
+    );
+    const visible = () =>
+      [...root.querySelectorAll<HTMLElement>('[data-project-tab]')].map((t) => t.dataset.projectTab);
+    expect(visible()).toEqual([P, 'other']);
+    setCompact(true);
+    expect(root.querySelector('[data-more-tabs]')).not.toBeNull();
+    setCompact(false);
+    expect(visible()).toEqual([P, 'other']);
+    expect(root.querySelector('[data-home-tab]')).not.toBeNull();
+    setCompact(true);
+    setCompact(false);
+    expect(visible()).toEqual([P, 'other']);
   });
 });

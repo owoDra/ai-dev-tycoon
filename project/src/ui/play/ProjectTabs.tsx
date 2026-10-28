@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, type JSX, on, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, type JSX, on, onCleanup, Show } from 'solid-js';
 import type { DockTabsLayout } from '../../content/look/layout';
 import { ja } from '../../i18n/ja';
 import type { ProjectTabsView, ProjectTabView } from '../../view/board';
@@ -79,12 +79,17 @@ export function ProjectTabs(props: {
     setClipped(drop);
     setOfficeClipped(officeOut);
   };
-  onMount(() => {
-    if (typeof ResizeObserver === 'undefined' || !list) return;
+  /** タブの列ができたら（形が変わって作り直されたときも）、その幅の変化に合わせて並べ直す */
+  const observeList = (el: HTMLDivElement) => {
+    list = el;
+    if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(fitTabs);
-    observer.observe(list);
-    onCleanup(() => observer.disconnect());
-  });
+    observer.observe(el);
+    onCleanup(() => {
+      observer.disconnect();
+      if (list === el) list = undefined;
+    });
+  };
   createEffect(on(split, () => queueMicrotask(fitTabs)));
   const [menu, setMenu] = createSignal(false);
   const pick = (go: () => void) => {
@@ -148,7 +153,7 @@ export function ProjectTabs(props: {
         fallback={
           <>
             <div
-              ref={list}
+              ref={observeList}
               role="tablist"
               aria-label={t.tabs}
               class="flex min-w-0 items-center gap-1.5 overflow-hidden"

@@ -86,7 +86,8 @@ export function Dock(props: {
       )}
     </Show>
   );
-  const heading = (
+  /** 見出し（案件名かタブ）。スマホとPCの並びで別々に作る（同じ要素を2か所で使い回さない） */
+  const heading = () => (
     <>
       <Show when={showTabs()}>
         {(tabs) => (
@@ -163,7 +164,7 @@ export function Dock(props: {
         when={props.compact}
         fallback={
           <>
-            {heading}
+            {heading()}
             {hudItems(items(), props.layout.dense)}
             {detailsButton()}
             {props.controls}
@@ -171,7 +172,7 @@ export function Dock(props: {
         }
       >
         <div class="flex h-11 min-w-0 items-center gap-3" data-dock-row="status">
-          {heading}
+          {heading()}
           {hudItems(
             items().filter((id) => !actionItems.has(id)),
             true,

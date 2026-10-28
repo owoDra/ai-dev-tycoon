@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { content, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
 import type { AssignModeId } from '../../src/content/types';
-import { allFeatures } from '../../src/content/unlocks';
+import { tutorialFeatures } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
@@ -112,14 +112,16 @@ describe('チュートリアルの台本：許可されていない操作は拒�
     expect(resolveSay(ai, say)).toBe('aiWorking');
   });
 
-  it('スキップすると残りの機能がすべて解放され、どの担当も選べるようになる', () => {
+  it('スキップしても、チュートリアルを終えたのと同じ機能までしか解放しない（残りは解放のはしごで渡す）', () => {
     const r = reduce(start(), { type: 'SkipTutorial' });
     expect(r.state.tutorial).toBeNull();
-    expect(r.state.unlocked).toEqual(allFeatures);
+    expect([...r.state.unlocked].sort()).toEqual([...tutorialFeatures].sort());
     expect(r.events).toContainEqual({ type: 'TutorialEnded', skipped: true });
-    expect(r.events.filter((e) => e.type === 'FeatureUnlocked')).toHaveLength(allFeatures.length - 2);
-    const s = reduce(r.state, assign('wireframe', 'agentWorkflow')).state;
-    expect(s.projects[P]?.tasks.wireframe?.assignment?.mode).toBe('agentWorkflow');
+    expect(r.events.filter((e) => e.type === 'FeatureUnlocked')).toHaveLength(tutorialFeatures.length - 2);
+    const review = reduce(r.state, assign('wireframe', 'aiThenHumanReview')).state;
+    expect(review.projects[P]?.tasks.wireframe?.assignment?.mode).toBe('aiThenHumanReview');
+    // Agent Workflow は Harness の部品を導入するまで渡さない
+    expect(reduce(r.state, assign('wireframe', 'agentWorkflow')).state).toBe(r.state);
   });
 
   it('チュートリアル外では未解放のモードの担当を拒否する（解放済みなら受け付ける）', () => {

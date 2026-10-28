@@ -74,6 +74,25 @@ describe('Workflow Library の UI（企画書25章）', () => {
     expect(q('[data-library-sheet]')?.querySelectorAll('[data-workflow-card]')).toHaveLength(1);
   });
 
+  it('Agent Workflow と Harness を解放するまでは、Task の詳細に Workflow のボタンも Library の入口も出さない', () => {
+    const base = createInitialState('library-locked');
+    const locked = {
+      ...base,
+      unlocked: base.unlocked.filter((f) => f !== 'mode:agentWorkflow' && f !== 'harness'),
+    };
+    const { q, selection } = mount('paymentFix', locked);
+    selection.dispatch({ type: 'SelectEntity', entityId: islandId('reproduce') });
+    expect(q('[data-workflow]')).toBeNull();
+    expect(q('[data-workflow-picks]')).toBeNull();
+    dispose();
+    document.body.innerHTML = '';
+    // 解放済みなら出る
+    const open = mount('paymentFix');
+    open.selection.dispatch({ type: 'SelectEntity', entityId: islandId('reproduce') });
+    expect(open.q('[data-workflow]')).not.toBeNull();
+    expect(open.q('[data-workflow-picks]')).not.toBeNull();
+  });
+
   it('何も保存していない会社では棚が空で、Task の詳細にもおすすめの Workflow を出さない', () => {
     const { q, selection } = mount('paymentFix');
     selection.dispatch({ type: 'SelectEntity', entityId: islandId('fix') });

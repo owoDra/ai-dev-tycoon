@@ -1,6 +1,7 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import type { AssignModeId } from '../../src/content/types';
+import { allFeatures } from '../../src/content/unlocks';
 import type { PriceStep } from '../../src/core/bidding';
 import { activeProjects, openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
@@ -242,7 +243,12 @@ function answerOffers(state: GameState, strategy: LongStrategy): GameState {
 
 /** 会社を days 営業日経営する */
 export function runLong(strategy: LongStrategy, seed: string, days: number): LongRunResult {
-  let s = createInitialState(seed, { board: true, tutorial: false, talent: true });
+  // 経営の方針どうしを比べるため、解放のはしごを上り切った会社（すべて解放済み）で始める。
+  // チュートリアルなしの会社は tutorialFeatures から始まり、はしごは tests/unit/unlocks.test.ts で確かめる
+  let s: GameState = {
+    ...createInitialState(seed, { board: true, tutorial: false, talent: true }),
+    unlocked: allFeatures,
+  };
   const quarters: QuarterRow[] = [];
   const promotions: { day: number; name: string }[] = [];
   const stateSizes: number[] = [];

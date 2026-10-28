@@ -7,7 +7,9 @@ import type { AssignModeId, FeatureId, ModeFeatureId, UnlockDef } from './types'
  * 条件を満たした時点で core/unlocks.ts が解放し、FeatureUnlocked を出す（Tier 2 の演出と「NEW」バッジ）。
  * チュートリアルの後は1営業日に1つずつ渡す（同じ条件で同時に満たしたものと、解放を条件にする連鎖は同じ日にまとめる）。
  * 会社（案件ボード）はチュートリアル（start の機能だけ）から始まり、解放の進み具合を案件をまたいで持ち越す（セーブにも残る）。
- * チュートリアルなしで始めた会社と、案件ボードのない単発のプレイ（テストなど）は、すべて解放済みで始まる。
+ * チュートリアルなしで始めた会社とチュートリアルを飛ばした会社は、チュートリアルを終えたのと同じところ（tutorialFeatures）から始まり、
+ * 残りは同じはしごで1つずつ渡す（一度にすべて渡すと、自分で工夫する前に答えが並んでしまう）。
+ * 案件ボードのない単発のプレイ（テストなど）だけが、すべて解放済みで始まる。
  */
 export const unlockDefs: readonly UnlockDef[] = [
   { id: 'human', feature: 'mode:human', when: { type: 'start' }, message: 'basic' },
@@ -37,6 +39,9 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'projectsCompleted', count: 2 },
     message: 'advanced',
   },
+  // 案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする（社員の画面もここから開ける）。
+  // 会社の伸びを左右するので、同じ日に条件を満たした解放が重なったら Context や Harness より先に渡す
+  { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 4 }, message: 'hire' },
   // Context（企画書9〜12章）。AI のミスが重なってきたら、渡す資料を選べるようにする（遅くとも4件目の納品で）。
   // 資料のある案件でだけ UI に出る。最初は「必要な資料だけ / すべての資料」の2択
   {
@@ -132,8 +137,6 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'partsOwned', count: 1 },
     message: 'workflow',
   },
-  // チュートリアルの後、案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする（社員の画面もここから開ける）
-  { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 4 }, message: 'hire' },
   // スタートアップに昇格し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
   { id: 'team', feature: 'team', when: { type: 'tier', tier: 'startup' }, message: 'team' },
   // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す（遅くともスタートアップへの昇格で）
@@ -221,6 +224,20 @@ export const dockFeature: Partial<Record<HudItemId, FeatureId>> = {
   utilization: 'dock:utilization',
   problems: 'problems',
 };
+
+/**
+ * チュートリアルで渡す機能（台本どおりに遊ぶと、終えたときにちょうどこれが解放済みになる。tests/unit/unlocks.test.ts で確かめる）。
+ * チュートリアルなしで始めた会社・飛ばした会社は、ここから始める
+ */
+export const tutorialFeatures: readonly FeatureId[] = [
+  'mode:human',
+  'mode:ai',
+  'dock:speed',
+  'dock:utilization',
+  'mode:aiThenHumanReview',
+  'mode:aiThenEval',
+  'problems',
+];
 
 /** すべての機能（解放の定義の順） */
 export const allFeatures: readonly FeatureId[] = unlockDefs.map((u) => u.feature);

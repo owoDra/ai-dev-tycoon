@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { getAssignMode } from '../../src/content/assignModes';
 import { glossary } from '../../src/content/glossary';
 import { getModel, getTask } from '../../src/content/index';
+import { tutorialScript } from '../../src/content/tutorial';
 import type { FeatureId } from '../../src/content/types';
-import { allFeatures, menuSpotOf, unlockDefs } from '../../src/content/unlocks';
+import { allFeatures, menuSpotOf, tutorialFeatures, unlockDefs } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
@@ -11,6 +12,7 @@ import { autoTestCatch, expectedHumanMinutes, repairMinutes } from '../../src/co
 import { deserialize, OutdatedSaveError, SAVE_VERSION, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState, updateTask } from '../../src/core/state';
 import { step } from '../../src/core/step';
+import { currentTutorialStep } from '../../src/core/tutorial';
 import { applyUnlocks, isRevealed, isUnlocked } from '../../src/core/unlocks';
 import { AVERAGE_TEAM } from '../helpers/talent';
 
@@ -81,7 +83,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
     expect(SAVE_VERSION).toBe(18);
     const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
     const loaded = deserialize(serialize(s));
-    expect(loaded.unlocked).toEqual(allFeatures);
+    expect(loaded.unlocked).toEqual(s.unlocked);
     expect(loaded.tutorial).toBeNull();
   });
 });
@@ -238,5 +240,46 @@ describe('解放のカードの「開く」の行き先（content/unlocks.ts の
     expect(menuSpotOf('context:pick')).toBe('context');
     expect(menuSpotOf('mode:aiThenHumanReview')).toBeUndefined();
     expect(menuSpotOf('dock:speed')).toBeUndefined();
+  });
+});
+
+describe('チュートリアルを飛ばした会社の解放', () => {
+  /** 台本どおりにチュートリアルを遊び切った会社（各ステップで許された担当のうち、人間以外を選ぶ） */
+  const playTutorial = (): GameState => {
+    let s = reduce(createInitialState(tutorialScript.seed, { board: true }), {
+      type: 'StartProject',
+      projectId: tutorialScript.projectId,
+    }).state;
+    for (let i = 0; i < 1000 && s.tutorial !== null; i++) {
+      for (const a of currentTutorialStep(s)?.allow ?? []) {
+        const mode = a.modes.find((m) => m !== 'human') ?? 'human';
+        const workerId = mode === 'human' ? (Object.keys(s.team)[0] ?? '') : (s.agents[0] ?? '');
+        s = reduce(s, {
+          type: 'AssignTask',
+          projectId: tutorialScript.projectId,
+          taskId: a.taskId,
+          mode,
+          workerId,
+        }).state;
+      }
+      if (s.paused) s = reduce(s, { type: 'TogglePause' }).state;
+      s = step(s, 5).state;
+    }
+    return s;
+  };
+
+  it('チュートリアルを遊び切ったときに解放済みの機能が、tutorialFeatures とちょうど一致する', () => {
+    const s = playTutorial();
+    expect(s.tutorial).toBeNull();
+    expect([...s.unlocked].sort()).toEqual([...tutorialFeatures].sort());
+  });
+
+  it('チュートリアルなしで始めた会社も同じところから始まり、Workflow・Harness・採用はまだ渡さない', () => {
+    const s = createInitialState('quick', { board: true, tutorial: false, talent: true });
+    expect([...s.unlocked].sort()).toEqual([...tutorialFeatures].sort());
+    for (const f of ['mode:agentWorkflow', 'harness', 'hire', 'context'] as const)
+      expect(isUnlocked(s, f), f).toBe(false);
+    // 案件ボードのない単発のプレイ（テスト）だけが、すべて解放済みで始まる
+    expect(createInitialState('single').unlocked).toEqual(allFeatures);
   });
 });

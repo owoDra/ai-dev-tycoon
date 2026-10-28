@@ -746,15 +746,20 @@ export function PlayScreen(props: {
               if (!layout().flow.keepDetailAfterAssign) close();
             }}
             workflow={(taskId) => workflowTasks(props.store.state(), pid(), taskId)}
-            onWorkflow={(taskIds) => {
-              props.store.dispatch({
-                type: 'AssignWorkflow',
-                projectId: pid(),
-                taskIds,
-                workerId: harnessWorker(),
-              });
-              if (!layout().flow.keepDetailAfterAssign) close();
-            }}
+            // Agent Workflow を解放するまでは出さない（押しても受け付けないボタンにしない）
+            onWorkflow={
+              isUnlocked(props.store.state(), modeFeature('agentWorkflow'))
+                ? (taskIds) => {
+                    props.store.dispatch({
+                      type: 'AssignWorkflow',
+                      projectId: pid(),
+                      taskIds,
+                      workerId: harnessWorker(),
+                    });
+                    if (!layout().flow.keepDetailAfterAssign) close();
+                  }
+                : undefined
+            }
           />
         )}
       </Presence>

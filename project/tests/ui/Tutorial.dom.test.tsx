@@ -121,13 +121,14 @@ describe('チュートリアル（コーチマークと機能の解放）', () =
     expect(cards(root)).toContain('aiThenEval');
   });
 
-  it('スキップするとコーチマークが消え、すべての担当を選べる', () => {
+  it('スキップするとコーチマークが消え、チュートリアルで渡す担当（人間・AI・レビュー・自動テスト）を選べる', () => {
     const { store, root, select } = mount();
     root.querySelector<HTMLButtonElement>('[data-coach-skip]')?.click();
     expect(store.state().tutorial).toBeNull();
     expect(root.querySelector('[data-tutorial-coach]')).toBeNull();
     select('wireframe');
-    expect(cards(root)).toHaveLength(6);
+    // 飛ばしても渡すのはチュートリアルを終えたのと同じところまで（上級の任せ方や Workflow は解放のはしごで渡す）
+    expect(cards(root)).toHaveLength(4);
   });
 });
 

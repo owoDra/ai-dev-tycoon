@@ -1,5 +1,6 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
+import { allFeatures } from '../../src/content/unlocks';
 import { openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import { tierOf } from '../../src/core/company';
@@ -132,7 +133,12 @@ function distribute(state: GameState): GameState {
 
 /** 会社を days 営業日育て、昇格の記録を返す */
 export function growCompany(seed: string, days: number, manager: ManagerRun['kind'] = 'human'): GrowthResult {
-  let s = createInitialState(seed, { board: true, tutorial: false, talent: true });
+  // 経営の方針どうしを比べるため、解放のはしごを上り切った会社（すべて解放済み）で始める。
+  // チュートリアルなしの会社は tutorialFeatures から始まり、はしごは tests/unit/unlocks.test.ts で確かめる
+  let s: GameState = {
+    ...createInitialState(seed, { board: true, tutorial: false, talent: true }),
+    unlocked: allFeatures,
+  };
   const promotions: GrowthRecord[] = [];
   const events: GameEvent[] = [];
   while (s.clock < days * DAY) {

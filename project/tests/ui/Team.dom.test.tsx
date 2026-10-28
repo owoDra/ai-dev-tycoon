@@ -201,7 +201,12 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
     const tasks = Object.fromEntries(
       Object.entries(run.tasks).map(([id, t]) => [id, { ...t, status: 'done' as const }]),
     );
-    const s = { ...offeredCompany(), projects: { [P]: { ...run, tasks, completedAt: 1 } } };
+    const company = offeredCompany();
+    const s = {
+      ...company,
+      unlocked: [...company.unlocked, 'hire' as const],
+      projects: { [P]: { ...run, tasks, completedAt: 1 } },
+    };
     const { q } = mount(s, null);
     q<HTMLButtonElement>('[data-team-open]')?.click();
     const tab = q<HTMLButtonElement>('[data-team-tab="record"]');

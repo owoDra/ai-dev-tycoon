@@ -405,6 +405,8 @@ export interface GameState {
   readonly pendingEvents: readonly ScheduledEvent[];
   /** 解放済みの機能（解放した順） */
   readonly unlocked: readonly FeatureId[];
+  /** チュートリアルの後に最後に機能を解放した営業日（1営業日に1つずつ渡す。core/unlocks.ts）。まだなら null */
+  readonly unlockDay: number | null;
   /** 名前を明かした用語（明かした順） */
   readonly revealed: readonly TermId[];
   /** 進行中のチュートリアル。チュートリアルでなければ null */
@@ -507,6 +509,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     bottleneck: null,
     pendingEvents: [],
     unlocked: tutorial ? unlockDefs.filter((u) => u.when.type === 'start').map((u) => u.feature) : allFeatures,
+    unlockDay: null,
     revealed: tutorial ? [] : glossary.map((g) => g.id),
     tutorial: tutorial ? { step: 0 } : null,
     sessions: createSessions(),

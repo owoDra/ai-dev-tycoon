@@ -17,6 +17,7 @@ import type { GameEvent } from '../../src/core/events';
 import { deserialize, serialize } from '../../src/core/serialize';
 import { createInitialState, type GameState } from '../../src/core/state';
 import { playSpeed, skipUntil, step, waitingOnBids } from '../../src/core/step';
+import { applyUnlocks } from '../../src/core/unlocks';
 import { boardView, projectTabs } from '../../src/view/board';
 import { hhmm } from '../../src/view/hud';
 
@@ -73,7 +74,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(step(started, DAY * 2).state.board?.inquiries).toEqual([]);
   });
 
-  it('チュートリアルを納品すると案件ボードに引き合いが届き、採用市場から社員を迎えられるようになる', () => {
+  it('チュートリアルを納品すると案件ボードに引き合いが届く。採用市場は案件を重ねてから（4件目の納品で）開き、社員を迎えられる', () => {
     const before = reduce(createInitialState('c', { board: true }), {
       type: 'StartProject',
       projectId: 'tutorialLp',
@@ -86,10 +87,20 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(openInquiries(s)).toEqual(posted);
     expect(posted).toHaveLength(tierOf(s).inquiries);
     expect(events).toContainEqual({ type: 'InquiriesPosted', projectIds: posted });
-    expect(events).toContainEqual({ type: 'FeatureUnlocked', feature: 'hire' });
+    // チュートリアルの直後はまだ採用できない（人手が足りなくなるほど案件を重ねていない）
+    expect(events).not.toContainEqual({ type: 'FeatureUnlocked', feature: 'hire' });
+    expect(reduce(s, { type: 'Hire', staffId: candidate }).state).toBe(s);
     // 受注していない案件は直接始められない（コンペで受注する）
     expect(canStartProject(s, posted[0] ?? '')).toBe(false);
-    const hired = reduce(s, { type: 'Hire', staffId: candidate });
+    // 4件目を納品した後、営業日ごとに1つずつ解放され、何日かのうちに採用市場が開く
+    let later: GameState = { ...s, ledger: { ...s.ledger, delivered: 3 } };
+    for (let day = 1; day <= 5 && !later.unlocked.includes('hire'); day++) {
+      const before = later.unlocked.length;
+      later = applyUnlocks({ ...later, clock: s.clock + day * DAY }, () => {});
+      expect(later.unlocked.length - before).toBe(1);
+    }
+    expect(later.unlocked).toContain('hire');
+    const hired = reduce(later, { type: 'Hire', staffId: candidate });
     expect(hired.events).toContainEqual({ type: 'StaffJoined', staffId: candidate });
     expect(hired.state.team[candidate]).toEqual({ seat: 'standard', used: 0 });
   });
@@ -148,6 +159,8 @@ describe('案件ボードの進行（core/board.ts）', () => {
     let s = afterTutorial().state;
     const [a = ''] = openInquiries(s);
     s = win(s, a);
+    // Harness Builder を解放した会社（解放の順番は tests/unit/unlocks.test.ts で確かめる）
+    s = { ...s, unlocked: [...s.unlocked, 'harness'] };
     s = reduce(s, { type: 'EquipPart', workerId: 'agent', partId: 'skillFrontend' }).state;
     expect(s.ownedParts).toEqual(['skillFrontend']);
     s = reduce(deliver(s, a), pause).state;

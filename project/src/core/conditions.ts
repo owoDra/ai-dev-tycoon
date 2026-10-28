@@ -1,3 +1,4 @@
+import { companyTiers } from '../content/companyTiers';
 import { getProject } from '../content/index';
 import type { Condition } from '../content/types';
 import type { GameState, TaskRun } from './state';
@@ -53,5 +54,15 @@ export function holds(state: GameState, c: Condition): boolean {
       return state.contextStats[c.stat] >= c.count;
     case 'sessionAge':
       return Object.values(state.sessions).some((s) => s.age >= c.minutes);
+    case 'tier': {
+      const ids = companyTiers.map((t) => t.id);
+      return ids.indexOf(state.tier) >= ids.indexOf(c.tier);
+    }
+    case 'partsOwned':
+      return state.ownedParts.length >= c.count;
+    case 'all':
+      return c.of.every((x) => holds(state, x));
+    case 'any':
+      return c.of.some((x) => holds(state, x));
   }
 }

@@ -396,7 +396,7 @@ export function PlayScreen(props: {
     return taskId && inProject() ? { projectId: pid(), taskId, workerId: harnessWorker() } : null;
   };
   const library = createMemo(() =>
-    libraryOpen() && harnessOn() && inProject() ? libraryView(props.store.state(), libraryTarget()) : null,
+    libraryOpen() && libraryOn() && inProject() ? libraryView(props.store.state(), libraryTarget()) : null,
   );
   const openLibrary = (taskId: string | null) => {
     props.selection.dispatch({ type: 'SelectEntity', entityId: null });
@@ -434,6 +434,8 @@ export function PlayScreen(props: {
   const harnessWorker = () => projectAgent(props.store.state(), pid());
   // Harness Builder は案件の AI Worker を組むので、案件を開いているときだけ
   const harnessOn = () => isUnlocked(props.store.state(), 'harness') && inProject();
+  // Workflow Library は、Agent Workflow を解放した後（Workflow は担当の任せ方と Harness の組み合わせなので）
+  const libraryOn = () => harnessOn() && isUnlocked(props.store.state(), modeFeature('agentWorkflow'));
   const harness = createMemo(() =>
     harnessOpen() && harnessOn() ? harnessView(props.store.state(), pid(), harnessWorker()) : null,
   );
@@ -546,7 +548,7 @@ export function PlayScreen(props: {
   /** Harness Builder と Workflow Library を行き来するタブ（どちらのシートにも上端に出す） */
   const aiTabs = (current: 'harness' | 'library') => (
     <div role="tablist" aria-label={ja.library.tabs} class="flex gap-1.5" data-ai-tabs>
-      <For each={['harness', 'library'] as const}>
+      <For each={libraryOn() ? (['harness', 'library'] as const) : (['harness'] as const)}>
         {(id) => (
           <button
             type="button"
@@ -663,7 +665,7 @@ export function PlayScreen(props: {
             onClose={close}
             onAssign={assign}
             onHarness={harnessOn() ? openHarness : undefined}
-            onLibrary={harnessOn() ? (taskId) => openLibrary(taskId) : undefined}
+            onLibrary={libraryOn() ? (taskId) => openLibrary(taskId) : undefined}
             picks={(taskId) =>
               recommendWorkflows(
                 props.store.state(),

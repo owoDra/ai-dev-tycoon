@@ -203,7 +203,15 @@ export type Condition =
   /** Context の記録（core/state.ts の ContextStats）の値が count 以上 */
   | { readonly type: 'contextStat'; readonly stat: ContextStatId; readonly count: number }
   /** どれかの AI Worker の Session が、Reset からこの時間（AI が作業した分）以上続いている */
-  | { readonly type: 'sessionAge'; readonly minutes: number };
+  | { readonly type: 'sessionAge'; readonly minutes: number }
+  /** 会社の規模がこの段階（content/companyTiers.ts の並び）以上 */
+  | { readonly type: 'tier'; readonly tier: CompanyTierId }
+  /** 会社の資産になった Harness の部品（導入済み）が count 個以上 */
+  | { readonly type: 'partsOwned'; readonly count: number }
+  /** すべてを満たす */
+  | { readonly type: 'all'; readonly of: readonly Condition[] }
+  /** どれかを満たす（体験の条件に、規模の昇格などの「いずれは届く」条件を添えて、取り残されないようにする） */
+  | { readonly type: 'any'; readonly of: readonly Condition[] };
 
 /** 担当カードの1枚を表す機能 ID */
 export type ModeFeatureId = `mode:${AssignModeId}`;
@@ -254,6 +262,7 @@ export type UnlockMessageId =
   | 'speed'
   | 'utilization'
   | 'advanced'
+  | 'workflow'
   | 'problems'
   | 'basic'
   | 'context'

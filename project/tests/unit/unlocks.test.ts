@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { getAssignMode } from '../../src/content/assignModes';
 import { glossary } from '../../src/content/glossary';
 import { getModel, getTask } from '../../src/content/index';
-import { allFeatures } from '../../src/content/unlocks';
+import type { FeatureId } from '../../src/content/types';
+import { allFeatures, unlockDefs } from '../../src/content/unlocks';
 import { type Command, reduce } from '../../src/core/commands';
 import { holds } from '../../src/core/conditions';
 import type { GameEvent } from '../../src/core/events';
@@ -35,10 +36,15 @@ describe('機能の解放（core/unlocks.ts）', () => {
     const events: GameEvent[] = [];
     const project = s.projects[P];
     if (!project) throw new Error('案件が開始されていない');
-    s = applyUnlocks({ ...s, projects: { ...s.projects, [P]: { ...project, completedAt: 1 } } }, (e) => events.push(e));
-    expect(isUnlocked(s, 'mode:humanThenAi')).toBe(true);
-    expect(isUnlocked(s, 'mode:agentWorkflow')).toBe(true);
-    expect(events).toContainEqual({ type: 'FeatureUnlocked', feature: 'mode:agentWorkflow' });
+    // 人間のレビューを何度も繰り返した会社が、案件を納品した
+    const ledger = { ...s.ledger, modeCompleted: { aiThenHumanReview: 6 } };
+    s = applyUnlocks({ ...s, ledger, projects: { ...s.projects, [P]: { ...project, completedAt: 1 } } }, (e) =>
+      events.push(e),
+    );
+    expect(isUnlocked(s, 'harness')).toBe(true);
+    // Harness Builder の解放を条件にする「お願い」と「Hook」も、同じ回に解放する
+    expect(isUnlocked(s, 'harness:hook')).toBe(true);
+    expect(events).toContainEqual({ type: 'FeatureUnlocked', feature: 'harness:hook' });
     expect(events).toContainEqual({ type: 'TermRevealed', term: 'harnessEngineering' });
     const again: GameEvent[] = [];
     expect(applyUnlocks(s, (e) => again.push(e))).toBe(s);
@@ -72,7 +78,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('解放の進み具合はセーブを通っても残り、v2 などキャンペーン以前の形式のセーブは読み込めない（OutdatedSaveError）', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     expect(() => deserialize(JSON.stringify({ saveVersion: 2, state: v2 }))).toThrow(OutdatedSaveError);
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
     const loaded = deserialize(serialize(s));
     expect(loaded.unlocked).toEqual(allFeatures);
@@ -141,5 +147,85 @@ describe('AI → 自動テスト → 確認（簡易 Eval）', () => {
     const review = expectedHumanMinutes(task, getAssignMode('aiThenHumanReview'), 1, model);
     const evalMode = expectedHumanMinutes(task, getAssignMode('aiThenEval'), 1, model);
     expect(evalMode).toBeLessThan(review / 3);
+  });
+});
+
+describe('段階的な解放（Phase 29。企画書50章「必要になる前に説明しない」）', () => {
+  /** チュートリアルの案件を納品した会社（案件ボードあり） */
+  const afterTutorial = (): GameState => {
+    const s = reduce(createInitialState('ladder', { board: true }), {
+      type: 'StartProject',
+      projectId: 'tutorialLp',
+    }).state;
+    const run = s.projects.tutorialLp;
+    if (!run) throw new Error('チュートリアルの案件が始まっていない');
+    const projects = { ...s.projects, tutorialLp: { ...run, completedAt: s.clock } };
+    return reduce({ ...s, projects }, { type: 'TogglePause' }).state;
+  };
+  const DAY = 1440;
+
+  it('チュートリアルの直後は、Workflow・Harness・Context・採用・上級の任せ方をまだ渡さない', () => {
+    const s = afterTutorial();
+    expect(s.tutorial).toBeNull();
+    for (const f of [
+      'mode:agentWorkflow',
+      'mode:humanThenAi',
+      'harness',
+      'harness:hook',
+      'context',
+      'hire',
+      'team',
+    ] as const) {
+      expect(isUnlocked(s, f), f).toBe(false);
+    }
+    expect(isUnlocked(s, 'problems')).toBe(true);
+  });
+
+  it('条件を満たした解放が重なっても1営業日に1つずつ渡し、解放を条件にする連鎖は同じ日にまとめる', () => {
+    const s = afterTutorial();
+    // 経験を十分に積んだ（納品・レビュー・AI のミスの数がそろった）会社
+    const ledger = { ...s.ledger, delivered: 5, defectsEscaped: 5, modeCompleted: { aiThenHumanReview: 10 } };
+    let state: GameState = { ...s, ledger };
+    // 同じ営業日のうちは、チュートリアルの納品で渡した分のほかに増えない
+    expect(applyUnlocks(state, () => {}).unlocked).toEqual(s.unlocked);
+    const perDay: FeatureId[][] = [];
+    for (let day = 1; day <= 8; day++) {
+      const events: GameEvent[] = [];
+      state = applyUnlocks({ ...state, clock: s.clock + day * DAY }, (e) => events.push(e));
+      perDay.push(events.flatMap((e) => (e.type === 'FeatureUnlocked' ? [e.feature] : [])));
+    }
+    // 毎日1つの解放（連鎖は同じ日）。Harness Builder と「お願い」と「Hook」は同じ日に届く
+    for (const day of perDay.filter((d) => d.length > 0)) {
+      const roots = day.filter((f) => unlockDefs.find((u) => u.feature === f)?.when.type !== 'unlocked');
+      expect(roots, day.join(',')).toHaveLength(1);
+    }
+    expect(perDay.find((d) => d.includes('harness'))).toContain('harness:hook');
+    // Harness の部品を導入すると、次の営業日に Agent Workflow
+    expect(isUnlocked(state, 'mode:agentWorkflow')).toBe(false);
+    state = { ...state, ownedParts: ['skillFrontend'] };
+    state = applyUnlocks({ ...state, clock: s.clock + 20 * DAY }, () => {});
+    expect(isUnlocked(state, 'mode:agentWorkflow')).toBe(true);
+  });
+
+  it('どの遊び方でも、昇格すれば Harness・MCP・権限モード・Subagent・Mod・Routine まで届く（体験の条件に昇格の条件を添えてある）', () => {
+    // レビューも Workflow も使わず、部品も入れていないが、小規模企業まで育った会社
+    let state: GameState = { ...afterTutorial(), tier: 'small', ledger: { ...afterTutorial().ledger, delivered: 10 } };
+    for (let day = 1; day <= 30; day++) state = applyUnlocks({ ...state, clock: day * DAY }, () => {});
+    for (const f of [
+      'harness',
+      'harness:hook',
+      'harness:eval',
+      'harness:subagent',
+      'harness:tool',
+      'harness:permission',
+      'harness:mod',
+      'harness:routine',
+      'context',
+      'hire',
+      'team',
+      'mode:humanThenAi',
+    ] as const) {
+      expect(isUnlocked(state, f), f).toBe(true);
+    }
   });
 });

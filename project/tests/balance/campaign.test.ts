@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
+import type { FeatureId } from '../../src/content/types';
 import { scoreCompany, scoreProject } from '../../src/core/scoring';
 import { FULL_SEEDS, isFullBalance, seeds } from '../helpers/compare';
 import {
@@ -31,13 +32,14 @@ const SEEDS = isFullBalance ? [...BASE_SEEDS, ...seeds(FULL_SEEDS, 'campaign').s
 const realMinutes = (gameMinutes: number) => gameMinutes / balance.time.minutesPerRealSecond / SECONDS_PER_MINUTE;
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
-function play(policy: CampaignPolicy, seed: string) {
+function play(policy: CampaignPolicy, seed: string, unlocked: readonly FeatureId[] = []) {
   return playCampaign({
     seed,
     policy,
     thinkSeconds: THINK_SECONDS,
     tutorialThinkSeconds: TUTORIAL_THINK_SECONDS,
     limitMinutes: MAX_MINUTES * 2 * SECONDS_PER_MINUTE * balance.time.minutesPerRealSecond,
+    unlocked,
   });
 }
 
@@ -70,8 +72,11 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
   });
 
   it('Seat を変えなくてもクリアできるが、運用者の Seat の使用量の上限で遅くなる', () => {
-    const premium = play(smartSeatPolicy, tutorialScript.seed);
-    const standard = play(smartPolicy, tutorialScript.seed);
+    // Seat を変えられる段階の会社どうしで比べる。Seat の変更はスタートアップへの昇格で開き、そのときには必ず Context
+    // （と、AI の使用量を押し上げる事件）も解放済み（解放の順番は tests/unit/unlocks.test.ts）
+    const stage: readonly FeatureId[] = ['context', 'team'];
+    const premium = play(smartSeatPolicy, tutorialScript.seed, stage);
+    const standard = play(smartPolicy, tutorialScript.seed, stage);
     console.log(
       `[企画書6章] 通し：全員Standard ${realMinutes(standard.clearedAt ?? 0).toFixed(1)} 分` +
         ` vs 運用者だけPremium ${realMinutes(premium.clearedAt ?? 0).toFixed(1)} 分`,

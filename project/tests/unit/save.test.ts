@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(16);
+    expect(SAVE_VERSION).toBe(17);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);

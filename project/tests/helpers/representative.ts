@@ -1,7 +1,7 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
-import type { AssignModeId, TaskDef } from '../../src/content/types';
+import type { AssignModeId, FeatureId, TaskDef } from '../../src/content/types';
 import { archiveSystem } from '../../src/core/archive';
 import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
@@ -142,6 +142,11 @@ export interface CampaignOptions {
   readonly tutorialThinkSeconds: number;
   /** 打ち切るゲーム内時刻（分） */
   readonly limitMinutes: number;
+  /**
+   * 最初から解放済みにする機能。採用や Seat の変更のような経営判断の手応えを、解放の時期（tests/unit/unlocks.test.ts）と
+   * 切り離して比べるときに使う（比べる両方に同じものを渡す）
+   */
+  readonly unlocked?: readonly FeatureId[];
 }
 
 export interface CampaignResult {
@@ -162,7 +167,8 @@ const SYSTEMS = defaultSystems.filter((s) => s !== archiveSystem);
 /** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、考える時間が過ぎたら Command を出す */
 export function playCampaign(options: CampaignOptions): CampaignResult {
   const perSecond = balance.time.minutesPerRealSecond;
-  let state = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
+  const initial = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
+  let state: GameState = { ...initial, unlocked: [...initial.unlocked, ...(options.unlocked ?? [])] };
   /** 1倍速で遊んだときの経過実時間（秒）。考える時間もこの時計で数える */
   let real = 0;
   const events: GameEvent[] = [];

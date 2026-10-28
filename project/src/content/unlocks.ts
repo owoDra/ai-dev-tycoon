@@ -2,8 +2,10 @@ import type { HudItemId } from './look/layout';
 import type { AssignModeId, FeatureId, ModeFeatureId, UnlockDef } from './types';
 
 /**
- * 機能の解放（企画書50章「必要になる前に説明しない」）。条件を満たした時点で core/unlocks.ts が解放し、
- * FeatureUnlocked を出す（Tier 2 の演出と「NEW」バッジ）。
+ * 機能の解放（企画書50章「必要になる前に説明しない」「順番に解放する」）。問題を体験した後に、その解決策を渡す順に並べる。
+ * 体験の条件だけだと遊び方によっては永久に届かないので、規模の昇格など「いずれは届く」条件を any で添える。
+ * 条件を満たした時点で core/unlocks.ts が解放し、FeatureUnlocked を出す（Tier 2 の演出と「NEW」バッジ）。
+ * チュートリアルの後は1営業日に1つずつ渡す（同じ条件で同時に満たしたものと、解放を条件にする連鎖は同じ日にまとめる）。
  * 会社（案件ボード）はチュートリアル（start の機能だけ）から始まり、解放の進み具合を案件をまたいで持ち越す（セーブにも残る）。
  * チュートリアルなしで始めた会社と、案件ボードのない単発のプレイ（テストなど）は、すべて解放済みで始まる。
  */
@@ -26,46 +28,95 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'modeCompleted', mode: 'aiThenHumanReview', count: 1 },
     message: 'eval',
   },
+  // チュートリアルの案件を納品したら、次に手を打つ場所を教える
+  { id: 'problems', feature: 'problems', when: { type: 'projectsCompleted', count: 1 }, message: 'problems' },
+  // 2つ目の案件を納品したら、人間の判断を先に置く任せ方を渡す
   {
     id: 'humanThenAi',
     feature: 'mode:humanThenAi',
-    when: { type: 'projectsCompleted', count: 1 },
+    when: { type: 'projectsCompleted', count: 2 },
     message: 'advanced',
   },
+  // Context（企画書9〜12章）。AI のミスが重なってきたら、渡す資料を選べるようにする（遅くとも4件目の納品で）。
+  // 資料のある案件でだけ UI に出る。最初は「必要な資料だけ / すべての資料」の2択
   {
-    id: 'agentWorkflow',
-    feature: 'mode:agentWorkflow',
-    when: { type: 'unlocked', feature: 'mode:humanThenAi' },
-    message: 'advanced',
+    id: 'context',
+    feature: 'context',
+    when: {
+      type: 'any',
+      of: [
+        { type: 'defectsEscaped', count: 3 },
+        { type: 'projectsCompleted', count: 4 },
+      ],
+    },
+    message: 'context',
   },
-  { id: 'problems', feature: 'problems', when: { type: 'projectsCompleted', count: 1 }, message: 'problems' },
-  // Context（企画書9〜12章）。資料のある案件でだけ UI に出る。最初は「必要な資料だけ / すべての資料」の2択
-  { id: 'context', feature: 'context', when: { type: 'projectsCompleted', count: 1 }, message: 'context' },
   // Session が長くなり、履歴のノイズが目立ってきたら New Session と Handoff を渡す
-  { id: 'session', feature: 'session', when: { type: 'sessionAge', minutes: 20 }, message: 'session' },
+  {
+    id: 'session',
+    feature: 'session',
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'context' },
+        { type: 'sessionAge', minutes: 20 },
+      ],
+    },
+    message: 'session',
+  },
   // 事件を一度経験したら、資料を1つずつ選べるようにする
   {
     id: 'contextPick',
     feature: 'context:pick',
-    when: { type: 'contextStat', stat: 'incidents', count: 1 },
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'context' },
+        { type: 'contextStat', stat: 'incidents', count: 1 },
+      ],
+    },
     message: 'contextPick',
   },
   // 一度 Reset したら、成果物に状態を残す方法を渡す
   {
     id: 'artifacts',
     feature: 'session:artifacts',
-    when: { type: 'contextStat', stat: 'resets', count: 1 },
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'session' },
+        { type: 'contextStat', stat: 'resets', count: 1 },
+      ],
+    },
     message: 'artifacts',
   },
-  // 決済画面の修正（の型の案件）を納品したら、最後に Context Router（Phase 11 で Harness Builder に統合する）
+  // 決済画面の修正（の型の案件）を納品したら、最後に Context Router（Harness Builder の部品）
   {
     id: 'contextRouter',
     feature: 'context:router',
-    when: { type: 'templateCompleted', templateId: 'paymentFix' },
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'harness' },
+        { type: 'templateCompleted', templateId: 'paymentFix' },
+      ],
+    },
     message: 'contextRouter',
   },
-  // Harness Builder（企画書35章）。AI に任せる経験を積んで「Harness Engineering」の名前を知った後に、Model・CLAUDE.md と Rules・Skill から
-  { id: 'harness', feature: 'harness', when: { type: 'projectsCompleted', count: 1 }, message: 'harness' },
+  // Harness Builder（企画書35章）。人間のレビューを何度も繰り返し「毎回同じ確認をしている」と感じた後に、
+  // Model・CLAUDE.md と Rules・Skill を渡す（遅くともスタートアップへの昇格で）
+  {
+    id: 'harness',
+    feature: 'harness',
+    when: {
+      type: 'any',
+      of: [
+        { type: 'modeCompleted', mode: 'aiThenHumanReview', count: 6 },
+        { type: 'tier', tier: 'startup' },
+      ],
+    },
+    message: 'harness',
+  },
   // Builder と一緒に「お願い」と「Hook」を渡す（同じルールの2つの守らせ方を最初に比べさせる）
   {
     id: 'harnessHook',
@@ -73,11 +124,67 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'unlocked', feature: 'harness' },
     message: 'harnessHook',
   },
-  // Workflow で AI に工程をまとめて任せた後に、MCP と権限モードを渡す
+  // Harness の部品を1つ導入して AI Worker を整えた後に、工程をまとめて AI に任せる Agent Workflow と、
+  // その組み合わせを保存・適用する Workflow Library を渡す
+  {
+    id: 'agentWorkflow',
+    feature: 'mode:agentWorkflow',
+    when: { type: 'partsOwned', count: 1 },
+    message: 'workflow',
+  },
+  // チュートリアルの後、案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする（社員の画面もここから開ける）
+  { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 4 }, message: 'hire' },
+  // スタートアップに昇格し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
+  { id: 'team', feature: 'team', when: { type: 'tier', tier: 'startup' }, message: 'team' },
+  // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す（遅くともスタートアップへの昇格で）
+  {
+    id: 'harnessEval',
+    feature: 'harness:eval',
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'harness' },
+        {
+          type: 'any',
+          of: [
+            { type: 'modeCompleted', mode: 'aiThenEval', count: 2 },
+            { type: 'tier', tier: 'startup' },
+          ],
+        },
+      ],
+    },
+    message: 'harnessEval',
+  },
+  // スタートアップに昇格したら、分担（Subagent）を渡す
+  {
+    id: 'harnessSubagent',
+    feature: 'harness:subagent',
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'harness' },
+        { type: 'tier', tier: 'startup' },
+      ],
+    },
+    message: 'harnessSubagent',
+  },
+  // Workflow で AI に工程をまとめて任せた後に、MCP と権限モードを渡す（遅くともスタートアップへの昇格で）
   {
     id: 'harnessTool',
     feature: 'harness:tool',
-    when: { type: 'modeCompleted', mode: 'agentWorkflow', count: 1 },
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'harness' },
+        {
+          type: 'any',
+          of: [
+            { type: 'modeCompleted', mode: 'agentWorkflow', count: 1 },
+            { type: 'tier', tier: 'startup' },
+          ],
+        },
+      ],
+    },
     message: 'harnessTool',
   },
   {
@@ -86,32 +193,25 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'unlocked', feature: 'harness:tool' },
     message: 'harnessPermission',
   },
-  // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す
+  // 小規模企業に昇格したら、人間が見張る時間を減らす Mod と、夜も AI を働かせる Routine を渡す
   {
-    id: 'harnessEval',
-    feature: 'harness:eval',
-    when: { type: 'modeCompleted', mode: 'aiThenEval', count: 2 },
-    message: 'harnessEval',
+    id: 'harnessMod',
+    feature: 'harness:mod',
+    when: {
+      type: 'all',
+      of: [
+        { type: 'unlocked', feature: 'harness' },
+        { type: 'tier', tier: 'small' },
+      ],
+    },
+    message: 'harnessMod',
   },
-  // 2つ目の案件を納品したら、分担（Subagent）を渡す
-  {
-    id: 'harnessSubagent',
-    feature: 'harness:subagent',
-    when: { type: 'projectsCompleted', count: 2 },
-    message: 'harnessSubagent',
-  },
-  // 3つ目の案件を納品したら、人間が見張る時間を減らす Mod と、夜も AI を働かせる Routine を渡す
-  { id: 'harnessMod', feature: 'harness:mod', when: { type: 'projectsCompleted', count: 3 }, message: 'harnessMod' },
   {
     id: 'harnessRoutine',
     feature: 'harness:routine',
     when: { type: 'unlocked', feature: 'harness:mod' },
     message: 'harnessRoutine',
   },
-  // チュートリアルの案件を納品したら、採用市場で人を増やせるようにする（社員の画面もここから開ける）
-  { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 1 }, message: 'hire' },
-  // 2つ目の案件を納品し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
-  { id: 'team', feature: 'team', when: { type: 'projectsCompleted', count: 2 }, message: 'team' },
 ];
 
 export const modeFeature = (mode: AssignModeId): ModeFeatureId => `mode:${mode}`;

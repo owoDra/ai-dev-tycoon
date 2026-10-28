@@ -138,7 +138,7 @@ export interface WorkflowPick {
 }
 
 /**
- * Task に適用できる Workflow を、案件の見込み利益（view/hud.ts の projectedProfit）が増える順に limit 件まで。
+ * Task に適用できる Workflow（未解放の部品を含まないもの）を、案件の見込み利益（view/hud.ts の projectedProfit）が増える順に limit 件まで。
  * 適用は AI Worker の構成ごと変え、部品の導入コストもかかるので、減るものも差のまま見せる（ほかの Task の見込みの変化も含める）
  */
 export function recommendWorkflows(state: GameState, target: LibraryTarget, limit: number): readonly WorkflowPick[] {
@@ -146,7 +146,8 @@ export function recommendWorkflows(state: GameState, target: LibraryTarget, limi
   const entries = libraryView(state, target);
   return [...entries.presets, ...entries.saved]
     .flatMap((e): WorkflowPick[] => {
-      if (!e.apply) return [];
+      // まだ解放していない部品を含む Workflow は、適用しても部品が省かれて別物になるので勧めない
+      if (!e.apply || e.locked.length > 0) return [];
       const after = hudView(reduce(state, e.apply).state, target.projectId)?.projectedProfit ?? now;
       return [{ id: e.id, name: e.name, apply: e.apply, profitDelta: after - now }];
     })

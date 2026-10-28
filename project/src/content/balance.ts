@@ -558,6 +558,8 @@ export const balance = {
     maxNameLength: 30,
     /** 1工程の人間時間の上限（分） */
     maxStepMinutes: 600,
+    /** 1年の実施回数の上限（入力で変えるとき） */
+    maxRunsPerYear: 5000,
   },
 } as const;
 

@@ -579,6 +579,8 @@ export interface PracticeStepInput {
 export interface PracticeJobInput {
   readonly name: string;
   readonly frequency: PracticeFrequency;
+  /** 1年の実施回数。省けば頻度の既定値（balance.practice.runsPerYear） */
+  readonly runsPerYear?: number;
   /** 人件費（円/人日）。人件費の換算に使う */
   readonly dailyWage: number;
   /** 業務1回が生む価値（円）。人日あたりの利益に使う */

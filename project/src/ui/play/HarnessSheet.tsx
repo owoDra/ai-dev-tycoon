@@ -59,6 +59,8 @@ export function HarnessSheet(props: {
   footer?: JSX.Element;
   /** 見出しの小さな文字（既定は Harness Builder） */
   kicker?: string;
+  /** 予測の見出し（既定はゲームの「この案件の AI の仕事」） */
+  previewTitle?: string;
   /** シートの上端に出すタブ（Harness Builder と Workflow Library の切り替え） */
   tabs?: JSX.Element;
 }) {
@@ -147,7 +149,7 @@ export function HarnessSheet(props: {
               }}
             />
             <Show when={focused()}>
-              <ForecastMetrics preview={preview()} title={t.preview} />
+              <ForecastMetrics preview={preview()} title={props.previewTitle ?? t.preview} />
             </Show>
             {props.footer}
           </>
@@ -193,7 +195,7 @@ export function HarnessSheet(props: {
                 </fieldset>
               )}
             </Keyed>
-            <ForecastMetrics preview={preview()} title={t.preview} />
+            <ForecastMetrics preview={preview()} title={props.previewTitle ?? t.preview} />
           </>
         )}
       </Show>

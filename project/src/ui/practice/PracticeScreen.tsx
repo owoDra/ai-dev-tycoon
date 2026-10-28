@@ -23,17 +23,31 @@ import type {
   TaskKind,
 } from '../../content/types';
 import { exportClaudeConfig } from '../../core/harnessExport';
-import { estimatePractice, newPracticeStep, type PracticeEstimate, usesAi } from '../../core/practice';
+import {
+  estimatePractice,
+  newPracticeStep,
+  type PracticeEstimate,
+  type PracticeStepEstimate,
+  usesAi,
+} from '../../core/practice';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import {
   applyPracticeCommand,
+  type BreakdownSegment,
   blankJob,
   formatRoi,
   practiceForecast,
   practiceHarness,
   practiceHeadline,
+  practicePremise,
   practiceReport,
+  roiFormula,
+  savedYenDetail,
+  stepBreakdown,
+  stepFormulas,
+  stepQuality,
+  stepSuccess,
 } from '../../view/practice';
 import { CopyButton } from '../CopyButton';
 import { Icon } from '../Icon';
@@ -140,6 +154,7 @@ export function PracticeScreen(props: { onBack: () => void }) {
         </section>
 
         <ResultPanel job={job()} estimate={estimate()} />
+        <PremisePanel job={job()} onChange={update} />
         <ExportPanel job={job()} />
 
         <section class="grid gap-3 sm:grid-cols-2" aria-label={t.job.name}>
@@ -165,7 +180,7 @@ export function PracticeScreen(props: { onBack: () => void }) {
                     aria-pressed={job().frequency === f}
                     class="min-h-9 rounded-md border-2 border-line bg-surface px-3 text-sm font-bold aria-pressed:bg-accent-300"
                     data-practice-frequency={f}
-                    onClick={() => update({ frequency: f as PracticeFrequency })}
+                    onClick={() => update({ frequency: f as PracticeFrequency, runsPerYear: undefined })}
                   >
                     {t.job.frequencies[f]}
                   </button>
@@ -173,16 +188,6 @@ export function PracticeScreen(props: { onBack: () => void }) {
               </For>
             </div>
           </fieldset>
-          <Field label={t.job.wage}>
-            {(id) => (
-              <NumberInput
-                id={id}
-                value={job().dailyWage}
-                max={Number.MAX_SAFE_INTEGER}
-                onChange={(v) => update({ dailyWage: v })}
-              />
-            )}
-          </Field>
           <Field label={t.job.value}>
             {(id) => (
               <NumberInput
@@ -208,7 +213,7 @@ export function PracticeScreen(props: { onBack: () => void }) {
                     step={step}
                     index={i()}
                     count={job().steps.length}
-                    after={estimate().steps[i()]?.afterMinutes ?? step.minutes}
+                    estimate={estimate().steps[i()]}
                     onChange={(patch) => updateStep(i(), patch)}
                     onMove={(by) => moveStep(i(), by)}
                     onRemove={() => removeStep(i())}
@@ -236,6 +241,7 @@ export function PracticeScreen(props: { onBack: () => void }) {
             layout={sheet()}
             bottom={0}
             viewHeight={view().height}
+            previewTitle={t.steps.preview}
             forecast={(command) => practiceForecast(job(), editing() ?? 0, command)}
             dispatch={(command) => setJob((j) => applyPracticeCommand(j, editing() ?? 0, command))}
             onClose={() => setEditing(null)}
@@ -280,7 +286,7 @@ function StepCard(props: {
   step: PracticeStepInput;
   index: number;
   count: number;
-  after: number;
+  estimate: PracticeStepEstimate | undefined;
   onChange: (patch: Partial<PracticeStepInput>) => void;
   onMove: (by: number) => void;
   onRemove: () => void;
@@ -296,7 +302,7 @@ function StepCard(props: {
       <div class="flex items-center justify-between gap-2">
         <span class="font-heading text-sm">{props.index + 1}.</span>
         <span class="flex-1 text-right text-xs font-bold tabular-nums" data-step-after>
-          {t.minutes(s().minutes)} → {s2.after(props.after)}
+          {t.minutes(s().minutes)} → {s2.after(props.estimate?.afterMinutes ?? s().minutes)}
         </span>
         <div class="flex gap-1">
           <button
@@ -393,7 +399,124 @@ function StepCard(props: {
           </div>
         </Show>
       </div>
+      <Show when={props.estimate}>{(e) => <StepExplain step={s()} estimate={e()} />}</Show>
     </article>
+  );
+}
+
+const segmentColor: Record<BreakdownSegment['key'], string> = {
+  instruct: 'bg-accent-300',
+  work: 'bg-neutral-300',
+  review: 'bg-primary-200',
+  rework: 'bg-danger-200',
+  aiWork: 'bg-success-200',
+  verify: 'bg-warning-200',
+  repair: 'bg-danger-200',
+};
+
+/**
+ * 工程の内訳のバーと「なぜこの数字？」。バーの長さは今の時間を全幅にした割合で、減った分が空白として見える。
+ * 区間は色だけでなく、名前と分の凡例でも示す
+ */
+function StepExplain(props: { step: PracticeStepInput; estimate: PracticeStepEstimate }) {
+  const x = t.explain;
+  const parts = () => stepBreakdown(props.estimate);
+  const width = (m: number) => `${Math.min(100, (m / Math.max(props.step.minutes, 1e-9)) * 100)}%`;
+  const row = (label: string, segments: BreakdownSegment[], total: number, data: string) => (
+    <div class="flex flex-col gap-0.5" data-breakdown={data}>
+      <div class="flex items-center gap-2">
+        <span class="w-8 shrink-0 text-[11px] font-bold">{label}</span>
+        <div class="flex h-3 min-w-0 flex-1 overflow-hidden rounded-sm border-2 border-line/30 bg-sunken">
+          <For each={segments}>
+            {(seg) => <span class={`h-full ${segmentColor[seg.key]}`} style={{ width: width(seg.minutes) }} />}
+          </For>
+        </div>
+        <span class="w-14 shrink-0 text-right text-[11px] font-bold tabular-nums">{x.min(total)}</span>
+      </div>
+      <Show when={segments.length > 0}>
+        <ul class="flex flex-wrap gap-x-3 pl-10 text-[11px] text-ink-muted">
+          <For each={segments}>
+            {(seg) => (
+              <li class="flex items-center gap-1" data-segment={seg.key}>
+                <span class={`inline-block size-2 rounded-sm ${segmentColor[seg.key]}`} aria-hidden="true" />
+                {seg.label} {x.min(seg.minutes)}
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </div>
+  );
+  return (
+    <div class="flex flex-col gap-1.5 border-t-2 border-line/20 pt-2" data-step-explain>
+      {row(x.human, parts().human, props.estimate.afterMinutes, 'human')}
+      <Show when={usesAi(props.step)}>{row(x.ai, parts().ai, props.estimate.aiMinutes, 'ai')}</Show>
+      <p class="text-xs" data-step-success>
+        {stepSuccess(props.step, props.estimate)}
+      </p>
+      <p class="text-xs font-bold" data-step-quality>
+        {stepQuality(props.estimate)}
+      </p>
+      <details data-step-why>
+        <summary class="cursor-pointer text-xs font-bold text-primary-700">{x.why}</summary>
+        <ul class="mt-1 flex flex-col gap-1 rounded-md bg-sunken p-2 text-xs leading-snug tabular-nums">
+          <For each={stepFormulas(props.step, props.estimate)}>{(line) => <li>{line}</li>}</For>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+/** 前提のカード。年の回数と人件費はその場で変えられる */
+function PremisePanel(props: { job: PracticeJobInput; onChange: (patch: Partial<PracticeJobInput>) => void }) {
+  const p = t.premise;
+  const fixed = () => practicePremise(props.job).filter((i) => i.key !== 'runs' && i.key !== 'wage');
+  return (
+    <section
+      class="flex flex-col gap-2 rounded-lg border-[3px] border-line bg-surface p-3"
+      aria-label={p.title}
+      data-practice-premise
+    >
+      <h2 class="font-heading text-base">{p.title}</h2>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <Field label={p.runs}>
+          {(id) => (
+            <NumberInput
+              id={id}
+              value={props.job.runsPerYear ?? balance.practice.runsPerYear[props.job.frequency]}
+              max={balance.practice.maxRunsPerYear}
+              data="runs"
+              onChange={(v) => props.onChange({ runsPerYear: Math.round(v) })}
+            />
+          )}
+        </Field>
+        <Field label={p.wage}>
+          {(id) => (
+            <NumberInput
+              id={id}
+              value={props.job.dailyWage}
+              max={Number.MAX_SAFE_INTEGER}
+              data="wage"
+              onChange={(v) => props.onChange({ dailyWage: v })}
+            />
+          )}
+        </Field>
+      </div>
+      <p class="text-[11px] text-ink-muted">
+        {p.runsDefault(balance.practice.runsPerYear[props.job.frequency], t.job.frequencies[props.job.frequency])}
+      </p>
+      <dl class="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[auto_1fr]">
+        <For each={fixed()}>
+          {(item) => (
+            <>
+              <dt class="font-bold">{item.label}</dt>
+              <dd class="text-ink-muted">{item.value}</dd>
+            </>
+          )}
+        </For>
+      </dl>
+      <p class="text-[11px] text-ink-muted">{p.complianceHint}</p>
+    </section>
   );
 }
 
@@ -426,12 +549,18 @@ function ResultPanel(props: { job: PracticeJobInput; estimate: PracticeEstimate 
         <Stat label={r.perYear} value={`${t.hours(e().annualBeforeHours)} → ${t.hours(e().annualAfterHours)}`} />
         <Stat label={r.savedHours} value={t.hours(e().annualSavedHours)} data="saved" />
         <Stat
+          label={r.savedYen}
+          value={t.yen(e().annualLaborSaved)}
+          note={savedYenDetail(props.job, e())}
+          data="saved-yen"
+        />
+        <Stat
           label={r.aiCost}
           value={t.yen(e().aiExtraCost)}
           note={r.aiCostDetail(t.yen(e().annualAiCost), t.yen(e().installCost))}
           data="ai-cost"
         />
-        <Stat label={r.roi} value={formatRoi(e().roi)} data="roi" />
+        <Stat label={r.roi} value={formatRoi(e().roi)} note={roiFormula(e()) ?? undefined} data="roi" />
         <Stat
           label={r.profit}
           value={`${perHour(e().profitPerPersonDay.before)} → ${perHour(e().profitPerPersonDay.after)}`}

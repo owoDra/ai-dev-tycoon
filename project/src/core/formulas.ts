@@ -141,12 +141,33 @@ const NO_HARNESS: HumanTimeHarness = { humanTime: 1, evalCatch: 0 };
 export const isIntervention = (step: ModeStep) =>
   step.actor === 'human' && (step.phase === 'instruct' || step.phase === 'review');
 
+/**
+ * 人間の時間の内訳の1項目。minutes = 作業量 × share ÷ skill × factor × chance（実務モードの「なぜこの数字？」で式として見せる）
+ */
+export interface HumanTimeItem {
+  /** 指示出し・自分の作業・確認（レビュー）・手戻り */
+  readonly kind: 'instruct' | 'work' | 'review' | 'rework';
+  /** 作業量に対する割合（ModeStep.effortShare、手戻りは balance.assign.reworkShare） */
+  readonly share: number;
+  /** Harness の人間の介入の補正（指示出しと確認だけ。ほかは 1） */
+  readonly factor: number;
+  /** 起こる確率（手戻りは「失敗が残っている × レビューで見つかる」。ほかは 1） */
+  readonly chance: number;
+  readonly minutes: number;
+}
+
 /** モードの工程を順にたどった見込み（modeOutcome） */
 export interface ModeOutcome {
   /** 人間の拘束時間（分）。指示出し・確認・レビューで見つかった失敗の手戻り */
   readonly humanMinutes: number;
+  /** humanMinutes の内訳（工程の順） */
+  readonly human: readonly HumanTimeItem[];
   /** AI の自動テストの工程（検証の繰り返しと修復）にかかる AI の時間（分） */
   readonly aiReviewMinutes: number;
+  /** aiReviewMinutes の内訳。検証と修復 */
+  readonly aiReview: { readonly verify: number; readonly repair: number };
+  /** AI の作業の成功確率（Context と Harness の補正の後。Eval の前） */
+  readonly aiSuccess: number;
   /** 失敗を見逃したまま完了する確率 */
   readonly defect: number;
 }
@@ -169,14 +190,17 @@ export function modeOutcome(
 ): ModeOutcome {
   const human: ActorProfile = { kind: 'human', skill };
   const ai: ActorProfile = { kind: 'ai', model };
-  let minutes = 0;
-  let aiReviewMinutes = 0;
+  const items: HumanTimeItem[] = [];
+  let verify = 0;
+  let repair = 0;
   let pAllOk = 1;
   let aiP = aiSuccess(successProbability(task, ai));
   for (const step of mode.steps) {
     if (step.actor === 'human') {
       const m = stepMinutes(task, step, human);
-      minutes += isIntervention(step) && harness.humanTime !== 1 ? m * harness.humanTime : m;
+      const factor = isIntervention(step) ? harness.humanTime : 1;
+      const kind = step.phase === 'instruct' ? 'instruct' : step.phase === 'review' ? 'review' : 'work';
+      items.push({ kind, share: step.effortShare, factor, chance: 1, minutes: factor === 1 ? m : m * factor });
     }
     if (step.phase === 'work') {
       if (step.actor === 'human') {
@@ -190,16 +214,25 @@ export function modeOutcome(
     if (step.phase !== 'review') continue;
     const c = reviewCatch(task, step);
     if (step.actor === 'human') {
-      minutes += (1 - pAllOk) * c * reworkMinutes(task, skill);
+      const chance = (1 - pAllOk) * c;
+      const share = balance.assign.reworkShare;
+      items.push({ kind: 'rework', share, factor: 1, chance, minutes: chance * reworkMinutes(task, skill) });
       pAllOk = 1 - (1 - pAllOk) * (1 - c);
       continue;
     }
     const loop = evalLoop(aiP, c, 1 - pAllOk);
-    aiReviewMinutes +=
-      Math.max(1, loop.evalRuns) * stepMinutes(task, step, ai) + loop.repairs * repairMinutes(task, model);
+    verify += Math.max(1, loop.evalRuns) * stepMinutes(task, step, ai);
+    repair += loop.repairs * repairMinutes(task, model);
     pAllOk = 1 - loop.defect;
   }
-  return { humanMinutes: minutes, aiReviewMinutes, defect: 1 - pAllOk };
+  return {
+    humanMinutes: items.reduce((s, x) => s + x.minutes, 0),
+    human: items,
+    aiReviewMinutes: verify + repair,
+    aiReview: { verify, repair },
+    aiSuccess: aiP,
+    defect: 1 - pAllOk,
+  };
 }
 
 /** 人間の拘束時間の見込み（分）。modeOutcome の humanMinutes */

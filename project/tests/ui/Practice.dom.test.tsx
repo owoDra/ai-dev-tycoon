@@ -83,4 +83,41 @@ describe('実務モードの UI（企画書24章）', () => {
     const again = mount();
     expect(again.root.querySelectorAll('[data-practice-step]').length).toBe(4);
   });
+
+  it('工程ごとに内訳のバーと「なぜこの数字？」を出し、前提の年の回数をその場で変えられる（Phase 27）', () => {
+    const { q, root } = mount();
+    q<HTMLButtonElement>('[data-practice-template="weeklyAnalytics"]')?.click();
+    const fetch = q('[data-practice-step="0"]');
+    expect(fetch?.querySelector('[data-breakdown="human"] [data-segment="instruct"]')?.textContent).toContain(
+      '指示 1.0分',
+    );
+    expect(fetch?.querySelector('[data-breakdown="ai"] [data-segment="aiWork"]')?.textContent).toContain('作業 0.8分');
+    expect(fetch?.querySelector('[data-step-success]')?.textContent).toBe('AI 適性「高い（定型）」→ 1回で成功 85%');
+    expect(fetch?.querySelector('[data-step-quality]')?.textContent).toBe('レビューなし → 見逃し 15% → 品質 93%');
+    expect(fetch?.querySelector('[data-step-why] summary')?.textContent).toBe(ja.practice.explain.why);
+    expect(fetch?.querySelector('[data-step-why] li')?.textContent).toBe(
+      '人間の時間 = 指示（20分 × 5% = 1.0分） = 1.0分',
+    );
+    // 人間だけの工程には AI のバーを出さない
+    expect(q('[data-practice-step="3"] [data-breakdown="ai"]')).toBeNull();
+    expect(root.querySelector('[data-stat="saved-yen"]')?.textContent).toContain('364,000円');
+    expect(root.querySelector('[data-stat="roi"]')?.textContent).toContain('(364,000円 − ');
+
+    const runs = q<HTMLInputElement>('[data-practice-premise] [data-number="runs"]');
+    if (!runs) throw new Error('年の回数の入力がない');
+    expect(runs.value).toBe('52');
+    runs.value = '48';
+    runs.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(q('[data-stat="saved"]')?.textContent).toContain('84.0h');
+    expect(loadPracticeJob()?.runsPerYear).toBe(48);
+    // 頻度を選び直すと既定の回数に戻る
+    q<HTMLButtonElement>('[data-practice-frequency="weekly"]')?.click();
+    expect(q('[data-stat="saved"]')?.textContent).toContain('91.0h');
+
+    // 実務モードの Harness の見込みは、業務1回分の見出しにする
+    q<HTMLButtonElement>('[data-practice-step="2"] [data-step-harness]')?.click();
+    q<HTMLButtonElement>('[data-harness-row="validation"]')?.click();
+    q<HTMLButtonElement>('[data-harness-option="evalAcceptance"]')?.dispatchEvent(new FocusEvent('focus'));
+    expect(q('[data-harness-preview] h3')?.textContent).toContain(ja.practice.steps.preview);
+  });
 });

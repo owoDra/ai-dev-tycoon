@@ -13,6 +13,7 @@ import {
   aiCost,
   escapedQuality,
   evalLoop,
+  type HumanTimeItem,
   modeOutcome,
   repairMinutes,
   stepMinutes,
@@ -40,6 +41,12 @@ export interface TaskExpectation {
   readonly pEscape: number;
   /** 事故の損害の見込み（円） */
   readonly accidentCost: number;
+  /** humanMinutes の内訳（工程の順） */
+  readonly human: readonly HumanTimeItem[];
+  /** aiMinutes の内訳。作業・検証（自動テストと Eval）・修正 */
+  readonly ai: { readonly work: number; readonly verify: number; readonly repair: number };
+  /** AI の作業の成功確率（Harness の補正の後。検証の前） */
+  readonly aiSuccess: number;
 }
 
 /** 人間の平均的な熟練度（採用市場の人材の速度の平均。見込みと「人間だけで進めた場合」の基準） */
@@ -114,22 +121,28 @@ export function expectTask(
 export function expectWithSetup(task: TaskDef, mode: AssignModeDef, skill: number, setup: AiSetup): TaskExpectation {
   const { mods, model, aiSuccess, time } = setup;
   const outcome = modeOutcome(task, mode, skill, model, aiSuccess, mods);
-  let aiMinutes = outcome.aiReviewMinutes;
+  let { verify, repair } = outcome.aiReview;
+  let work = 0;
   let aiWorks = 0;
   for (const s of mode.steps) {
     if (s.actor !== 'ai' || s.phase !== 'work') continue;
     aiWorks++;
-    aiMinutes += expectedAiWorkMinutes(stepMinutes(task, s, { kind: 'ai', model }), time);
+    work += expectedAiWorkMinutes(stepMinutes(task, s, { kind: 'ai', model }), time);
     if (mods.evalCatch <= 0) continue;
     const loop = evalLoop(aiSuccess(successProbability(task, { kind: 'ai', model })), mods.evalCatch);
-    aiMinutes += loop.evalRuns * evalMinutes(task, model) + loop.repairs * repairMinutes(task, model);
+    verify += loop.evalRuns * evalMinutes(task, model);
+    repair += loop.repairs * repairMinutes(task, model);
   }
+  const aiMinutes = work + verify + repair;
   return {
     humanMinutes: outcome.humanMinutes,
     aiMinutes,
     aiCost: aiCost(aiMinutes, model) * setup.costFactor,
     pEscape: outcome.defect,
     accidentCost: aiWorks * mods.risk * balance.harness.accidentCost,
+    human: outcome.human,
+    ai: { work, verify, repair },
+    aiSuccess: outcome.aiSuccess,
   };
 }
 

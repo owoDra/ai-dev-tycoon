@@ -6,8 +6,9 @@ import { content, getHarnessPart, getModel } from '../content/index';
 import { practiceAptitudes } from '../content/practice/index';
 import type { AssignModeDef, HarnessPartDef, PracticeJobInput, PracticeStepInput, TaskDef } from '../content/types';
 import type { Command } from './commands';
+import { expectedAiWorkMinutes } from './contextWork';
 import { type AiSetup, expectWithSetup, harnessSetup } from './expectation';
-import { escapedQuality, laborCost, perPersonDay } from './formulas';
+import { escapedQuality, type HumanTimeItem, laborCost, perPersonDay, successProbability } from './formulas';
 import { partsModel, partsModifiers, withPart } from './harness';
 import { MINUTES_PER_HOUR } from './units';
 
@@ -55,17 +56,41 @@ export function stepMode(job: PracticeJobInput, index: number): AssignModeDef {
   return { ...mode, steps: mode.steps.filter((s) => !s.skipWhenChained) };
 }
 
+/** 工程で失敗を見つける仕組み。人間のレビュー・人間の軽い確認・AI の自動テスト・Harness の Eval */
+export type PracticeCheck = 'humanReview' | 'finalCheck' | 'autoTest' | 'eval';
+
 export interface PracticeStepEstimate {
   /** 今の人間時間（分） */
   readonly beforeMinutes: number;
   /** 改善後の人間時間の見込み（分）。指示出し・確認・手戻り */
   readonly afterMinutes: number;
+  /** afterMinutes の内訳（工程の順。合計は afterMinutes）。minutes = 今の時間 × share × factor × chance（本人の速さは 1） */
+  readonly human: readonly HumanTimeItem[];
   /** AI が作業する時間（分） */
   readonly aiMinutes: number;
+  /** aiMinutes の内訳（合計は aiMinutes） */
+  readonly ai: { readonly work: number; readonly verify: number; readonly repair: number };
+  /** AI の作業の式の値（作業 = 今の時間 × share ÷ speed × toolMiss）。AI が関わらない工程は null */
+  readonly aiWork: {
+    readonly share: number;
+    readonly speed: number;
+    /** MCP の選び間違いによる作業時間の倍率 */
+    readonly toolMiss: number;
+    /** 1分あたりの費用（部品のランニングコスト込み、円） */
+    readonly costPerMinute: number;
+  } | null;
   /** AI の費用（円） */
   readonly aiCost: number;
+  /** 作業が1回で成功する確率。AI が関わる工程は AI の作業（Harness の補正の後）、人間だけの工程は本人の作業 */
+  readonly success: number;
   /** 失敗を見逃したまま次へ渡す確率 */
   readonly pEscape: number;
+  /** 品質の期待値（1 − 見逃し × 見逃したときの品質の落ち込み） */
+  readonly quality: number;
+  /** 失敗を見つける仕組み（なければ空） */
+  readonly checks: readonly PracticeCheck[];
+  /** 前の工程から Agent Workflow が続くので、指示出しを省いた */
+  readonly chained: boolean;
 }
 
 /** 業務1回と1年の試算 */
@@ -107,27 +132,65 @@ const personDayHours = balance.project.minutesPerPersonDay / MINUTES_PER_HOUR;
 
 const perDay = (value: number, minutes: number) => (minutes > 0 ? perPersonDay(value, minutes) : null);
 
+/** 工程で失敗を見つける仕組み */
+function stepChecks(mode: AssignModeDef, setup: AiSetup): PracticeCheck[] {
+  const checks: PracticeCheck[] = [];
+  if (setup.mods.evalCatch > 0 && mode.steps.some((s) => s.actor === 'ai' && s.phase === 'work')) checks.push('eval');
+  for (const s of mode.steps) {
+    if (s.phase !== 'review') continue;
+    checks.push(s.actor === 'ai' ? 'autoTest' : s.catchRate === undefined ? 'humanReview' : 'finalCheck');
+  }
+  return checks;
+}
+
+/** 1年の実施回数。入力で変えていなければ頻度の既定値 */
+export function practiceRunsPerYear(job: PracticeJobInput): number {
+  return job.runsPerYear ?? balance.practice.runsPerYear[job.frequency];
+}
+
 /** 業務の試算（純粋関数）。改善前はすべての工程を人間が行う */
 export function estimatePractice(job: PracticeJobInput): PracticeEstimate {
-  const steps = job.steps.map((step, i) => {
+  const steps = job.steps.map((step, i): { task: TaskDef; estimate: PracticeStepEstimate } => {
     const task = practiceTask(step, i);
-    const e = expectWithSetup(task, stepMode(job, i), SELF_SKILL, stepSetup(step, task));
+    const mode = stepMode(job, i);
+    const setup = stepSetup(step, task);
+    const e = expectWithSetup(task, mode, SELF_SKILL, setup);
+    const aiShare = mode.steps
+      .filter((s) => s.actor === 'ai' && s.phase === 'work')
+      .reduce((t, s) => t + s.effortShare, 0);
+    const ai = usesAi(step);
     return {
       task,
       estimate: {
         beforeMinutes: step.minutes,
         afterMinutes: e.humanMinutes,
+        human: e.human,
         aiMinutes: e.aiMinutes,
+        ai: e.ai,
+        aiWork:
+          aiShare > 0
+            ? {
+                share: aiShare,
+                speed: setup.model.speed,
+                toolMiss: expectedAiWorkMinutes(1, setup.time),
+                costPerMinute: setup.model.costPerMinute * setup.costFactor,
+              }
+            : null,
         aiCost: e.aiCost,
+        success: ai ? e.aiSuccess : successProbability(task, { kind: 'human', skill: SELF_SKILL }),
         pEscape: e.pEscape,
+        quality: 1 - e.pEscape * (1 - escapedQuality(task)),
+        checks: stepChecks(mode, setup),
+        chained: mode.steps.length < getAssignMode(step.mode).steps.length,
       },
     };
   });
-  const sum = (key: keyof PracticeStepEstimate) => steps.reduce((s, x) => s + x.estimate[key], 0);
+  const sum = (key: 'beforeMinutes' | 'afterMinutes' | 'aiMinutes' | 'aiCost') =>
+    steps.reduce((s, x) => s + x.estimate[key], 0);
   const beforeMinutes = sum('beforeMinutes');
   const afterMinutes = sum('afterMinutes');
   const aiCostPerRun = sum('aiCost');
-  const runsPerYear = balance.practice.runsPerYear[job.frequency];
+  const runsPerYear = practiceRunsPerYear(job);
   const installCost = [...new Set(job.steps.filter(usesAi).flatMap((s) => s.parts))]
     .filter((id) => content.harnessParts.some((p) => p.id === id))
     .reduce((total, id) => total + getHarnessPart(id).installCost, 0);
@@ -136,10 +199,7 @@ export function estimatePractice(job: PracticeJobInput): PracticeEstimate {
   const annualSavedHours = ((beforeMinutes - afterMinutes) * runsPerYear) / MINUTES_PER_HOUR;
   const annualLaborSaved = laborCost((beforeMinutes - afterMinutes) * runsPerYear, job.dailyWage);
   const effort = steps.reduce((s, x) => s + x.task.effort, 0);
-  const quality =
-    effort > 0
-      ? steps.reduce((s, x) => s + (1 - x.estimate.pEscape * (1 - escapedQuality(x.task))) * x.task.effort, 0) / effort
-      : 1;
+  const quality = effort > 0 ? steps.reduce((s, x) => s + x.estimate.quality * x.task.effort, 0) / effort : 1;
   return {
     steps: steps.map((x) => x.estimate),
     beforeMinutes,
@@ -254,9 +314,12 @@ export function parsePracticeJob(v: unknown): PracticeJobInput | null {
   const steps = v.steps.slice(0, balance.practice.maxSteps).map(parseStep);
   if (name === null || wage === null || value === null || !FREQUENCIES.includes(v.frequency as string)) return null;
   if (steps.some((s) => s === null)) return null;
+  const runs = v.runsPerYear === undefined ? null : clampNumber(v.runsPerYear, balance.practice.maxRunsPerYear);
+  if (v.runsPerYear !== undefined && runs === null) return null;
   return {
     name,
     frequency: v.frequency as PracticeJobInput['frequency'],
+    ...(runs === null ? {} : { runsPerYear: Math.round(runs) }),
     dailyWage: wage,
     valuePerRun: value,
     steps: steps as PracticeStepInput[],

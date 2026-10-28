@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { weeklyAnalytics } from '../../src/content/practice/index';
+import { content } from '../../src/content/index';
+import { practiceAptitudeOrder, weeklyAnalytics } from '../../src/content/practice/index';
 import type { PracticeJobInput, PracticeStepInput } from '../../src/content/types';
 import { reduce } from '../../src/core/commands';
 import { harnessModifiers } from '../../src/core/harness';
@@ -8,12 +9,19 @@ import {
   estimatePractice,
   newPracticeStep,
   parsePracticeJob,
+  practiceRunsPerYear,
   practiceTask,
   stepMode,
   stepSetup,
 } from '../../src/core/practice';
 import { createInitialState } from '../../src/core/state';
-import { applyPracticeCommand, practiceForecast, practiceHarness, practiceReport } from '../../src/view/practice';
+import {
+  applyPracticeCommand,
+  practiceForecast,
+  practiceHarness,
+  practiceReport,
+  stepBreakdown,
+} from '../../src/view/practice';
 
 const job = weeklyAnalytics.job;
 
@@ -159,5 +167,84 @@ describe('実務モードの入力の保存と結果のコピー', () => {
     const md = practiceReport(job, e, 'markdown');
     expect(md.split('\n')[0]).toBe('## 週次アクセス解析 の改善試算');
     expect(md).toContain('| データ取得 | Agent Workflow | 20分 | 1分 |');
+  });
+});
+
+describe('工程の内訳（Phase 27：計算の根拠を見せる）', () => {
+  const sum = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0);
+
+  it('どの担当・AI 適性・部品でも、人間の内訳の合計が「改善後」、AI の内訳の合計が AI の時間と一致する', () => {
+    for (const mode of content.assignModes) {
+      for (const aptitude of practiceAptitudeOrder) {
+        for (const parts of [[], ['evalAcceptance', 'requestFormatter'], ['skillReport', 'mcpAnalytics']]) {
+          const steps = job.steps.map((s) => ({ ...s, mode: mode.id, aptitude, parts }));
+          const e = estimatePractice({ ...job, steps });
+          for (const s of e.steps) {
+            expect(sum(s.human.map((h) => h.minutes))).toBeCloseTo(s.afterMinutes, 9);
+            expect(s.ai.work + s.ai.verify + s.ai.repair).toBeCloseTo(s.aiMinutes, 9);
+            const bar = stepBreakdown(s);
+            expect(sum(bar.human.map((b) => b.minutes))).toBeCloseTo(s.afterMinutes, 9);
+            expect(sum(bar.ai.map((b) => b.minutes))).toBeCloseTo(s.aiMinutes, 9);
+            // 内訳の1項目は「今の時間 × 割合 × Harness の補正 × 起こる確率」（本人の速さは 1）
+            for (const h of s.human) expect(h.minutes).toBeCloseTo(s.beforeMinutes * h.share * h.factor * h.chance, 9);
+          }
+          expect(sum(e.steps.map((s) => s.afterMinutes))).toBeCloseTo(e.afterMinutes, 9);
+        }
+      }
+    }
+  });
+
+  it('週次アクセス解析のテンプレート：各工程の内訳の値', () => {
+    const [fetch, analysis, report, approval] = estimatePractice(job).steps;
+    // データ取得：指示（20分 × 5% = 1分）だけが人間に残り、AI が 20分 ÷ 24倍速 × MCP の選び間違い 1.0144 ≒ 0.85分で作業する
+    expect(fetch?.human).toEqual([{ kind: 'instruct', share: 0.05, factor: 1, chance: 1, minutes: 1 }]);
+    expect(fetch?.ai.work).toBeCloseTo((20 / 24) * 1.0144, 9);
+    expect(fetch?.aiWork).toMatchObject({ share: 1, speed: 24, costPerMinute: 42 });
+    expect(fetch?.chained).toBe(false);
+    expect(fetch?.checks).toEqual([]);
+    // 集計・分析：前の工程から Agent Workflow が続くので指示もなく、人間の時間は 0
+    expect(analysis?.human).toEqual([]);
+    expect(analysis?.chained).toBe(true);
+    // レポート作成：Eval（受け入れ基準）が検証し、見つけた失敗を AI が直す
+    expect(report?.human).toEqual([]);
+    expect(report?.ai.work).toBeCloseTo(46 / 24, 9);
+    expect(report?.ai.verify).toBeGreaterThan(0);
+    expect(report?.ai.repair).toBeGreaterThan(0);
+    expect(report?.checks).toEqual(['eval']);
+    // 承認・共有：人間だけ（自分の作業 14分）。AI は関わらない
+    expect(approval?.human).toEqual([{ kind: 'work', share: 1, factor: 1, chance: 1, minutes: 14 }]);
+    expect(approval?.aiWork).toBeNull();
+    expect(approval?.aiMinutes).toBe(0);
+  });
+
+  it('AI 適性が高いほど成功率が上がり、見逃しが減って品質が上がる', () => {
+    const at = (aptitude: 'high' | 'mid' | 'low') =>
+      estimatePractice({ ...job, steps: [{ ...job.steps[0], aptitude } as PracticeStepInput] }).steps[0];
+    const [high, mid, low] = [at('high'), at('mid'), at('low')];
+    expect(high?.success).toBeGreaterThan(mid?.success ?? 1);
+    expect(mid?.success).toBeGreaterThan(low?.success ?? 1);
+    expect(high?.pEscape).toBeLessThan(low?.pEscape ?? 0);
+    expect(high?.quality).toBeGreaterThan(low?.quality ?? 1);
+    // レビューのない AI だけの担当は、失敗がそのまま見逃しになる
+    expect(high?.pEscape).toBeCloseTo(1 - (high?.success ?? 0), 9);
+  });
+
+  it('人間のレビューは時間（レビューと手戻り）と引き換えに見逃しを 0 にする', () => {
+    const step = { ...job.steps[2], mode: 'aiThenHumanReview', parts: [] } as PracticeStepInput;
+    const s = estimatePractice({ ...job, steps: [step] }).steps[0];
+    expect(s?.human.map((h) => h.kind)).toEqual(['instruct', 'review', 'rework']);
+    expect(s?.human[2]?.chance).toBeCloseTo(1 - (s?.success ?? 0), 9);
+    expect(s?.pEscape).toBeCloseTo(0, 9);
+    expect(s?.quality).toBeCloseTo(1, 9);
+    expect(s?.checks).toEqual(['humanReview']);
+  });
+
+  it('年の回数は入力で変えられ、保存した値も読み直せる', () => {
+    expect(practiceRunsPerYear(job)).toBe(52);
+    const custom = { ...job, runsPerYear: 48 };
+    expect(estimatePractice(custom).annualSavedHours).toBeCloseTo((105 * 48) / 60, 6);
+    expect(parsePracticeJob(JSON.parse(JSON.stringify(custom)))?.runsPerYear).toBe(48);
+    expect(parsePracticeJob({ ...job, runsPerYear: 1e9 })?.runsPerYear).toBe(5000);
+    expect(parsePracticeJob({ ...job, runsPerYear: 'x' })).toBeNull();
   });
 });

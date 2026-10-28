@@ -150,6 +150,9 @@ view/     ── state → ViewModel のセレクタ（純粋・テスト可能�
 | 25 | [phase-25-responsive.md](phase-25-responsive.md) | レスポンシブな画面構成（領域・3つの形・スマホのドック） | 24 |
 | 26 | [phase-26-harness-claude-code.md](phase-26-harness-claude-code.md) | Harness を最新の Claude Code に寄せる（**D6** Builder の見た目・設定例・`.claude/` の書き出し） | 25 |
 | 27 | [phase-27-practice-explain.md](phase-27-practice-explain.md) | 実務モードの計算の根拠（内訳・式・前提） | 26 |
+| 28 | [phase-28-board-time-notices.md](phase-28-board-time-notices.md) | 引き合いの締切を延ばす・ボード中は停止・閉じている間と担当待ち・通知の整理 | 27 |
+| 29 | [phase-29-unlock-ladder.md](phase-29-unlock-ladder.md) | 機能の段階的な解放（解放のはしご・1営業日に1つ） | 28 |
+| 30 | [phase-30-economy.md](phase-30-economy.md) | 経済の見直し（粗利・値下げの代償・昇格・評判） | 29 |
 
 ## 7. `/goal` の使い方
 

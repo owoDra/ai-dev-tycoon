@@ -66,6 +66,20 @@ export const End = () => {
           </svg>
         </Card>
       </AbsoluteFill>
+      {/* VOICEVOX の利用規約で、音声を使った作品にはクレジットを書く */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 56,
+          bottom: 40,
+          fontSize: 28,
+          fontWeight: 700,
+          color: color.inkMuted,
+          opacity: note.opacity,
+        }}
+      >
+        VOICEVOX:ずんだもん
+      </div>
       <div
         style={{
           position: 'absolute',

@@ -8,6 +8,7 @@ import { ja } from '../../src/i18n/ja';
 import { Dock } from '../../src/ui/play/Dock';
 import { PlayControls } from '../../src/ui/play/PlayControls';
 import { hudView } from '../../src/view/hud';
+import { pressMenu } from '../helpers/menu';
 
 let dispose = () => {};
 afterEach(() => {
@@ -97,9 +98,9 @@ describe('操作の列（日付と時刻・速度・メニュー）', () => {
 
   it('メニューのボタンは渡された画面を開く', () => {
     const { root, opened } = mountControls();
-    root.querySelector<HTMLButtonElement>('[data-menu-board]')?.click();
-    root.querySelector<HTMLButtonElement>('[data-team-open]')?.click();
-    root.querySelector<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(root, '[data-menu-board]');
+    pressMenu(document.body, '[data-team-open]');
+    pressMenu(document.body, '[data-harness-open]');
     expect(opened).toEqual(['board', 'team', 'harness']);
   });
 

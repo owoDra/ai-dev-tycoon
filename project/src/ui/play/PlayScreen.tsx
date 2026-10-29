@@ -46,6 +46,7 @@ import { teamView, usageWarning } from '../../view/team';
 import { promotionNotes, teamsView } from '../../view/teams';
 import type { WorldViewModel } from '../../view/world';
 import type { World } from '../../world/index';
+import { TodoPanel } from '../company/TodoPanel';
 import { fitColumn } from '../fitColumn';
 import { Icon } from '../Icon';
 import { keyAction, nextIsland } from '../keyboard';
@@ -191,6 +192,7 @@ export function PlayScreen(props: {
             text: ok ? ja.notices.taskDone(name) : ja.notices.taskDefect(name),
             icon: ok ? 'success' : 'defect',
             tone: ok ? 'success' : 'danger',
+            ...(ok ? { level: 'record' as const } : {}),
           });
         }
         if (e.type === 'ReworkDetected' && e.projectId === props.projectId) {
@@ -201,7 +203,11 @@ export function PlayScreen(props: {
           });
         }
         if (e.type === 'EvalCaught' && e.projectId === props.projectId) {
-          notices.push({ text: ja.notices.evalCaught(getTask(e.projectId, e.taskId).name), icon: 'eval' });
+          notices.push({
+            text: ja.notices.evalCaught(getTask(e.projectId, e.taskId).name),
+            icon: 'eval',
+            level: 'record',
+          });
         }
         if (e.type === 'IncidentStarted' && e.projectId === props.projectId) {
           const name = ja.incidents[e.incident].name;
@@ -216,7 +222,11 @@ export function PlayScreen(props: {
           notices.push({ text: ja.notices.cancelled(name, e.reason), icon: 'failure', tone: 'danger' });
         }
         if (e.type === 'IncidentResolved') {
-          notices.push({ text: ja.notices.incidentResolved(ja.incidents[e.incident].name), icon: 'success' });
+          notices.push({
+            text: ja.notices.incidentResolved(ja.incidents[e.incident].name),
+            icon: 'success',
+            level: 'record',
+          });
         }
         if (e.type === 'SessionReset') {
           const lost = e.lost.length > 0;
@@ -287,10 +297,10 @@ export function PlayScreen(props: {
         }
         if (e.type === 'AchievementUnlocked') {
           const name = ja.achievements.defs[e.id]?.name ?? e.id;
-          notices.push({ text: ja.achievements.unlocked(name), icon: 'trophy', tone: 'success' });
+          notices.push({ text: ja.achievements.unlocked(name), icon: 'trophy', tone: 'success', level: 'record' });
         }
         if (e.type === 'FiscalClosed') {
-          notices.push({ text: ja.fiscal.closedNotice(e.no), icon: 'money', tone: 'neutral' });
+          notices.push({ text: ja.fiscal.closedNotice(e.no), icon: 'money', tone: 'neutral', level: 'record' });
         }
         if (e.type === 'CashShort') {
           notices.push({ text: ja.funds.shortNotice(e.daysLeft), icon: 'warning', tone: 'danger' });
@@ -309,7 +319,7 @@ export function PlayScreen(props: {
         if (e.type === 'PoachAnswered') {
           const name = getHuman(e.staffId).name;
           const text = e.retained ? ja.companyEvents.retained(name) : ja.companyEvents.leaving(name);
-          notices.push({ text, icon: 'human', tone: 'neutral' });
+          notices.push({ text, icon: 'human', tone: 'neutral', level: 'record' });
         }
         if (e.type === 'StaffPoached') {
           notices.push({ text: ja.companyEvents.poached(getHuman(e.staffId).name), icon: 'human', tone: 'danger' });
@@ -337,7 +347,12 @@ export function PlayScreen(props: {
           notices.push({ text, icon: e.manager === 'ai' ? 'ai' : 'human', tone: 'neutral' });
         }
         if (e.type === 'InquiriesPosted' && e.projectIds.length > 0) {
-          notices.push({ text: ja.board.posted(e.projectIds.length), icon: 'project', tone: 'neutral' });
+          notices.push({
+            text: ja.board.posted(e.projectIds.length),
+            icon: 'project',
+            tone: 'neutral',
+            level: 'record',
+          });
         }
         if (e.type === 'OrderAccepted') {
           const projectId = e.projectId;
@@ -367,6 +382,7 @@ export function PlayScreen(props: {
             text: ja.board.reputationChanged(e.delta),
             icon: up ? 'success' : 'warning',
             tone: up ? 'success' : 'warning',
+            level: 'record',
           });
         }
         if (e.type === 'FeatureUnlocked') {
@@ -702,13 +718,16 @@ export function PlayScreen(props: {
         <div class="flex min-w-0 flex-1">{props.strip}</div>
         <div class="pointer-events-auto shrink-0">{controls(form().form.controls === 'dock' ? 'clock' : 'all')}</div>
       </div>
-      {/* お知らせの列：大事な順（問題 → 納品 → 用語 → 新しくできること → 短いお知らせ）に並べ、入りきらない分は出さない（ui/fitColumn.ts） */}
+      {/* お知らせの列：大事な順（ホームでは今日やること → 問題 → 納品 → 用語 → 新しくできること → 短いお知らせ → 記録）に並べ、入りきらない分は出さない（ui/fitColumn.ts） */}
       <div
         ref={fitColumn}
         class="pointer-events-none absolute z-20 flex flex-col items-end gap-2 overflow-hidden"
         style={rectStyle(regions().notices)}
         data-region="notices"
       >
+        <Show when={props.projectId === null}>
+          <TodoPanel store={props.store} onBoard={boardOn() ? openBoard : undefined} onProject={props.onSwitch} />
+        </Show>
         <ProblemToasts
           problems={shownProblems()}
           layout={form().form.toast}
@@ -731,7 +750,12 @@ export function PlayScreen(props: {
             onClose={() => setUnlocks([])}
           />
         </Show>
-        <NoticeHost notices={notices.list()} />
+        <NoticeHost
+          notices={notices.list()}
+          records={notices.records()}
+          unread={notices.unread()}
+          onReadAll={notices.readAll}
+        />
       </div>
       <Show when={move()}>
         {(m) => (

@@ -2,7 +2,9 @@ import { getAssignMode, primaryActor } from '../content/assignModes';
 import { content, getProject } from '../content/index';
 import type { AssignModeId } from '../content/types';
 import { reduce } from '../core/commands';
+import { averageSkill, expectTask } from '../core/expectation';
 import { deadlineMinutes } from '../core/formulas';
+import { appraiseMode } from '../core/manager';
 import { hashSeed } from '../core/rng';
 import {
   createHumanQueues,
@@ -13,6 +15,8 @@ import {
   type TaskRun,
 } from '../core/state';
 import { step } from '../core/step';
+import { isUnlocked } from '../core/unlocks';
+import { defaultWorkerFor } from './project';
 
 /** 担当を変えたときの見込み（1つの Task だけの値） */
 export interface ForecastMetrics {
@@ -141,4 +145,57 @@ export function forecastAssign(
     before: current ? forecastTask(state, projectId, taskId, current) : null,
     after: forecastTask(state, projectId, taskId, mode),
   };
+}
+
+/** 担当カードに出す3本のバー（0〜1。比べるモードの中での相対値） */
+export interface ModeBars {
+  /** 速さ（人間と AI の時間の合計が短いほど長い） */
+  readonly speed: number;
+  /** 品質（失敗を見逃す確率が低いほど長い） */
+  readonly quality: number;
+  /** 人の手間（人間の時間が長いほど長い） */
+  readonly effort: number;
+}
+
+export interface ModeComparison {
+  readonly bars: Readonly<Partial<Record<AssignModeId, ModeBars>>>;
+  /** おすすめのモード（人間 PM と同じ見積もりで最も良いもの）。チュートリアル中と、Harness の解放の後（自分で考える段階）は出さない */
+  readonly recommended: AssignModeId | null;
+}
+
+/** バーの最短の長さ（一番悪いモードでも、バーがあることは見えるようにする） */
+const BAR_FLOOR = 0.15;
+
+/**
+ * 担当カードの比べ方（Phase 41）。数字の予測（forecastAssign）は選んでいるカードだけに出し、カードにはモードどうしの違いを
+ * 速さ・品質・人の手間の3本のバーで出す。見込みは core/expectation.ts、おすすめは管理者の判断（core/manager.ts の appraiseMode）と同じ式で決める
+ */
+export function compareModes(
+  state: GameState,
+  projectId: string,
+  taskId: string,
+  modes: readonly AssignModeId[],
+): ModeComparison {
+  const task = getProject(projectId).tasks.find((t) => t.id === taskId);
+  if (!task || modes.length === 0) return { bars: {}, recommended: null };
+  const rows = modes.map((id) => {
+    const mode = getAssignMode(id);
+    const e = expectTask(state, projectId, task, mode, defaultWorkerFor(id, state, projectId), averageSkill());
+    return { id, e, value: appraiseMode(state, { kind: 'human', staffId: '' }, projectId, task, id, e) };
+  });
+  const minTime = Math.min(...rows.map((r) => r.e.humanMinutes + r.e.aiMinutes));
+  const maxEscape = Math.max(...rows.map((r) => r.e.pEscape), 0.01);
+  const maxHuman = Math.max(...rows.map((r) => r.e.humanMinutes), 1);
+  const scale = (v: number) => BAR_FLOOR + (1 - BAR_FLOOR) * Math.max(0, Math.min(1, v));
+  const bars: Partial<Record<AssignModeId, ModeBars>> = {};
+  for (const r of rows) {
+    bars[r.id] = {
+      speed: scale(minTime / Math.max(1, r.e.humanMinutes + r.e.aiMinutes)),
+      quality: scale(1 - r.e.pEscape / maxEscape),
+      effort: scale(r.e.humanMinutes / maxHuman),
+    };
+  }
+  const best = rows.reduce((a, b) => (b.value > a.value ? b : a));
+  // チュートリアルは台本の任せ方を順に試すので、おすすめを出さない
+  return { bars, recommended: state.tutorial || isUnlocked(state, 'harness') ? null : best.id };
 }

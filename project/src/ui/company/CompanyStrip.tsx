@@ -6,14 +6,14 @@ import { evaluationGuide } from '../../view/evaluation';
 import { achievementsView, companyStatusView } from '../../view/fiscal';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, smallButton, stateColor } from '../parts';
 
 const t = ja.fiscal;
 const yen = ja.funds.oku;
 
 /**
  * 会社の帯。プレイ画面の上の帯の左にいつも出す。
- * 普段は折り返さない1行のピル（規模・次の目標の達成率・資金・上場していれば時価総額・決算までの日数）で、上の帯の高さに収める。
+ * 普段は折り返さない1行のピル（規模・次の目標の達成率・資金の3つ）で、上の帯の高さに収める（Phase 41。時価総額と決算までの日数は内訳に出す）。
  * スマホ（dense）では資金だけにし、規模は開いた内訳に出す。幅が足りなければ後ろの項目から省く。押すと次の目標の内訳と実績が、ピルの下に重ねて開く。
  * 内訳からは「評価のしくみ」（何が評価を決めるかの1枚の図）と実績を開ける。
  * 資金がマイナスのときは警告を出して開いたままにする。引き抜きの打診が来ていれば、引き留めるか見送るかをピルの下で選ぶ
@@ -56,22 +56,6 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
               >
                 <Icon name={v().cash < 0 ? 'warning' : 'money'} /> {ja.funds.cash} {yen(v().cash)}
               </span>
-              <Show when={!props.dense && v().valuation !== null}>
-                <span
-                  class="flex min-w-0 shrink items-center gap-1 overflow-hidden font-bold tabular-nums"
-                  data-valuation
-                >
-                  <Icon name="trophy" /> {t.valuation(true)} {yen(v().valuation ?? 0)}
-                </span>
-              </Show>
-              <Show when={!props.dense && v().fiscalDaysLeft !== null}>
-                <span
-                  class="flex min-w-0 shrink items-center gap-1 overflow-hidden tabular-nums text-ink-muted"
-                  data-fiscal-days
-                >
-                  <Icon name="clock" /> {t.period2(v().fiscalNo)} · {t.daysLeft(v().fiscalDaysLeft ?? 0)}
-                </span>
-              </Show>
             </button>
           </section>
           {/* 内訳・警告・打診は上の帯の高さに入らないので、ピルの下に重ねて出す */}
@@ -98,6 +82,16 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
                         <Icon name="trophy" /> {v().tier}
                       </span>
                     </Show>
+                    <Show when={v().valuation !== null}>
+                      <span class="flex items-center gap-1 font-bold tabular-nums" data-valuation>
+                        <Icon name="trophy" /> {t.valuation(true)} {yen(v().valuation ?? 0)}
+                      </span>
+                    </Show>
+                    <Show when={v().fiscalDaysLeft !== null}>
+                      <span class="flex items-center gap-1 tabular-nums text-ink-muted" data-fiscal-days>
+                        <Icon name="clock" /> {t.period2(v().fiscalNo)} · {t.daysLeft(v().fiscalDaysLeft ?? 0)}
+                      </span>
+                    </Show>
                     <span class="font-bold">{ja.company.next(v().goal.tier.name)}</span>
                     <For each={['profit', 'reputation', 'delivered'] as const}>
                       {(id) => {
@@ -110,7 +104,7 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
                             <Meter
                               ratio={ratioOf(item())}
                               label={ja.company.requires[id]}
-                              color={done() ? 'bg-success-400' : 'bg-accent-400'}
+                              color={done() ? stateColor.done : stateColor.progress}
                               class="w-full min-w-10 flex-1"
                             />
                           </span>

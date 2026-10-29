@@ -7,7 +7,7 @@ import { ja } from '../../i18n/ja';
 import { type FiscalMetric, fiscalRecord, fiscalView } from '../../view/fiscal';
 import { paceFormula, paceText } from '../../view/hud';
 import { Icon } from '../Icon';
-import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, smallButton, stateColor } from '../parts';
 import { ResultCodePanel } from './ResultCodePanel';
 
 const t = ja.fiscal;
@@ -237,7 +237,7 @@ function TrendBars(props: { title: string; rows: readonly { label: string; value
               <Meter
                 ratio={Math.abs(r.value) / max()}
                 label={`${r.label} ${ja.funds.oku(r.value)}`}
-                color={r.value >= 0 ? 'bg-primary-400' : 'bg-danger-400'}
+                color={r.value >= 0 ? stateColor.profit : stateColor.loss}
                 class="w-full flex-1"
               />
               <span class="w-20 shrink-0 text-right tabular-nums">{ja.funds.oku(r.value)}</span>

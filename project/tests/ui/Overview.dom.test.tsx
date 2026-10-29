@@ -7,6 +7,7 @@ import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
+import { pressMenu } from '../helpers/menu';
 
 const P = 'ecRenewal';
 let dispose = () => {};
@@ -39,7 +40,7 @@ function mount() {
 describe('進み具合の一覧（案件のガントチャートと社員の勤務状態）', () => {
   it('メニューから開くと、案件の行と状態のラベルを出し、行を押すと工程を出す', () => {
     const { q, root } = mount();
-    q('[data-menu-overview]')?.click();
+    pressMenu(document.body, '[data-menu-overview]');
     expect(q('[data-overview-sheet]')).not.toBeNull();
     const row = q('[data-gantt="running"]');
     expect(row?.textContent).toContain(ja.overview.state.running);
@@ -50,7 +51,7 @@ describe('進み具合の一覧（案件のガントチャートと社員の勤�
 
   it('社員のタブで、全員の勤務状態をアイコンとラベルで出す', () => {
     const { q, root } = mount();
-    q('[data-menu-overview]')?.click();
+    pressMenu(document.body, '[data-menu-overview]');
     q('[data-overview-tab="staff"]')?.click();
     const rows = root.querySelectorAll('[data-staff]');
     expect(rows).toHaveLength(2);
@@ -59,7 +60,7 @@ describe('進み具合の一覧（案件のガントチャートと社員の勤�
 
   it('打ち切りは確認してから CancelProject を出す（やめれば何もしない）', () => {
     const { q, store } = mount();
-    q('[data-menu-overview]')?.click();
+    pressMenu(document.body, '[data-menu-overview]');
     q('[data-gantt="running"] button')?.click();
     q('[data-cancel-project]')?.click();
     expect(store.state().projects[P]?.cancelled).toBeNull();

@@ -16,6 +16,7 @@ import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { boardView } from '../../src/view/board';
 import { worldView } from '../../src/view/world';
+import { findMenu, pressMenu } from '../helpers/menu';
 import { findTalents } from '../helpers/talent';
 
 const P = 'internalTool';
@@ -72,7 +73,7 @@ function started(...projects: string[]): GameState {
 describe('社員と Seat の画面（企画書6章・47章）', () => {
   it('ドックから開くと、会社の Seat と今日の使用量の下に社員が並ぶ', () => {
     const { q, root } = mount(started(P));
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     expect(q('[data-team-sheet]')).not.toBeNull();
     const members = [...root.querySelectorAll<HTMLElement>('[data-member]')].map((m) => m.dataset.member);
     expect(members).toEqual(['sato', 'suzuki', tester.id]);
@@ -84,7 +85,7 @@ describe('社員と Seat の画面（企画書6章・47章）', () => {
 
   it('Seat の ＋ の横には「AI 容量 +750 / 日・費用 +¥XX,XXX / 月」が即座に出て、−/＋ で枚数が変わりトーストが出る', () => {
     const { store, q } = mount(started(P));
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     const preview = q('[data-seat="premium"] [data-seat-preview]')?.textContent ?? '';
     expect(preview).toContain(ja.team.capacity(750));
     expect(preview).toContain('+¥250,000 / 月');
@@ -102,15 +103,15 @@ describe('社員と Seat の画面（企画書6章・47章）', () => {
     const over: GameState = { ...base, usage: 999 };
     const { q } = mount(over);
     expect(q('[data-team-warning]')).not.toBeNull();
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     expect(q('[data-over-limit]')?.textContent).toContain(ja.team.overLimit);
   });
 
   it('社員の画面が解放されるまではボタンを出さない（チュートリアルの間）', () => {
     const store = createGameStore(createInitialState('c', { board: true }));
     store.dispatch({ type: 'StartProject', projectId: 'tutorialLp' });
-    const { q } = mount(store.state(), 'tutorialLp');
-    expect(q('[data-team-open]')).toBeNull();
+    mount(store.state(), 'tutorialLp');
+    expect(findMenu(document.body, '[data-team-open]')).toBeNull();
   });
 });
 
@@ -191,7 +192,7 @@ describe('3D ホーム（案件を開いていないプレイ画面）', () => {
     );
     const s = { ...offeredCompany(), projects: { [P]: { ...run, tasks, completedAt: 1 } } };
     const { q } = mount(s, null);
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     const tab = q<HTMLButtonElement>('[data-team-tab="record"]');
     expect(tab?.textContent).toContain(ja.team.recordTab(1));
     tab?.click();
@@ -250,7 +251,7 @@ describe('受注・納品した案件への導線', () => {
     const { id, after } = wonCompany();
     const s = { ...delivered(after, id), unlocked: [...after.unlocked, 'hire' as const] };
     const { q, reviewed } = mount(s, null);
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     q<HTMLButtonElement>('[data-team-tab="record"]')?.click();
     q<HTMLButtonElement>(`[data-delivered-review="${id}"]`)?.click();
     expect(reviewed).toEqual([id]);
@@ -331,7 +332,7 @@ describe('案件ボードとタイトル', () => {
 describe('採用候補のタブと退職', () => {
   it('採用候補のタブで売値・原価・速度・正確さ・得意分野を比べ、採用すると社員のタブに並ぶ', () => {
     const { store, q, root } = mount(started(P));
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     const candidates = store.state().market.candidates;
     const tab = q<HTMLButtonElement>('[data-team-tab="candidates"]');
     expect(tab?.textContent).toContain(ja.team.candidatesTab(candidates.length));
@@ -361,7 +362,7 @@ describe('採用候補のタブと退職', () => {
     const store = createGameStore(started(P));
     store.dispatch({ type: 'AssignTask', projectId: P, taskId: 'interview', mode: 'human', workerId: 'sato' });
     const { store: s, q } = mount(store.state());
-    q<HTMLButtonElement>('[data-team-open]')?.click();
+    pressMenu(document.body, '[data-team-open]');
     const busy = q<HTMLButtonElement>('[data-release="sato"]');
     expect(busy?.disabled).toBe(true);
     expect(busy?.textContent).toContain(ja.team.releaseBlocked.busy);

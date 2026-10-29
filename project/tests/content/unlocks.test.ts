@@ -52,10 +52,10 @@ describe('機能の解放（content/unlocks.ts）', () => {
     }
   });
 
-  it('ドックの項目に対応する機能はすべて定義されていて、ドックの項目も存在する', () => {
+  it('ドックの項目に対応する機能はすべて定義されていて、ドックの項目（か「詳細」）も存在する', () => {
     for (const [item, feature] of Object.entries(dockFeature)) {
       expect(allFeatures).toContain(feature);
-      expect(uiLayout.wide.dock.items as readonly string[]).toContain(item);
+      expect([...uiLayout.wide.dock.items, ...uiLayout.wide.dock.details] as readonly string[]).toContain(item);
     }
   });
 

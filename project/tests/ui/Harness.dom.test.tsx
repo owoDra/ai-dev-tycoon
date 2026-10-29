@@ -8,6 +8,7 @@ import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { createSelection } from '../../src/ui/selection';
 import { worldView } from '../../src/view/world';
+import { findMenu, pressMenu } from '../helpers/menu';
 
 const P = 'corporateSite';
 const AGENT = 'agent';
@@ -41,7 +42,7 @@ function mount(options: { tutorial?: boolean } = {}) {
 describe('Harness Builder の UI（企画書35章・48章）', () => {
   it('ドックから開くと作業の流れの道（地点のスロット・盾・鍵）が並び、押すと選択肢のパネルになる', () => {
     const { q, root } = mount();
-    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     const rows = [...root.querySelectorAll<HTMLElement>('[data-harness-row]')].map((r) => r.dataset.harnessRow);
     expect(rows).toEqual([
       'model',
@@ -69,7 +70,7 @@ describe('Harness Builder の UI（企画書35章・48章）', () => {
 
   it('選択肢にフォーカスするたびに Before → After の予測が即座に出て、押すと部品を付け外しできる', () => {
     const { store, q, root } = mount();
-    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     q<HTMLButtonElement>('[data-harness-row="skill"]')?.click();
     expect(q('[data-harness-preview]')).toBeNull();
     const skill = q<HTMLButtonElement>('[data-harness-option="skillFrontend"]');
@@ -99,7 +100,7 @@ describe('Harness Builder の UI（企画書35章・48章）', () => {
 
   it('Model を選べ、補正の内部値は「詳しく見る」の中にだけ出す', () => {
     const { store, q } = mount();
-    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     q<HTMLButtonElement>('[data-harness-row="model"]')?.click();
     q<HTMLButtonElement>('[data-harness-option="frontier"]')?.click();
     expect(harnessOf(store.state(), AGENT).modelId).toBe('frontier');
@@ -111,8 +112,8 @@ describe('Harness Builder の UI（企画書35章・48章）', () => {
   });
 
   it('チュートリアルの最初は Harness Builder を出さない（解放されてから）', () => {
-    const { q } = mount({ tutorial: true });
-    expect(q('[data-harness-open]')).toBeNull();
+    mount({ tutorial: true });
+    expect(findMenu(document.body, '[data-harness-open]')).toBeNull();
   });
 
   it('島の詳細から「ここから先を Workflow にまとめる」と、後続の Task をまとめて AI に任せる', () => {

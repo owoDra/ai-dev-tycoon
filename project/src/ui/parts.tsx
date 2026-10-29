@@ -16,6 +16,21 @@ export const ghostButton =
 /** 補助の操作（24px 以上） */
 export const smallButton = 'inline-flex min-h-6 items-center px-1 text-xs font-bold text-ink-muted underline';
 
+/**
+ * 状態の色（Phase 41）。人間・AI・利益・損・危険などの意味ごとの色をここだけで決め、メーターやバーはこれを使う。
+ * 色だけで状態を伝えないよう、使う側はアイコンかラベルを必ず添える
+ */
+export const stateColor = {
+  human: 'bg-primary-400',
+  ai: 'bg-success-400',
+  profit: 'bg-success-400',
+  loss: 'bg-danger-400',
+  danger: 'bg-danger-500',
+  caution: 'bg-warning-400',
+  done: 'bg-success-400',
+  progress: 'bg-accent-400',
+} as const;
+
 export const modeIcon: Record<AssignModeId, IconName> = {
   human: 'human',
   ai: 'ai',

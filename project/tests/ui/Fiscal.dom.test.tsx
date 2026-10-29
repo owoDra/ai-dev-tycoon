@@ -101,15 +101,19 @@ describe('会社の帯', () => {
     expect(q('[data-open-guide]')).not.toBeNull();
   });
 
-  it('時価総額は上場（上場企業の規模）してから帯に出し、それまでの決算では推定の企業価値と呼ぶ', () => {
+  it('時価総額は上場（上場企業の規模）してから帯の内訳に出し、それまでの決算では推定の企業価値と呼ぶ', () => {
     const state = closed();
     expect(state.tier).not.toBe(listedTier);
     const unlisted = mount(() => <CompanyStrip store={createGameStore(state)} />);
+    unlisted<HTMLButtonElement>('[data-strip-toggle]')?.click();
     expect(unlisted('[data-valuation]')).toBeNull();
     expect(fiscalView(state)?.listed).toBe(false);
     dispose();
     const listed = { ...state, tier: listedTier };
     const listedQ = mount(() => <CompanyStrip store={createGameStore(listed)} />);
+    // ピルは規模・目標・資金の3つだけにし、時価総額は内訳に出す（Phase 41）
+    expect(listedQ('[data-strip-toggle] [data-valuation]')).toBeNull();
+    listedQ<HTMLButtonElement>('[data-strip-toggle]')?.click();
     expect(listedQ('[data-valuation]')?.textContent).toContain(ja.fiscal.valuation(true));
     expect(listedQ('[data-valuation]')?.textContent).toContain(ja.funds.oku(valuationOf(listed)));
   });

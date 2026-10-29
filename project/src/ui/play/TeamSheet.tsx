@@ -18,7 +18,7 @@ import type {
 import type { TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, Meter, panel, primaryButton } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, stateColor } from '../parts';
 import { TeamsPanel } from './TeamsPanel';
 
 const t = ja.team;
@@ -214,7 +214,7 @@ function SeatsPanel(props: { view: TeamView; dispatch: (command: Command) => voi
         <Meter
           ratio={u().limit > 0 ? Math.min(1, u().used / u().limit) : 1}
           label={t.usageValue(u().used, u().limit)}
-          color={u().over ? 'bg-danger-500' : 'bg-primary-400'}
+          color={u().over ? stateColor.danger : stateColor.ai}
           class="w-24"
         />
         <span class="tabular-nums">{t.usageValue(u().used, u().limit)}</span>

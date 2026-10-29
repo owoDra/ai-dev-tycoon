@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { pressMenu } from '../helpers/menu';
 
 /**
  * 退場のアニメーションが終わるまで要素が残る実機の条件を作る（jsdom では exit がすぐ終わるので、待たせる偽物に差し替える）
@@ -87,7 +88,7 @@ describe('シートの退場中の操作', () => {
 
   it('開いているシートを開き直しても、退場を始めず押せるまま残る', () => {
     const { root } = mount();
-    root.querySelector<HTMLElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     const wrapper = () => root.querySelector('[data-harness-sheet]')?.parentElement as HTMLElement | undefined;
     expect(wrapper()).toBeDefined();
     root.querySelector<HTMLElement>('[data-ai-tab="harness"]')?.click();

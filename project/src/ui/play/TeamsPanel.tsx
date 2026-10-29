@@ -4,7 +4,7 @@ import { ja } from '../../i18n/ja';
 import type { TeamCardView, TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, Meter, primaryButton } from '../parts';
+import { ghostButton, Meter, primaryButton, stateColor } from '../parts';
 
 const t = ja.teams;
 const c = ja.company;
@@ -38,7 +38,7 @@ export function TeamsPanel(props: { view: TeamsView; dispatch: (command: Command
                     <Meter
                       ratio={Math.max(0, Math.min(1, item.now / Math.max(1, item.need)))}
                       label={item.label}
-                      color={item.done ? 'bg-success-400' : 'bg-accent-400'}
+                      color={item.done ? stateColor.done : stateColor.progress}
                       class="w-full min-w-12 flex-1"
                     />
                     <span class="shrink-0 tabular-nums">

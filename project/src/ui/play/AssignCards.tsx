@@ -6,10 +6,10 @@ import { modeFeature } from '../../content/unlocks';
 import { isAllowed } from '../../core/tutorial';
 import { isUnlocked } from '../../core/unlocks';
 import { ja } from '../../i18n/ja';
-import { forecastAssign } from '../../view/forecast';
+import { compareModes, forecastAssign, type ModeBars } from '../../view/forecast';
 import { defaultWorkerFor, humanChoices, type TaskRowView } from '../../view/project';
 import { Icon } from '../Icon';
-import { modeIcon, NewBadge, primaryButton } from '../parts';
+import { Meter, modeIcon, NewBadge, primaryButton, stateColor } from '../parts';
 import { ForecastPreview } from './ForecastPreview';
 
 const t = ja.assign;
@@ -51,6 +51,16 @@ export function AssignCards(props: {
       mode,
       workerId: humanMode(mode) ? (pickedHuman() ?? '') : defaultWorkerFor(mode, props.store.state(), props.projectId),
     });
+  const comparison = createMemo(() =>
+    props.row.editable
+      ? compareModes(
+          props.store.state(),
+          props.projectId,
+          props.row.id,
+          modes().map((m) => m.id),
+        )
+      : null,
+  );
   const [preview, setPreview] = createSignal<AssignModeId | null>(null);
   const [touch, setTouch] = createSignal(false);
   let pointer = '';
@@ -152,6 +162,16 @@ export function AssignCards(props: {
               </span>
               <span class="font-heading text-sm leading-tight text-balance">{m.name}</span>
               <span class="text-[11px] leading-snug text-ink-muted">{t.hints[m.id]}</span>
+              <Show when={comparison()?.bars[m.id]}>{(b) => <ModeBarsView bars={b()} />}</Show>
+              <Show when={comparison()?.recommended === m.id && props.row.mode !== m.id}>
+                <span
+                  class="absolute -top-2.5 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border-2 border-line bg-success-200 px-1.5 text-[10px] font-bold whitespace-nowrap"
+                  data-recommended
+                >
+                  <Icon name="success" class="text-xs" />
+                  {t.recommended}
+                </span>
+              </Show>
               <Show when={props.fresh?.has(modeFeature(m.id)) && props.row.mode !== m.id}>
                 <NewBadge class="absolute -top-2.5 -right-1.5" />
               </Show>
@@ -185,5 +205,26 @@ export function AssignCards(props: {
         <p class="text-xs text-ink-muted">{t.locked}</p>
       </Show>
     </div>
+  );
+}
+
+/** 担当カードの3本のバー（速さ・品質・人の手間）。数字は出さず、モードどうしの違いだけを長さとラベルで見せる */
+function ModeBarsView(props: { bars: ModeBars }) {
+  const rows = [
+    { id: 'speed', color: stateColor.progress },
+    { id: 'quality', color: stateColor.done },
+    { id: 'effort', color: stateColor.human },
+  ] as const;
+  return (
+    <span class="flex w-full flex-col gap-0.5" data-mode-bars>
+      <For each={rows}>
+        {(r) => (
+          <span class="flex items-center gap-1 text-[10px] font-bold text-ink-muted">
+            <span class="w-12 shrink-0 text-left whitespace-nowrap">{t.bars[r.id]}</span>
+            <Meter ratio={props.bars[r.id]} label={t.bars[r.id]} color={r.color} class="min-w-6 flex-1" />
+          </span>
+        )}
+      </For>
+    </span>
   );
 }

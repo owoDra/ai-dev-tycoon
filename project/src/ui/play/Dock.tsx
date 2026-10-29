@@ -12,7 +12,7 @@ import { contextView } from '../../view/context';
 import { type HudView, hudView, paceText, type StreakView } from '../../view/hud';
 import { Icon } from '../Icon';
 import { Num } from '../Num';
-import { Meter, NewBadge, panel } from '../parts';
+import { Meter, NewBadge, panel, stateColor } from '../parts';
 import { contextStatusIcon } from './ContextSheet';
 import { ProjectTabs } from './ProjectTabs';
 
@@ -57,8 +57,11 @@ export function Dock(props: {
   };
   const hud = createMemo(() => (props.projectId === null ? null : hudView(props.store.state(), props.projectId)));
   const unlocked = (id: HudItemId) => {
+    const state = props.store.state();
+    // Context と Streak の札は、どちらかが解放されるまで中身がないので出さない
+    if (id === 'signals') return isUnlocked(state, 'context') || isUnlocked(state, 'harness');
     const feature = dockFeature[id];
-    return feature === undefined || isUnlocked(props.store.state(), feature);
+    return feature === undefined || isUnlocked(state, feature);
   };
   const items = createMemo(() => props.layout.items.filter(unlocked));
   const details = createMemo(() => props.layout.details.filter(unlocked));
@@ -287,15 +290,17 @@ function HudItem(props: {
       </Match>
       <Match when={props.id === 'utilization'}>
         <fieldset class="flex flex-col gap-0.5" aria-label={t.utilization}>
-          <Bar label={t.human} icon="human" ratio={props.hud.human} color="bg-primary-400" dense={props.dense} />
-          <div class="flex items-center gap-1.5">
-            <Bar label={t.ai} icon="ai" ratio={props.hud.ai} color="bg-success-400" dense={props.dense} />
-            <ContextBadge store={props.store} projectId={props.projectId} onOpen={props.onContext} />
-            <Show when={isUnlocked(props.store.state(), 'harness')}>
-              <StreakBadge streak={props.hud.streak} dense={props.dense} />
-            </Show>
-          </div>
+          <Bar label={t.human} icon="human" ratio={props.hud.human} color={stateColor.human} dense={props.dense} />
+          <Bar label={t.ai} icon="ai" ratio={props.hud.ai} color={stateColor.ai} dense={props.dense} />
         </fieldset>
+      </Match>
+      <Match when={props.id === 'signals'}>
+        <div class="flex items-center gap-1.5">
+          <ContextBadge store={props.store} projectId={props.projectId} onOpen={props.onContext} />
+          <Show when={isUnlocked(props.store.state(), 'harness')}>
+            <StreakBadge streak={props.hud.streak} dense={props.dense} />
+          </Show>
+        </div>
       </Match>
       <Match when={props.id === 'problems'}>
         <button
@@ -462,22 +467,21 @@ function SpendItem(props: { hud: HudView; dense: boolean }) {
       <div class="flex items-center gap-2" data-spend>
         <Icon name={loss() ? 'warning' : 'money'} class={props.dense ? 'text-xl' : 'text-2xl'} />
         <div class="flex flex-col gap-0.5 leading-tight">
-          <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted">{t.spend}</span>
-          <span class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-lg'}`}>
-            {t.spendValue(yen(props.hud.spent), yen(props.hud.revenue))}
+          <span
+            class={`font-heading whitespace-nowrap tabular-nums ${props.dense ? 'text-sm' : 'text-lg'}`}
+            classList={{ 'text-danger-ink': loss() }}
+            data-profit-outlook
+          >
+            {t.profitOutlook(props.hud.projected, yen(props.hud.projectedProfit))}
           </span>
           <Meter
             ratio={ratio()}
             label={t.spendMeter(yen(props.hud.spent), yen(props.hud.revenue))}
-            color={loss() ? 'bg-danger-400' : 'bg-success-400'}
+            color={loss() ? stateColor.loss : stateColor.profit}
             class={props.dense ? 'w-24' : 'w-36'}
           />
-          <span
-            class="text-[11px] font-bold whitespace-nowrap tabular-nums"
-            classList={{ 'text-danger-ink': loss(), 'text-ink-muted': !loss() }}
-            data-profit-outlook
-          >
-            {t.profitOutlook(props.hud.projected, yen(props.hud.projectedProfit))}
+          <span class="text-[11px] font-bold whitespace-nowrap text-ink-muted tabular-nums">
+            {t.spend} {t.spendValue(yen(props.hud.spent), yen(props.hud.revenue))}
           </span>
         </div>
       </div>

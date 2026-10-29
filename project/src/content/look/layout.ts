@@ -20,6 +20,8 @@ export type HudItemId =
   | 'remaining'
   /** 人間と AI の稼働バー */
   | 'utilization'
+  /** Context の状態と AUTONOMY STREAK のメーター（解放されるまでは空） */
+  | 'signals'
   /** 一時停止と速度切り替え（ふだんは上部の操作の列に出す。ui/play/PlayControls.tsx） */
   | 'speed'
   /** 未対応の問題の数（押すと閉じたトーストを出し直す） */
@@ -155,9 +157,13 @@ export interface UiLayout {
   flow: LayoutFlow;
 }
 
-/** ドックはいま見ている案件の状態だけを出す。会社の状態（資金）は左上の帯、時計・速度・メニューは右上の操作の列に出す */
-const dockItems: readonly HudItemId[] = ['spend', 'remaining', 'utilization', 'problems'];
-/** 幅の狭い画面では稼働を「詳細」に移し、ドックを1段に収める */
+/**
+ * ドックはいま見ている案件の状態だけを、見込み利益・納期・問題の3つに絞って出す（Phase 41）。稼働はどの幅でも「詳細」に入れる
+ * （Context と Streak の札は、解放されてから広い画面のドックに出す）。
+ * 会社の状態（資金）は左上の帯、時計・速度・メニューは右上の操作の列に出す
+ */
+const dockItems: readonly HudItemId[] = ['spend', 'remaining', 'signals', 'problems'];
+/** 幅の狭い画面では Context と Streak の札も「詳細」に入れ、ドックを1段に収める */
 const narrowItems: readonly HudItemId[] = ['spend', 'remaining', 'problems'];
 
 export const uiLayout: UiLayout = {
@@ -168,7 +174,7 @@ export const uiLayout: UiLayout = {
     dock: {
       projectName: true,
       items: dockItems,
-      details: [],
+      details: ['utilization'],
       tabs: { office: true, others: 2 },
       dense: false,
       bottom: 12,
@@ -184,7 +190,7 @@ export const uiLayout: UiLayout = {
     dock: {
       projectName: true,
       items: narrowItems,
-      details: ['spend', 'utilization'],
+      details: ['spend', 'utilization', 'signals'],
       tabs: { office: true, others: 0 },
       dense: true,
       bottom: 8,
@@ -201,7 +207,7 @@ export const uiLayout: UiLayout = {
     dock: {
       projectName: true,
       items: narrowItems,
-      details: ['spend', 'utilization'],
+      details: ['spend', 'utilization', 'signals'],
       tabs: { office: false, others: 0 },
       dense: true,
       bottom: 0,

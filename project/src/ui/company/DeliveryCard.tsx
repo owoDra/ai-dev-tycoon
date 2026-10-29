@@ -6,7 +6,7 @@ import type { DeliveryBreakdown } from '../../view/evaluation';
 import type { DeliveryView } from '../../view/fiscal';
 import { paceText } from '../../view/hud';
 import { Icon } from '../Icon';
-import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, smallButton, stateColor } from '../parts';
 
 const t = ja.delivery;
 const e = ja.evaluation;
@@ -58,7 +58,7 @@ export function DeliveryModal(props: { delivery: DeliveryView; onReview: () => v
             <Meter
               ratio={d().quality}
               label={ja.score.percent(d().quality)}
-              color={d().qualityGood ? 'bg-primary-400' : 'bg-warning-500'}
+              color={d().qualityGood ? stateColor.done : stateColor.caution}
               class="w-full"
             />
             <span class="flex items-center gap-1 text-xs">

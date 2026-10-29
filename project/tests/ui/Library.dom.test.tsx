@@ -11,6 +11,7 @@ import { createSelection } from '../../src/ui/selection';
 import { hudView } from '../../src/view/hud';
 import { recommendWorkflows } from '../../src/view/library';
 import { islandId, worldView } from '../../src/view/world';
+import { pressMenu } from '../helpers/menu';
 import { sampleWorkflows } from '../helpers/workflows';
 
 const AGENT = 'agent';
@@ -58,7 +59,7 @@ describe('Workflow Library の UI（企画書25章）', () => {
     const { store, q } = mount('corporateSite');
     store.dispatch({ type: 'EquipPart', workerId: AGENT, partId: 'skillFrontend' });
     const before = worldView(store.state(), 'corporateSite', worldLooks[defaultWorldLookId]).binders;
-    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     q<HTMLButtonElement>('[data-save-workflow]')?.click();
     input(q<HTMLInputElement>('[data-workflow-name]'), 'うちのサイト実装');
     q<HTMLFormElement>('[data-save-workflow-form]')?.requestSubmit();
@@ -145,7 +146,7 @@ describe('Workflow Library の UI（企画書25章）', () => {
     const base = createInitialState('library-import');
     const state = { ...base, unlocked: base.unlocked.filter((f) => f !== 'harness:tool') };
     const { store, q } = mount('paymentFix', state);
-    q<HTMLButtonElement>('[data-harness-open]')?.click();
+    pressMenu(document.body, '[data-harness-open]');
     q<HTMLButtonElement>('[data-ai-tab="library"]')?.click();
     const code = encodeWorkflowCode({
       name: '他チームの構成',

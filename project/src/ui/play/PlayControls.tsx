@@ -1,4 +1,4 @@
-import { createMemo, type JSX, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import type { IconName } from '../../assets/icons';
 import { balance } from '../../content/balance';
@@ -15,7 +15,8 @@ const t = ja.hud;
 const phaseIcon: Record<DayPhase, IconName> = { work: 'day', lunch: 'clock', night: 'night' };
 
 /**
- * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・日を進めるボタン・メニュー（案件ボード・社員と Seat・Context・Harness・設定）。
+ * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・日を進めるボタン・メニュー（「会社」：案件ボード・進み具合・社員と Seat、
+ * 「AI の仕組み」：Context・Harness。まとまりごとに MenuGroup・設定）。
  * compact ではメニューをアイコンだけにする。part で一部だけを出せる
  * （スマホでは時計と日を進めるボタンを右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
  * 「まとめて進める」は解放（dock:skip）されるまで出さない。
@@ -49,67 +50,58 @@ export function PlayControls(props: {
       </Show>
       <Show when={part() !== 'clock'}>
         <nav aria-label={t.menu} class="flex items-center gap-1">
-          <Show when={props.onBoard}>
-            {(open) => (
-              <MenuButton
-                icon="board"
-                label={t.board}
-                compact={props.compact}
-                onClick={open()}
-                data={{ 'data-menu-board': '' }}
-              />
-            )}
-          </Show>
-          <Show when={props.onOverview}>
-            {(open) => (
-              <MenuButton
-                icon="project"
-                label={ja.overview.open}
-                compact={props.compact}
-                onClick={open()}
-                data={{ 'data-menu-overview': '' }}
-              />
-            )}
-          </Show>
-          <Show when={props.onTeam}>
-            {(open) => (
-              <MenuButton
-                compact={props.compact}
-                icon="seat"
-                label={ja.team.open}
-                ariaLabel={props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open}
-                warning={props.teamWarning}
-                fresh={fresh().has('team')}
-                onClick={open()}
-                data={{ 'data-team-open': '' }}
-              />
-            )}
-          </Show>
-          <Show when={props.onContext}>
-            {(open) => (
-              <MenuButton
-                compact={props.compact}
-                icon="context"
-                label={ja.context.title}
-                fresh={fresh().has('context')}
-                onClick={open()}
-                data={{ 'data-menu-context': '' }}
-              />
-            )}
-          </Show>
-          <Show when={props.onHarness}>
-            {(open) => (
-              <MenuButton
-                compact={props.compact}
-                icon="ai"
-                label={ja.harness.openShort}
-                ariaLabel={ja.harness.open}
-                fresh={fresh().has('harness') || fresh().has('library')}
-                onClick={open()}
-                data={{ 'data-harness-open': '' }}
-              />
-            )}
-          </Show>
+          <MenuGroup
+            id="company"
+            icon="board"
+            label={t.menuGroups.company}
+            compact={props.compact}
+            items={[
+              props.onBoard && {
+                icon: 'board',
+                label: t.board,
+                onClick: props.onBoard,
+                data: { 'data-menu-board': '' },
+              },
+              props.onOverview && {
+                icon: 'project',
+                label: ja.overview.open,
+                onClick: props.onOverview,
+                data: { 'data-menu-overview': '' },
+              },
+              props.onTeam && {
+                icon: 'seat',
+                label: ja.team.open,
+                ariaLabel: props.teamWarning ? `${ja.team.open}（${ja.team.overLimit}）` : ja.team.open,
+                warning: props.teamWarning,
+                fresh: fresh().has('team'),
+                onClick: props.onTeam,
+                data: { 'data-team-open': '' },
+              },
+            ]}
+          />
+          <MenuGroup
+            id="ai"
+            icon="ai"
+            label={t.menuGroups.ai}
+            compact={props.compact}
+            items={[
+              props.onContext && {
+                icon: 'context',
+                label: ja.context.title,
+                fresh: fresh().has('context'),
+                onClick: props.onContext,
+                data: { 'data-menu-context': '' },
+              },
+              props.onHarness && {
+                icon: 'ai',
+                label: ja.harness.openShort,
+                ariaLabel: ja.harness.open,
+                fresh: fresh().has('harness') || fresh().has('library'),
+                onClick: props.onHarness,
+                data: { 'data-harness-open': '' },
+              },
+            ]}
+          />
           <Show when={props.onSettings}>
             {(open) => (
               <button
@@ -196,6 +188,88 @@ export function DayControl(props: { store: GameStore; dense: boolean; skip: bool
   );
 }
 
+/** メニューの1項目 */
+interface MenuItem {
+  readonly icon: IconName;
+  readonly label: string;
+  readonly ariaLabel?: string;
+  readonly warning?: boolean;
+  /** 解放したがまだ開いていない（「NEW」の印を右上に出す） */
+  readonly fresh?: boolean;
+  readonly onClick: () => void;
+  readonly data?: Record<string, string>;
+}
+
+/**
+ * メニューのまとまり（会社・AI の仕組み）。項目が1つならそのボタンをそのまま出し、2つ以上なら1つのボタンにまとめ、
+ * 押すと項目の一覧を開く（スマホではドックの中なので上に、ほかは下に開く）。項目を選ぶか、外を押すか Esc で閉じる。
+ * まとめたボタンには、中の項目の「NEW」の印と警告を引き継ぐ
+ */
+function MenuGroup(props: {
+  id: 'company' | 'ai';
+  icon: IconName;
+  label: string;
+  compact: boolean;
+  items: readonly (MenuItem | undefined | false)[];
+}) {
+  const items = () => props.items.filter((i): i is MenuItem => !!i);
+  const [open, setOpen] = createSignal(false);
+  let el!: HTMLDivElement;
+  const onDown = (e: PointerEvent) => {
+    if (!el.contains(e.target as Node)) setOpen(false);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') setOpen(false);
+  };
+  createEffect(() => {
+    if (!open()) return;
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    onCleanup(() => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    });
+  });
+  return (
+    <Show
+      when={items().length > 1}
+      fallback={<For each={items()}>{(i) => <MenuButton {...i} compact={props.compact} />}</For>}
+    >
+      <div ref={el} class="relative" data-menu-group={props.id}>
+        <MenuButton
+          icon={props.icon}
+          label={props.label}
+          compact={props.compact}
+          warning={items().some((i) => i.warning)}
+          fresh={items().some((i) => i.fresh)}
+          expanded={open()}
+          onClick={() => setOpen((o) => !o)}
+          data={{ 'data-menu-group-toggle': props.id }}
+        />
+        <Show when={open()}>
+          <fieldset
+            class={`${panel} absolute right-0 z-30 m-0 flex min-w-0 gap-1 p-1.5 ${props.compact ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+            aria-label={props.label}
+            data-menu-group-items={props.id}
+          >
+            <For each={items()}>
+              {(i) => (
+                <MenuButton
+                  {...i}
+                  onClick={() => {
+                    setOpen(false);
+                    i.onClick();
+                  }}
+                />
+              )}
+            </For>
+          </fieldset>
+        </Show>
+      </div>
+    </Show>
+  );
+}
+
 /** メニューのボタン。アイコンの下に短いラベルを出す（警告があれば警告のアイコンを重ねて、地の色も変える） */
 function MenuButton(props: {
   icon: IconName;
@@ -206,6 +280,8 @@ function MenuButton(props: {
   warning?: boolean;
   /** 解放したがまだ開いていない（「NEW」の印を右上に出す） */
   fresh?: boolean;
+  /** まとまりのボタンが一覧を開いているか */
+  expanded?: boolean;
   onClick: () => void;
   data?: Record<string, string>;
 }): JSX.Element {
@@ -217,6 +293,7 @@ function MenuButton(props: {
         props.compact ? 'w-11' : 'min-w-12'
       } ${props.warning ? 'bg-danger-200' : 'bg-surface'}`}
       aria-label={`${props.ariaLabel ?? props.label}${props.fresh ? `（${ja.unlocks.badge}）` : ''}`}
+      aria-expanded={props.expanded}
       title={props.label}
       onClick={() => props.onClick()}
     >

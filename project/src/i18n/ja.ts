@@ -649,6 +649,13 @@ export const ja = {
       quickStartHint: '社員の2人は毎回ちがう人材になる',
       confirmQuick: 'セーブを消して、チュートリアルなしで始める',
       keyVisual: 'オフィスの島で人間と AI が働くイラスト',
+      introVideo: '紹介動画',
+    },
+    introVideo: {
+      title: '紹介動画',
+      close: '閉じる',
+      fallback: 'この環境では動画を再生できません',
+      captions: '日本語（ナレーション）',
     },
     select: {
       revenue: (yen: number) => `売上 ${Math.round(yen).toLocaleString('ja-JP')}円`,
@@ -1760,6 +1767,7 @@ export const ja = {
     night: '夜',
     board: '案件ボード',
     sparkle: '新しい',
+    video: '動画',
   },
   world: {
     label: 'オフィスの2.5Dビュー',

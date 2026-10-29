@@ -44,6 +44,7 @@ export const iconTones = {
   night: 'primary',
   board: 'warning',
   sparkle: 'accent',
+  video: 'primary',
 } as const satisfies Record<string, Exclude<IconTone, 'mono'>>;
 
 export type IconName = keyof typeof iconTones;

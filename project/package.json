@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:standalone": "vite build --mode standalone",
     "build:explore": "vite build --mode explore && tsx tools/verify-dist.ts dist-explore",
     "build:playtest": "vite build --mode playtest && tsx tools/verify-dist.ts dist-playtest",
     "build:analyze": "vite build --mode analyze",
@@ -19,8 +20,9 @@
     "test": "vitest run",
     "balance:full": "vitest run --project node --mode balance-full --reporter=verbose tests/balance",
     "balance:report": "tsx tools/balance-report.ts",
-    "verify:dist": "tsx tools/verify-dist.ts",
-    "check": "npm run typecheck && npm run lint && npm run assets:check && npm run test && npm run build && npm run verify:dist",
+    "verify:dist": "tsx tools/verify-dist.ts dist-standalone",
+    "verify:pages": "tsx tools/verify-pages.ts",
+    "check": "npm run typecheck && npm run lint && npm run assets:check && npm run test && npm run build && npm run verify:pages && npm run build:standalone && npm run verify:dist",
     "assets": "tsx tools/assets/index.ts",
     "assets:check": "tsx tools/assets/check.ts"
   },

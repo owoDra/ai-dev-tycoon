@@ -11,6 +11,7 @@ import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../
  * チュートリアルを終えた後は「チュートリアルをもう一度」と「チュートリアルなしで始める」を出す（onTutorial・onQuickStart を渡したときだけ）。
  * セーブがあれば（onContinue を渡したとき）「続きから」を先頭に出し、「はじめから」はセーブを消す確認を1回挟む。
  * 以前の形式で読み込めないセーブが残っていれば、その旨を知らせる。持ち込み（自分の Claude Code の設定をゲームの部品にする）への入口も置く。
+ * 紹介動画があるビルドでは、右下（狭い画面ではカードの下）に紹介動画のボタンを出す。
  */
 export function TitleScreen(props: {
   onStart: () => void;
@@ -21,6 +22,8 @@ export function TitleScreen(props: {
   /** 持ち込み（自分の Claude Code の設定の評価と持ち寄りバトル）を開く */
   onBring?: () => void;
   onSettings: () => void;
+  /** 紹介動画を開く（動画のあるビルドだけ。ui/IntroVideo.tsx） */
+  onIntroVideo?: () => void;
   /** 以前の形式（固定の案件のキャンペーン）で読み込めないセーブが残っている */
   outdatedSave?: boolean;
 }) {
@@ -33,7 +36,7 @@ export function TitleScreen(props: {
     start.focus();
   });
   return (
-    <div class="absolute inset-0 flex items-center justify-center overflow-y-auto bg-bg/40 p-4">
+    <div class="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-bg/40 p-4">
       <div ref={el} class={`${panel} flex w-full max-w-xl flex-col items-center gap-4 p-4 text-center sm:p-6`}>
         <img
           src={textureUrl('titleKey')}
@@ -138,6 +141,21 @@ export function TitleScreen(props: {
           <SettingsIcon />
         </button>
       </div>
+      <Show when={props.onIntroVideo}>
+        {(open) => (
+          <button
+            type="button"
+            data-intro-video-open
+            class={`${ghostButton} mt-3 shrink-0 bg-surface sm:absolute sm:right-4 sm:bottom-4 sm:mt-0`}
+            onClick={() => open()()}
+          >
+            <span class="flex items-center gap-2">
+              <Icon name="video" class="text-2xl" />
+              {ja.screens.title.introVideo}
+            </span>
+          </button>
+        )}
+      </Show>
     </div>
   );
 }

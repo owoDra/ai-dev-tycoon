@@ -3,4 +3,5 @@ dist
 dist-explore
 dist-playtest
 dist-analyze
+dist-standalone
 coverage

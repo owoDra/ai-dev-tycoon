@@ -1,7 +1,7 @@
 # AI業務改善タイクーン
 
 AIを適切な仕事へ配置し、人間1人あたりの利益を最大化する業務改善タイクーンゲーム。
-成果物は外部依存ゼロの単一HTML（`project/dist/index.html`）。
+成果物は2つ：Cloudflare Pages で公開する版（`project/dist/`。アセットを別ファイルに分け、紹介動画を入れる）と、外部依存ゼロの単一HTML版（`project/dist-standalone/index.html`。紹介動画は入れない）。
 
 - 企画書: `docs/企画書.md`（企画意図の正本）
 - 実装計画: `docs/plan/README.md`（作業計画。仕様の正本ではない）
@@ -20,12 +20,14 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 | コマンド | 内容 |
 |---|---|
 | `npm run dev` / `npm run preview` | 開発サーバー / ビルド結果のプレビュー |
-| `npm run check` | typecheck → lint → test → build → verify:dist（完了判定はこれ） |
+| `npm run check` | typecheck → lint → test → build → verify:pages → build:standalone → verify:dist（完了判定はこれ） |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` / `npm run format` | Biome のチェック / 自動修正 |
 | `npm test` | Vitest |
-| `npm run build` | 単一HTML（`dist/index.html`）のビルド |
-| `npm run verify:dist` | dist が単一ファイル・外部参照なし・サイズ予算内であることの検証 |
+| `npm run build` | Cloudflare Pages 向けのビルド（`dist/`。`public/` の紹介動画も入る） |
+| `npm run build:standalone` | 単一HTML版のビルド（`dist-standalone/index.html`） |
+| `npm run verify:pages` | dist に必要なファイルがあり・外部参照なし・Pages の1ファイル上限内であることの検証 |
+| `npm run verify:dist` | dist-standalone が単一ファイル・外部参照なし・サイズ予算内であることの検証 |
 
 後続で追加する予定のコマンド：`npm run build:explore`（デザイン比較用のビルド。D1 で追加）、`npm run assets`（SVG・WebP・glb の生成。生成物は `src/assets/generated/` にコミット。Phase 04 で追加）。
 
@@ -42,7 +44,7 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 3. 新しい要素はまず `src/content/` のデータで表現する。バランス値は `content/balance.ts`、見た目と手触りの値は `content/look/` に集約する。
 4. UI の文言は `src/i18n/ja.ts` に集約する。状態は色だけでなくアイコンとラベルでも示す。絵文字をアイコンやキャラクターの代わりに使わない。
 5. 演出は操作をブロックしない。`prefers-reduced-motion` を尊重する。
-6. 外部URL・CDN・外部フォント・音声ファイルを使わない。素材はリポジトリ内のコードと SVG から生成する。
+6. 外部URL・CDN・外部フォント・音声ファイルを使わない。素材はリポジトリ内のコードと SVG から生成する。例外は紹介動画（`project/public/intro.mp4`。`project/video/` の Remotion で作り、`npm run publish` で書き出してコミットする）で、Cloudflare Pages の版にだけ入れる。
 
 ## テスト
 

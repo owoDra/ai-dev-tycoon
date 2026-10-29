@@ -16,6 +16,7 @@ import { DeliveryCards, DeliveryModal } from '../ui/company/DeliveryCard';
 import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
+import { IntroVideoSheet, introVideo } from '../ui/IntroVideo';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
 import { SettingsSheet } from '../ui/SettingsSheet';
@@ -87,6 +88,8 @@ export function App(props: {
   const { fiscal, bankrupt } = milestones;
   const [deliveries, setDeliveries] = createSignal<readonly DeliveryView[]>([]);
   const openSettings = () => setSettingsOpen(true);
+  /** 紹介動画のシート（タイトルから開く。開いている間は BGM を止める） */
+  const [introOpen, setIntroOpen] = createSignal(false);
   let director: FxDirector | undefined;
   // 画面の領域（content/look/layout.ts）。セーフエリアの内側の大きさから求め、回転やブラウザのバーの出し入れに追従する
   const [safeEl, setSafeEl] = createSignal<HTMLElement>();
@@ -308,6 +311,7 @@ export function App(props: {
                 onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
                 onBring={() => screens.go({ type: 'Bring' })}
                 onSettings={openSettings}
+                onIntroVideo={introVideo ? () => setIntroOpen(true) : undefined}
                 outdatedSave={outdated() && !saved()}
               />
             </div>
@@ -401,7 +405,7 @@ export function App(props: {
       />
       <AudioHost
         store={game()}
-        song={screens.screen().id === 'result' ? 'result' : 'play'}
+        song={introOpen() ? null : screens.screen().id === 'result' ? 'result' : 'play'}
         projectId={screens.screen().id === 'play' ? worldProject() : null}
         world={() => world()?.world}
         combo={() => director?.combo() ?? 0}
@@ -435,6 +439,9 @@ export function App(props: {
       </Show>
       <Show when={exportOpen()}>
         <PluginExportSheet state={exportSource()} cards={loadBringCards()} onClose={() => setExportOpen(false)} />
+      </Show>
+      <Show when={introOpen() && introVideo}>
+        {(video) => <IntroVideoSheet video={video()} onClose={() => setIntroOpen(false)} />}
       </Show>
       <Show when={settingsOpen()}>
         <SettingsSheet

@@ -1,5 +1,6 @@
 /**
- * dist の検証：index.html 1ファイルだけであること・外部URLを参照していないこと・サイズ予算内であること。
+ * 単一HTML版（npm run build:standalone → dist-standalone/）の検証：index.html 1ファイルだけであること・外部URLを参照していないこと・サイズ予算内であること。
+ * build:explore・build:playtest の単一HTMLもこれで検証する（引数でディレクトリを渡す）。
  * 判定関数は export してテストし、CLI 部分（ファイル読み込みと終了コード）はファイル末尾に分ける。
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -114,6 +115,6 @@ function main(distDir: string): number {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const defaultDist = fileURLToPath(new URL('../dist', import.meta.url));
+  const defaultDist = fileURLToPath(new URL('../dist-standalone', import.meta.url));
   process.exit(main(resolve(process.argv[2] ?? defaultDist)));
 }

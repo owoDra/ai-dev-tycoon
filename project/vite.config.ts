@@ -6,13 +6,24 @@ import solid from 'vite-plugin-solid';
 import { defineConfig } from 'vitest/config';
 import { svgoRaw } from './tools/svgo.ts';
 
+/**
+ * 単一HTML（index.html 1ファイル）にするビルドのモード。`--mode standalone` は配布用の単一HTML版（npm run build:standalone）で、
+ * explore・playtest・analyze も単一HTMLで出す。既定の production（npm run build）は Cloudflare Pages で公開する版で、
+ * 画像・glb・JS を別ファイルに分けてキャッシュを効かせ、public/ の紹介動画（project/video で作る）も入れる
+ */
+const SINGLE_FILE_MODES = ['standalone', 'explore', 'playtest', 'analyze'];
+
 export default defineConfig(({ mode }) => ({
+  define: {
+    // 紹介動画があるか（ui/IntroVideo.tsx）。単一HTML版には動画を入れない
+    __INTRO_VIDEO__: JSON.stringify(!SINGLE_FILE_MODES.includes(mode)),
+  },
   plugins: [
     // アイコン SVG（?raw）をビルド時に最適化する
     svgoRaw(),
     solid(),
     tailwindcss(),
-    viteSingleFile(),
+    SINGLE_FILE_MODES.includes(mode) && viteSingleFile(),
     // `--mode analyze` はバンドル分析用のビルド（npm run build:analyze）。モジュールごとの大きさを dist-analyze/stats.html に出す
     mode === 'analyze' &&
       visualizer({ filename: 'dist-analyze/stats.html', template: 'treemap', gzipSize: true, emitFile: false }),
@@ -40,11 +51,15 @@ export default defineConfig(({ mode }) => ({
           ? 'dist-playtest'
           : mode === 'analyze'
             ? 'dist-analyze'
-            : 'dist',
+            : mode === 'standalone'
+              ? 'dist-standalone'
+              : 'dist',
     target: 'es2022',
     modulePreload: false,
-    // 画像・glb・フォントも含めて全アセットを data URI でインライン化し、dist を index.html 1ファイルにする
-    assetsInlineLimit: Number.MAX_SAFE_INTEGER,
+    // 単一HTMLのビルドは、画像・glb・フォントも含めて全アセットを data URI でインライン化し、index.html 1ファイルにする。
+    // public/（紹介動画）も入れない
+    assetsInlineLimit: SINGLE_FILE_MODES.includes(mode) ? Number.MAX_SAFE_INTEGER : undefined,
+    copyPublicDir: !SINGLE_FILE_MODES.includes(mode),
   },
   test: {
     // ファイルシステムのモジュールキャッシュは、中身が変わらないファイル（assets/registry.ts）の import.meta.glob の

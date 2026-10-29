@@ -130,7 +130,7 @@ export function seatPreview(seat: SeatId, delta: number): SeatPreview {
 
 /** 社員と Seat の画面の表示用データ（純粋関数） */
 export function teamView(state: GameState): TeamView {
-  const editable = isUnlocked(state, 'team');
+  const editable = isUnlocked(state, 'seats');
   const hiring = isUnlocked(state, 'hire');
   const members = teamMembers(state).map((h): MemberView => {
     const blocked = releaseBlock(state, h.id);

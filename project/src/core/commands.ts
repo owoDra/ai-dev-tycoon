@@ -251,7 +251,7 @@ function apply(state: GameState, command: Command): Transition {
     }
     case 'SetSeats': {
       const { seat, count } = command;
-      if (!isUnlocked(state, 'team') || !seats.some((s) => s.id === seat)) return unchanged(state);
+      if (!isUnlocked(state, 'seats') || !seats.some((s) => s.id === seat)) return unchanged(state);
       const next = setSeats(state, seat, count);
       return next === state ? unchanged(state) : { state: next, events: [{ type: 'SeatsChanged', seat, count }] };
     }
@@ -267,7 +267,7 @@ function apply(state: GameState, command: Command): Transition {
       return { state: updateSession(state, command.workerId, (s) => ({ ...s, handoff: items })), events: [] };
     }
     case 'SetArtifactDriven': {
-      if (!isAi(command.workerId) || !isUnlocked(state, 'session:artifacts')) return unchanged(state);
+      if (!isAi(command.workerId) || !isUnlocked(state, 'session')) return unchanged(state);
       return { state: updateSession(state, command.workerId, (s) => ({ ...s, artifacts: command.on })), events: [] };
     }
     case 'NewSession': {
@@ -367,8 +367,8 @@ function harnessChanged(
 const feedFeature: Readonly<Record<ContextFeed['mode'], FeatureId>> = {
   needed: 'context',
   all: 'context',
-  pick: 'context:pick',
-  router: 'context:router',
+  pick: 'context',
+  router: 'harness:tool',
 };
 
 const isAi = (workerId: string) => findWorker(workerId)?.kind === 'ai';

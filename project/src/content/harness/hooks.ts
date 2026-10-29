@@ -97,7 +97,7 @@ export const hookParts: readonly HarnessPartDef[] = rules.flatMap((r): HarnessPa
     enforcement: 'request',
     group: r.key,
     timing: r.timing,
-    unlock: 'harness:hook',
+    unlock: 'harness',
   },
   {
     id: r.hook,
@@ -111,6 +111,6 @@ export const hookParts: readonly HarnessPartDef[] = rules.flatMap((r): HarnessPa
     enforcement: 'system',
     group: r.key,
     timing: r.timing,
-    unlock: 'harness:hook',
+    unlock: 'harness',
   },
 ]);

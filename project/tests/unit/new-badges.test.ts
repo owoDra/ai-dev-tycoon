@@ -21,7 +21,6 @@ describe('解放した機能の「NEW」の印（state.fresh）', () => {
   it('解放した機能のうち、担当カードかメニューに出す場所のあるものに NEW が付く', () => {
     const s = promoted();
     expect(isFresh(s, 'harness')).toBe(true);
-    expect(isFresh(s, 'harness:hook')).toBe(true);
     expect(isFresh(s, 'team')).toBe(true);
     expect([...freshMenus(s)].sort()).toEqual(['harness', 'team']);
     // ドックの項目など、印を出す場所のない機能は持たない

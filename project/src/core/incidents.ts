@@ -1,4 +1,5 @@
 import { getAssignMode, primaryActor } from '../content/assignModes';
+import { balance } from '../content/balance';
 import { content, getTask } from '../content/index';
 import type {
   HarnessCategory,
@@ -9,6 +10,7 @@ import type {
   IncidentMoment,
 } from '../content/types';
 import { autonomyOf } from './autonomy';
+import { tierAtLeast } from './companyEvents';
 import { type ContextReading, dropDocs, getSession, newSession, readContext, updateSession } from './context';
 import type { GameEvent } from './events';
 import { appliesTo, equipPart, equippedParts, harnessModifiers, removePart } from './harness';
@@ -127,7 +129,7 @@ export function incidentEffects(state: GameState, workerId: string): IncidentEff
   return { successPenalty, aiTimeFactor, humanTimeFactor };
 }
 
-/** moment の時点で、まだ起きていない事件を発生確率で起こす（解放されていない事件は起きない） */
+/** moment の時点で、まだ起きていない事件を発生確率で起こす（解放されていない事件と、会社が序盤の規模のうちは起きない） */
 export function rollIncidents(
   state: GameState,
   moment: IncidentMoment,
@@ -136,6 +138,7 @@ export function rollIncidents(
   taskId: string,
   ctx: SystemContext,
 ): GameState {
+  if (state.board !== null && !tierAtLeast(state, balance.companyEvents.later.incidents)) return state;
   let next = state;
   let reading: IncidentReading | null = null;
   for (const def of content.incidents) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balance } from '../../src/content/balance';
 import { getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
-import type { FeatureId } from '../../src/content/types';
+import type { CompanyTierId, FeatureId } from '../../src/content/types';
 import { scoreCompany, scoreProject } from '../../src/core/scoring';
 import { FULL_SEEDS, isFullBalance, seeds } from '../helpers/compare';
 import {
@@ -28,12 +28,13 @@ const SEEDS = isFullBalance ? [...BASE_SEEDS, ...seeds(FULL_SEEDS, 'campaign').s
 const dayOf = (gameMinutes: number) => gameMinutes / balance.time.minutesPerDay + 1;
 const fmt = (n: number) => Math.round(n).toLocaleString('ja-JP');
 
-function play(policy: CampaignPolicy, seed: string, unlocked: readonly FeatureId[] = []) {
+function play(policy: CampaignPolicy, seed: string, unlocked: readonly FeatureId[] = [], tier?: CompanyTierId) {
   return playCampaign({
     seed,
     policy,
     limitMinutes: MAX_DAYS * 2 * balance.time.minutesPerDay,
     unlocked,
+    ...(tier ? { tier } : {}),
   });
 }
 
@@ -66,10 +67,11 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
   });
 
   it('Seat を買い足さなくてもクリアできるが、会社の Seat の使用量を使い切って AI が止まるぶん遅くなる', () => {
-    // Seat を買える段階の会社どうしで比べる。Context（と、AI の使用量を押し上げる事件）も解放済みにする
-    const stage: readonly FeatureId[] = ['context', 'team'];
-    const premium = play(smartSeatPolicy, tutorialScript.seed, stage);
-    const standard = play(smartPolicy, tutorialScript.seed, stage);
+    // Seat を買える段階の会社どうしで比べる。Context（と、AI の使用量を押し上げる事件）も解放済みにする。
+    // 事件はスタートアップから起きるので（Phase 38）、スタートアップの会社で比べる
+    const stage: readonly FeatureId[] = ['context', 'team', 'seats'];
+    const premium = play(smartSeatPolicy, tutorialScript.seed, stage, 'startup');
+    const standard = play(smartPolicy, tutorialScript.seed, stage, 'startup');
     console.log(
       `[企画書6章] 通し：Standard 2枚のまま ${dayOf(standard.clearedAt ?? 0).toFixed(1)} 日目` +
         ` vs Premium を1枚買い足し ${dayOf(premium.clearedAt ?? 0).toFixed(1)} 日目`,

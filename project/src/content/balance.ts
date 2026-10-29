@@ -50,8 +50,6 @@ export const balance = {
     instructShare: 0.05,
     /** AI の成果物の人間によるレビュー（effort に対する割合） */
     reviewShare: 0.25,
-    /** Human → AI で人間が行う重要判断（effort に対する割合）。残りを AI が処理する */
-    judgementShare: 0.3,
     /** レビューで失敗が見つかったときの手戻り（effort に対する割合） */
     reworkShare: 0.3,
     /** 自動テスト・Eval が見つけた失敗を AI が直す修復（effort に対する割合）。テストが場所を示すので、人間の手戻りより軽い */
@@ -375,7 +373,7 @@ export const balance = {
         maxAiWorkers: 1,
         maxTeams: 1,
         managers: false,
-        maxProjects: 2,
+        maxProjects: 1,
         inquiries: 3,
         sizes: { S: 1, M: 1, L: 0, XL: 0 },
         candidates: 3,
@@ -487,6 +485,11 @@ export const balance = {
    * - priceWar（競合の値下げ）：営業日ごとに perDay の確率で始まり、days 営業日のあいだ競合の価格の比が priceCut だけ下がる
    */
   companyEvents: {
+    /**
+     * 序盤（個人事業）には起こさず、この規模になってから始まる仕組み（Phase 38。序盤は任せ方と受注に集中させる）。
+     * incidents: Harness 由来の事件（content/incidents.ts）/ achievements: 実績の判定と表示
+     */
+    later: { incidents: 'startup', achievements: 'startup' },
     outage: { minTier: 'small', perEscaped: 0.2, max: 0.7, costShare: 0.3, reputation: 10 },
     poach: { minTier: 'small', perDay: 0.03, noticeDays: 3, retainDays: 10, minStaff: 2 },
     priceWar: { minTier: 'startup', perDay: 0.02, days: 10, priceCut: 0.15 },

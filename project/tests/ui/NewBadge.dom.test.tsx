@@ -59,7 +59,7 @@ describe('メニューの NEW の印', () => {
   });
 
   it('Context の入口（ドックの Context の状態）にも NEW を出し、開くと消える', () => {
-    const { store, q } = mount({ ...createInitialState('context'), fresh: ['context:pick'] }, 'paymentFix');
+    const { store, q } = mount({ ...createInitialState('context'), fresh: ['session'] }, 'paymentFix');
     // 資料のある案件で、ドックに Context の状態が出る
     expect(q('[data-context-badge] [data-new-badge]')).not.toBeNull();
     q('[data-context-badge]')?.click();

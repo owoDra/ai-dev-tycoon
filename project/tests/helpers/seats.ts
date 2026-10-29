@@ -11,7 +11,7 @@ const HEADROOM = 0.7;
  * 使用量は営業日ごとに戻るので、枚数はその会社の1日の使用量の山に合わせて増えていく。買えなければ（解放前）そのまま
  */
 export function topUpSeats(state: GameState): GameState {
-  if (!isUnlocked(state, 'team')) return state;
+  if (!isUnlocked(state, 'seats')) return state;
   let s = state;
   while (s.usage >= usageLimit(s) * HEADROOM) {
     s = reduce(s, { type: 'SetSeats', seat: 'premium', count: s.seats.premium + 1 }).state;

@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(22);
+    expect(SAVE_VERSION).toBe(23);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -172,5 +172,49 @@ describe('Seat を会社単位で買う（core/serialize.ts の v21 → v22）',
     const s = deserialize(JSON.stringify(old));
     expect(s).toEqual({ ...state, seats: { standard: 1, premium: 1 }, usage: 52 });
     expect(s.team).toEqual({ sato: {}, suzuki: {} });
+  });
+});
+
+describe('仕組みの取捨選択（core/serialize.ts の v22 → v23）', () => {
+  it('「人間 → AI」の担当は同じ形の「AI」に、細かく分かれていた解放は束に読み替え、社員の画面を開けていた会社は Seat も買える', () => {
+    const state = reduce(createInitialState('v22', { board: true }), {
+      type: 'StartProject',
+      projectId: 'tutorialLp',
+    }).state;
+    const run = state.projects.tutorialLp;
+    if (!run) throw new Error('案件が始まっていない');
+    const [taskId, task] = Object.entries(run.tasks)[0] ?? [];
+    if (!taskId || !task) throw new Error('Task がない');
+    const { cappedDays, ...rest } = state;
+    const old = {
+      saveVersion: 22,
+      state: {
+        ...rest,
+        projects: {
+          tutorialLp: {
+            ...run,
+            tasks: { ...run.tasks, [taskId]: { ...task, assignment: { mode: 'humanThenAi', workerId: 'agent' } } },
+          },
+        },
+        ledger: { ...state.ledger, modeCompleted: { ai: 1, humanThenAi: 2 } },
+        unlocked: [
+          'mode:human',
+          'mode:humanThenAi',
+          'team',
+          'context',
+          'context:pick',
+          'harness:hook',
+          'harness:mod',
+          'harness:routine',
+        ],
+        fresh: ['session:artifacts', 'harness:subagent'],
+      },
+    };
+    const s = deserialize(JSON.stringify(old));
+    expect(s.projects.tutorialLp?.tasks[taskId]?.assignment).toEqual({ mode: 'ai', workerId: 'agent' });
+    expect(s.ledger.modeCompleted).toEqual({ ai: 3 });
+    expect(s.unlocked).toEqual(['mode:human', 'team', 'context', 'harness', 'harness:tool', 'seats']);
+    expect(s.fresh).toEqual(['session', 'harness:tool']);
+    expect(s.cappedDays).toBe(0);
   });
 });

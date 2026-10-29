@@ -435,6 +435,8 @@ export interface GameState {
   readonly usage: number;
   /** Seat の使用量を数えている営業日（ゲーム開始からの営業日の番号、0 から） */
   readonly usageDay: number;
+  /** AI の使用量が Seat の上限に達した営業日の数（Seat の購入の解放の条件。content/unlocks.ts） */
+  readonly cappedDays: number;
   /** 日割りで計上した Seat の固定費の合計（円）。会社の固定費なので案件のスコアには入れず、会社のスコアで引く */
   readonly seatCost: number;
   /** 採用市場 */
@@ -533,6 +535,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     seats: { ...balance.seat.initial },
     usage: 0,
     usageDay: 0,
+    cappedDays: 0,
     seatCost: 0,
     market: { day: 0, candidates: marketCandidates(seed, 0, getCompanyTier(tier).candidates) },
     hireCost: 0,

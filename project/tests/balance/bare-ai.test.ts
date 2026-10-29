@@ -16,7 +16,7 @@ import { playProject, strategies } from '../helpers/strategies';
 const SEEDS = seeds(10);
 const PROJECTS = content.projects.filter((p) => p.id !== 'tutorialLp').map((p) => p.id);
 /** AI が関わる担当モードすべて */
-const AI_MODES: readonly AssignModeId[] = ['ai', 'aiThenHumanReview', 'aiThenEval', 'humanThenAi', 'agentWorkflow'];
+const AI_MODES: readonly AssignModeId[] = ['ai', 'aiThenHumanReview', 'aiThenEval', 'agentWorkflow'];
 /** 素の AI の品質の上限（これ未満なら「品質がとても悪い」）と、Harness を付けてレビューしたときの品質の下限 */
 const BARE_QUALITY_MAX = 0.8;
 const FITTED_QUALITY_MIN = 0.95;

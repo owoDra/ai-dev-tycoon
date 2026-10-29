@@ -10,7 +10,7 @@ const base = {
   runningCost: 0,
   enforcement: 'system',
   group: 'permissionMode',
-  unlock: 'harness:permission',
+  unlock: 'harness',
 } as const;
 
 /**

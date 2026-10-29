@@ -63,9 +63,8 @@ export function contextView(state: GameState, projectId: string): ContextView | 
   const reading = readContext(session, projectId, null);
   const fed = new Set(fedDocs(session.feed, projectId, null).map((d) => d.id));
   const needed = new Set(projectNeededDocs(projectId).map((d) => d.id));
-  const feeds: ContextFeed['mode'][] = ['needed', 'all'];
-  if (isUnlocked(state, 'context:pick')) feeds.push('pick');
-  if (isUnlocked(state, 'context:router')) feeds.push('router');
+  const feeds: ContextFeed['mode'][] = ['needed', 'all', 'pick'];
+  if (isUnlocked(state, 'harness:tool')) feeds.push('router');
   return {
     workerId: worker.id,
     status: contextStatus(reading),
@@ -86,7 +85,7 @@ export function contextView(state: GameState, projectId: string): ContextView | 
           handoff: session.handoff,
           covered: session.artifacts ? artifactCovers : [],
           items: handoffItems,
-          artifacts: isUnlocked(state, 'session:artifacts') ? session.artifacts : null,
+          artifacts: session.artifacts,
           willLose: itemsToLose(session),
           lost: session.recover > 0 ? session.lost : [],
           recover: session.recover,

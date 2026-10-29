@@ -181,15 +181,15 @@ const ROWS: Readonly<
   receive: { icon: 'requirements', feature: 'harness', categories: ['claudeMd', 'rules'] },
   skill: { icon: 'skill', feature: 'harness', categories: ['skill'] },
   tools: { icon: 'tool', feature: 'harness:tool', categories: ['mcp'] },
-  split: { icon: 'subagent', feature: 'harness:subagent', categories: ['subagent'] },
+  split: { icon: 'subagent', feature: 'harness:tool', categories: ['subagent'] },
   validation: { icon: 'eval', feature: 'harness:eval', categories: ['eval'] },
-  mod: { icon: 'board', feature: 'harness:mod', categories: ['mod'] },
-  routine: { icon: 'night', feature: 'harness:routine', categories: ['routine'] },
-  permissions: { icon: 'permission', feature: 'harness:permission', categories: ['permission'] },
-  'hook:SessionStart': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
-  'hook:PreToolUse': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
-  'hook:PostToolUse': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
-  'hook:Stop': { icon: 'hook', feature: 'harness:hook', categories: ['hook'] },
+  mod: { icon: 'board', feature: 'harness:tool', categories: ['mod'] },
+  routine: { icon: 'night', feature: 'harness:tool', categories: ['routine'] },
+  permissions: { icon: 'permission', feature: 'harness', categories: ['permission'] },
+  'hook:SessionStart': { icon: 'hook', feature: 'harness', categories: ['hook'] },
+  'hook:PreToolUse': { icon: 'hook', feature: 'harness', categories: ['hook'] },
+  'hook:PostToolUse': { icon: 'hook', feature: 'harness', categories: ['hook'] },
+  'hook:Stop': { icon: 'hook', feature: 'harness', categories: ['hook'] },
 };
 
 /** パネルの並び（rows の順） */

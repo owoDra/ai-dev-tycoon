@@ -17,10 +17,10 @@ describe('Context の表示（view/context.ts）', () => {
     expect(v?.status).toBe('cluttered');
   });
 
-  it('解放されるまでは2択だけ、Context 自体が未解放なら null', () => {
+  it('Context の解放で3つの渡し方（Context Router は「自動化する」部品の解放から）、Context 自体が未解放なら null', () => {
     const base = started();
     const two = contextView({ ...base, unlocked: ['context'] }, P);
-    expect(two?.feeds).toEqual(['needed', 'all']);
+    expect(two?.feeds).toEqual(['needed', 'all', 'pick']);
     expect(two?.session).toBeNull();
     expect(contextView({ ...base, unlocked: [] }, P)).toBeNull();
     expect(contextView(started(), 'ecRenewal')).toBeNull();

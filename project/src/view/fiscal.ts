@@ -5,7 +5,7 @@ import { getCompanyTier } from '../content/companyTiers';
 import { getHuman, getProject } from '../content/index';
 import { isAchieved } from '../core/achievements';
 import { goalProgress, isListed, type PromotionProgress, tierOf } from '../core/company';
-import { priceWarCut, retainBonus } from '../core/companyEvents';
+import { priceWarCut, retainBonus, tierAtLeast } from '../core/companyEvents';
 import { isDelivered } from '../core/contract';
 import { fiscalDaysLeft, lastReport } from '../core/fiscal';
 import { perPersonDay } from '../core/formulas';
@@ -184,7 +184,8 @@ export interface CompanyStatusView {
     readonly bonus: number;
     readonly daysLeft: number;
   }[];
-  readonly achievements: { readonly done: number; readonly total: number };
+  /** 実績の達成数。実績を見せる規模（balance.companyEvents.later.achievements）になるまでは null */
+  readonly achievements: { readonly done: number; readonly total: number } | null;
 }
 
 /** 会社の帯の ViewModel。会社が営業していなければ（チュートリアル中・単発のプレイ）null */
@@ -209,10 +210,12 @@ export function companyStatusView(state: GameState): CompanyStatusView | null {
         bonus: retainBonus(o.staffId),
         daysLeft: Math.max(0, Math.ceil((o.deadline - state.clock) / DAY)),
       })),
-    achievements: {
-      done: achievementDefs.filter((d) => isAchieved(state, d.id)).length,
-      total: achievementDefs.length,
-    },
+    achievements: tierAtLeast(state, balance.companyEvents.later.achievements)
+      ? {
+          done: achievementDefs.filter((d) => isAchieved(state, d.id)).length,
+          total: achievementDefs.length,
+        }
+      : null,
   };
 }
 

@@ -104,8 +104,17 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(hired.state.team[candidate]).toEqual({});
   });
 
-  it('受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上と納期は受注の条件（orderTerms）', () => {
+  it('個人事業は1件ずつしか受注できず、納品すると次を受けられる（掛け持ちはスタートアップから）', () => {
     let s = afterTutorial().state;
+    expect(s.tier).toBe('solo');
+    const [a = '', b = ''] = openInquiries(s);
+    s = reduce(s, { type: 'AcceptOrder', projectId: a }).state;
+    expect(orderBlock(s, b)).toBe('full');
+    expect(orderBlock({ ...s, tier: 'startup' }, b)).toBeNull();
+  });
+
+  it('受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上と納期は受注の条件（orderTerms）', () => {
+    let s: GameState = { ...afterTutorial().state, tier: 'startup' };
     const [a = '', b = ''] = openInquiries(s);
     const termsA = orderTerms(s, a);
     const termsB = orderTerms(s, b);
@@ -181,7 +190,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
   });
 
   it('セーブして読み込むと、案件ボードの途中（引き合い・受注した案件・評判）から同じ状態で再開できる', () => {
-    let s = afterTutorial().state;
+    let s: GameState = { ...afterTutorial().state, tier: 'startup' };
     const [a = '', b = ''] = openInquiries(s);
     s = win(s, a);
     const morning = nextMorning(s);

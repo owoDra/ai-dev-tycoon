@@ -114,15 +114,18 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
                         );
                       }}
                     </For>
-                    <button
-                      type="button"
-                      class={`${smallButton} self-start`}
-                      data-open-achievements
-                      onClick={() => setAchievements((o) => !o)}
-                    >
-                      <Icon name="trophy" /> {ja.achievements.title}{' '}
-                      {ja.achievements.count(v().achievements.done, v().achievements.total)}
-                    </button>
+                    <Show when={v().achievements}>
+                      {(a) => (
+                        <button
+                          type="button"
+                          class={`${smallButton} self-start`}
+                          data-open-achievements
+                          onClick={() => setAchievements((o) => !o)}
+                        >
+                          <Icon name="trophy" /> {ja.achievements.title} {ja.achievements.count(a().done, a().total)}
+                        </button>
+                      )}
+                    </Show>
                   </div>
                 </Show>
               </section>

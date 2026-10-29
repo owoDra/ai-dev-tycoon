@@ -50,7 +50,11 @@ export function overLimit(state: GameState): boolean {
 
 /** AI が使用量を amount だけ使う（会社の Seat の使用量から減らす） */
 export function consumeUsage(state: GameState, amount: number): GameState {
-  return amount > 0 ? { ...state, usage: state.usage + amount } : state;
+  if (amount <= 0) return state;
+  const usage = state.usage + amount;
+  // その日に初めて上限に達したら、上限に達した日として数える
+  const capped = state.usage < usageLimit(state) && usage >= usageLimit(state);
+  return { ...state, usage, cappedDays: state.cappedDays + (capped ? 1 : 0) };
 }
 
 /** Seat の枚数を変える。0 以上の整数でなければ、同じ枚数なら state をそのまま返す */

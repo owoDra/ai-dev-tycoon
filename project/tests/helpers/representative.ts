@@ -1,7 +1,7 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
 import { tutorialScript } from '../../src/content/tutorial';
-import type { AssignModeId, FeatureId, TaskDef } from '../../src/content/types';
+import type { AssignModeId, CompanyTierId, FeatureId, TaskDef } from '../../src/content/types';
 import { archiveSystem } from '../../src/core/archive';
 import { activeProjects } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
@@ -68,7 +68,7 @@ export const smartPolicy: CampaignPolicy = {
 export const smartSeatPolicy: CampaignPolicy = {
   ...smartPolicy,
   setup: (state) =>
-    isUnlocked(state, 'team') ? [{ type: 'SetSeats', seat: 'premium', count: 1 } satisfies Command] : [],
+    isUnlocked(state, 'seats') ? [{ type: 'SetSeats', seat: 'premium', count: 1 } satisfies Command] : [],
 };
 
 /** smart に加えて、採用が解放されたら人員が size 人になるまで、その日の候補で一番速い人を採用する */
@@ -144,6 +144,8 @@ export interface CampaignOptions {
    * 切り離して比べるときに使う（比べる両方に同じものを渡す）
    */
   readonly unlocked?: readonly FeatureId[];
+  /** 会社の規模（省くと個人事業）。規模で起きはじめる仕組み（事件など）を含めて比べるときに使う */
+  readonly tier?: CompanyTierId;
 }
 
 export interface CampaignResult {
@@ -164,7 +166,11 @@ const SYSTEMS = defaultSystems.filter((s) => s !== archiveSystem);
 /** チュートリアルから代表的な案件群の納品までを遊ぶ。1分ずつ進め、判断が要るところでその場で Command を出す */
 export function playCampaign(options: CampaignOptions): CampaignResult {
   const initial = createInitialState(options.seed ?? tutorialScript.seed, { board: true });
-  let state: GameState = { ...initial, unlocked: [...initial.unlocked, ...(options.unlocked ?? [])] };
+  let state: GameState = {
+    ...initial,
+    tier: options.tier ?? initial.tier,
+    unlocked: [...initial.unlocked, ...(options.unlocked ?? [])],
+  };
   const events: GameEvent[] = [];
   const apply = (commands: readonly Command[]) => {
     for (const c of commands) {

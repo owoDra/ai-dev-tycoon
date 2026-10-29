@@ -2,7 +2,7 @@ import { ja } from '../i18n/ja';
 import { balance } from './balance';
 import type { AssignModeDef, AssignModeId, ModePhase, Stage } from './types';
 
-const { instructShare, reviewShare, judgementShare, evalShare, finalCheckShare, finalCheckCatch } = balance.assign;
+const { instructShare, reviewShare, evalShare, finalCheckShare, finalCheckCatch } = balance.assign;
 
 /** 担当モード（企画書5章）。並び順は UI の選択肢の順 */
 export const assignModes: readonly AssignModeDef[] = [
@@ -42,15 +42,6 @@ export const assignModes: readonly AssignModeDef[] = [
       { actor: 'ai', phase: 'work', effortShare: 1 },
       { actor: 'ai', phase: 'review', effortShare: evalShare },
       { actor: 'human', phase: 'review', effortShare: finalCheckShare, catchRate: finalCheckCatch },
-    ],
-    chains: false,
-  },
-  {
-    id: 'humanThenAi',
-    name: ja.modes.humanThenAi,
-    steps: [
-      { actor: 'human', phase: 'work', effortShare: judgementShare },
-      { actor: 'ai', phase: 'work', effortShare: 1 - judgementShare },
     ],
     chains: false,
   },

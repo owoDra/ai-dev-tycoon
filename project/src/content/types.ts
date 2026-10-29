@@ -13,7 +13,7 @@ export type ModePhase = 'instruct' | 'work' | 'review';
 /** ボトルネックを集計する単位。instruct は work に、手戻りは review に含める */
 export type Stage = 'work' | 'review';
 
-export type AssignModeId = 'human' | 'ai' | 'aiThenHumanReview' | 'aiThenEval' | 'humanThenAi' | 'agentWorkflow';
+export type AssignModeId = 'human' | 'ai' | 'aiThenHumanReview' | 'aiThenEval' | 'agentWorkflow';
 
 export interface ModeStep {
   readonly actor: Actor;
@@ -204,6 +204,8 @@ export type Condition =
   | { readonly type: 'tier'; readonly tier: CompanyTierId }
   /** 会社の資産になった Harness の部品（導入済み）が count 個以上 */
   | { readonly type: 'partsOwned'; readonly count: number }
+  /** AI の使用量が Seat の上限に達した営業日の数が count 以上 */
+  | { readonly type: 'usageCapped'; readonly count: number }
   /** すべてを満たす */
   | { readonly type: 'all'; readonly of: readonly Condition[] }
   /** どれかを満たす（体験の条件に、規模の昇格などの「いずれは届く」条件を添えて、取り残されないようにする） */
@@ -221,27 +223,21 @@ export type FeatureId =
   | 'dock:skip'
   | 'dock:utilization'
   | 'problems'
-  /** context: 資料の渡し方の2択と Context の状態 / context:pick: 資料を個別に選ぶチェックリスト / context:router: Context Router */
+  /** context: 資料の渡し方（必要な資料だけ・すべて・1つずつ選ぶ）と Context の状態 */
   | 'context'
-  | 'context:pick'
-  | 'context:router'
-  /** session: New Session と Handoff / session:artifacts: Artifact Driven Work */
+  /** session: New Session・Handoff・Artifact Driven Work */
   | 'session'
-  | 'session:artifacts'
   /**
-   * harness: Harness Builder（Model・CLAUDE.md と Rules・Skill）/ harness:*: 部品のカテゴリごとの解放。
-   * harness:tool は MCP・コネクタ（カテゴリ mcp。セーブの解放の記録と合わせるため id は変えない）
+   * Harness の部品は3つの束で解放する。harness: 守らせる（Model・CLAUDE.md と Rules・Skill・Hook・権限モード）/
+   * harness:eval: 検証する（Eval）/ harness:tool: 自動化する（MCP・Subagent・Mod・Routine・Context Router）。
+   * harness:tool の id はセーブの解放の記録と合わせるため変えない
    */
   | 'harness'
-  | 'harness:hook'
-  | 'harness:tool'
-  | 'harness:permission'
   | 'harness:eval'
-  | 'harness:subagent'
-  | 'harness:mod'
-  | 'harness:routine'
-  /** team: 社員と Seat の画面（Seat の変更） / hire: 社員の画面と採用・退職 */
+  | 'harness:tool'
+  /** team: 社員と Seat の画面 / seats: Seat の枚数の変更 / hire: 採用・退職 */
   | 'team'
+  | 'seats'
   | 'hire';
 
 export interface UnlockDef {
@@ -257,24 +253,16 @@ export type UnlockMessageId =
   | 'eval'
   | 'skip'
   | 'utilization'
-  | 'advanced'
   | 'workflow'
   | 'problems'
   | 'basic'
   | 'context'
-  | 'contextPick'
-  | 'contextRouter'
   | 'session'
-  | 'artifacts'
   | 'harness'
-  | 'harnessHook'
   | 'harnessTool'
-  | 'harnessPermission'
   | 'harnessEval'
-  | 'harnessSubagent'
-  | 'harnessMod'
-  | 'harnessRoutine'
   | 'team'
+  | 'seats'
   | 'hire';
 
 /** 体験の後で名前を教える用語（企画書34章）。文言（名前・平易な説明）は i18n の ja.glossary */

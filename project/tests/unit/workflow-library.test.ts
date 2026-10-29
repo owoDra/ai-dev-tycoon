@@ -130,12 +130,12 @@ describe('Workflow Library（core/library.ts）', () => {
     const base = apply(withPrReview(createInitialState('lib-d')), [
       { type: 'StartProject', projectId: 'paymentFix' },
     ]).state;
-    const state = { ...base, unlocked: allFeatures.filter((f) => f !== 'harness:subagent') };
-    expect(lockedFeatures(state, prReview)).toEqual({ parts: ['subReview'], mode: false });
+    const state = { ...base, unlocked: allFeatures.filter((f) => f !== 'harness:tool') };
+    expect(lockedFeatures(state, prReview)).toEqual({ parts: ['mcpGit', 'subReview'], mode: false });
     const { state: after, events } = apply(state, [
       { type: 'ApplyLibraryWorkflow', workflowId: 'custom1', projectId: 'paymentFix', taskId: 'fix', workerId: AGENT },
     ]);
-    expect(events[0]).toMatchObject({ type: 'LibraryWorkflowApplied', skipped: ['subReview'] });
+    expect(events[0]).toMatchObject({ type: 'LibraryWorkflowApplied', skipped: ['mcpGit', 'subReview'] });
     expect(harnessOf(after, AGENT).parts).not.toContain('subReview');
     expect(harnessOf(after, AGENT).parts).toContain('skillPrReview');
   });

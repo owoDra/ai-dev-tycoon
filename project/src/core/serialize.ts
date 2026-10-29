@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 22;
+export const SAVE_VERSION = 23;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -151,7 +151,70 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...state, team, seats, usage };
     },
   },
+  // v22 → v23：仕組みの取捨選択（Phase 38）。担当モード「人間 → AI」をなくし、同じ形の工程（人間 → AI）を持つ「AI」に置き換える。
+  // 細かく分かれていた解放を束にまとめ、Seat の購入を別の解放にする（社員の画面を開けていた会社は、Seat も買える）
+  { from: 22, migrate: (state) => migratePhase38(state) },
 ];
+
+/** Phase 38 で束にまとめた機能の、古い id から新しい id への対応 */
+const mergedFeatures: Readonly<Record<string, string | null>> = {
+  'mode:humanThenAi': null,
+  'context:pick': 'context',
+  'context:router': 'harness:tool',
+  'session:artifacts': 'session',
+  'harness:hook': 'harness',
+  'harness:permission': 'harness',
+  'harness:subagent': 'harness:tool',
+  'harness:mod': 'harness:tool',
+  'harness:routine': 'harness:tool',
+};
+
+function migrateFeatures(list: unknown, addSeats: boolean): unknown {
+  if (!Array.isArray(list)) return list;
+  const out: unknown[] = [];
+  for (const f of list) {
+    const to = typeof f === 'string' && f in mergedFeatures ? mergedFeatures[f] : f;
+    if (to !== null && !out.includes(to)) out.push(to);
+  }
+  if (addSeats && out.includes('team') && !out.includes('seats')) out.push('seats');
+  return out;
+}
+
+const humanThenAiToAi = (v: unknown): unknown => (isRecord(v) && v.mode === 'humanThenAi' ? { ...v, mode: 'ai' } : v);
+
+function migratePhase38(state: unknown): unknown {
+  if (!isRecord(state)) return state;
+  const projects = isRecord(state.projects)
+    ? Object.fromEntries(
+        Object.entries(state.projects).map(([id, p]) => {
+          if (!isRecord(p) || !isRecord(p.tasks)) return [id, p];
+          const tasks = Object.fromEntries(
+            Object.entries(p.tasks).map(([tid, t]) => [
+              tid,
+              isRecord(t) ? { ...t, assignment: humanThenAiToAi(t.assignment) } : t,
+            ]),
+          );
+          return [id, { ...p, tasks }];
+        }),
+      )
+    : state.projects;
+  let ledger = state.ledger;
+  if (isRecord(ledger) && isRecord(ledger.modeCompleted)) {
+    const { humanThenAi, ...rest } = ledger.modeCompleted;
+    const moved = typeof humanThenAi === 'number' ? humanThenAi : 0;
+    const ai = typeof rest.ai === 'number' ? rest.ai : 0;
+    ledger = { ...ledger, modeCompleted: moved > 0 ? { ...rest, ai: ai + moved } : rest };
+  }
+  return {
+    ...state,
+    projects,
+    ledger,
+    library: Array.isArray(state.library) ? state.library.map(humanThenAiToAi) : state.library,
+    unlocked: migrateFeatures(state.unlocked, true),
+    fresh: migrateFeatures(state.fresh, false),
+    cappedDays: 0,
+  };
+}
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
 export class OutdatedSaveError extends Error {
@@ -222,6 +285,7 @@ function isGameState(v: unknown): v is GameState {
     isRecord(v.seats) &&
     typeof v.usage === 'number' &&
     typeof v.usageDay === 'number' &&
+    typeof v.cappedDays === 'number' &&
     typeof v.seatCost === 'number' &&
     isRecord(v.market) &&
     Array.isArray(v.market.candidates) &&

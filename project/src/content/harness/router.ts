@@ -17,6 +17,6 @@ export const routerParts: readonly HarnessPartDef[] = [
     burden: { aiCost: 1.03 },
     appliesTo: [],
     enforcement: 'system',
-    unlock: 'context:router',
+    unlock: 'harness:tool',
   },
 ];

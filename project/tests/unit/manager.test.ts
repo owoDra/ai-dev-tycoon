@@ -170,8 +170,7 @@ describe('管理者の判断（core/manager.ts）', () => {
     const human = managerCommands(managed({ kind: 'human', staffId: PM }), 't~2');
     const ai = managerCommands(managed({ kind: 'ai' }), 't~2');
     const reviewed = (cs: Command[]) =>
-      cs.filter((c) => c.type === 'AssignTask' && ['human', 'aiThenHumanReview', 'humanThenAi'].includes(c.mode))
-        .length;
+      cs.filter((c) => c.type === 'AssignTask' && ['human', 'aiThenHumanReview'].includes(c.mode)).length;
     expect(reviewed(human)).toBeGreaterThanOrEqual(reviewed(ai));
   });
 });

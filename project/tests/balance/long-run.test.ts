@@ -47,8 +47,9 @@ const run = (s: LongStrategy) => {
 
 beforeAll(() => {
   for (const s of [...variants, clumsy]) runs.set(s.name, runLong(s, SEED, YEAR * YEARS));
-  // 無理な受注は1年で十分（倒産するかどうかだけを見る）
-  runs.set(reckless.name, runLong(reckless, SEED, YEAR));
+  // 無理な受注は1年で十分（倒産するかどうかだけを見る）。個人事業は1件ずつしか受けられず抱え込めないので（Phase 38）、
+  // 掛け持ちが始まるスタートアップの会社から確かめる（2026-10-29 のユーザー回答：受注のしすぎで倒産するのはスタートアップから）
+  runs.set(reckless.name, runLong(reckless, SEED, YEAR, 'startup'));
   const lines = [...variants, clumsy].map((s) => {
     const r = run(s);
     const byYear = Array.from({ length: YEARS }, (_, y) => {

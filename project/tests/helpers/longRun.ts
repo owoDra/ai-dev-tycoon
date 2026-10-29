@@ -1,6 +1,6 @@
 import { balance } from '../../src/content/balance';
 import { getHuman, getProject } from '../../src/content/index';
-import type { AssignModeId } from '../../src/content/types';
+import type { AssignModeId, CompanyTierId } from '../../src/content/types';
 import { activeProjects, openInquiries } from '../../src/core/board';
 import { type Command, reduce } from '../../src/core/commands';
 import type { GameEvent } from '../../src/core/events';
@@ -218,9 +218,9 @@ function answerOffers(state: GameState, strategy: LongStrategy): GameState {
   return s;
 }
 
-/** 会社を days 営業日経営する */
-export function runLong(strategy: LongStrategy, seed: string, days: number): LongRunResult {
-  let s = createInitialState(seed, { board: true, tutorial: false, talent: true });
+/** 会社を days 営業日経営する。tier を渡すと、その規模の会社から始める */
+export function runLong(strategy: LongStrategy, seed: string, days: number, tier?: CompanyTierId): LongRunResult {
+  let s = createInitialState(seed, { board: true, tutorial: false, talent: true, ...(tier ? { tier } : {}) });
   const quarters: QuarterRow[] = [];
   const promotions: { day: number; name: string }[] = [];
   const stateSizes: number[] = [];

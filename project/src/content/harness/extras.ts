@@ -19,7 +19,7 @@ export const modParts: readonly HarnessPartDef[] = [
   burden: {},
   appliesTo: ALL,
   enforcement: 'system',
-  unlock: 'harness:mod',
+  unlock: 'harness:tool',
 }));
 
 /** Routine・定期実行。人間がいない夜も AI が決まった仕事を進めるので、合う仕事が速く進む。そのぶん AI の利用量が増える */
@@ -34,7 +34,7 @@ export const routineParts: readonly HarnessPartDef[] = [
     burden: { aiCost: 1.03 },
     appliesTo: ['code', 'test'],
     enforcement: 'system',
-    unlock: 'harness:routine',
+    unlock: 'harness:tool',
   },
   {
     id: 'routineReport',
@@ -46,6 +46,6 @@ export const routineParts: readonly HarnessPartDef[] = [
     burden: { aiCost: 1.03 },
     appliesTo: ['planning', 'research', 'content'],
     enforcement: 'system',
-    unlock: 'harness:routine',
+    unlock: 'harness:tool',
   },
 ];

@@ -72,8 +72,9 @@ const POLICIES: readonly { readonly name: string; readonly policy: Policy }[] = 
   },
 ];
 
+/** 掛け持ちのできるスタートアップの会社で比べる（個人事業は1件ずつしか受けられない。Phase 38） */
 function play(policy: Policy, seed: string) {
-  let s = createInitialState(seed, { board: true, tutorial: false });
+  let s = createInitialState(seed, { board: true, tutorial: false, tier: 'startup' });
   for (const c of equipCommands('agent')) s = reduce(s, c).state;
   s = postInquiries(s, () => {});
   let accepted = 0;

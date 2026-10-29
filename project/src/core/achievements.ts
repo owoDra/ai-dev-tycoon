@@ -1,4 +1,5 @@
 import { achievementDefs } from '../content/achievements';
+import { balance } from '../content/balance';
 import { getProject } from '../content/index';
 import type { AchievementCondition, AchievementDef, ProjectSize } from '../content/types';
 import { tierAtLeast } from './companyEvents';
@@ -98,12 +99,13 @@ function pending(state: GameState, trigger: AchievementTrigger): AchievementDef[
   return achievementDefs.filter((d) => !isAchieved(state, d.id) && kinds[trigger.kind](d.when));
 }
 
-/** 条件を満たした実績を記録し、AchievementUnlocked を出す。今の期の達成にも足す */
+/** 条件を満たした実績を記録し、AchievementUnlocked を出す。今の期の達成にも足す。序盤の規模では判定しない（実績はまだ見せない） */
 export function checkAchievements(
   state: GameState,
   trigger: AchievementTrigger,
   emit: (e: GameEvent) => void,
 ): GameState {
+  if (!tierAtLeast(state, balance.companyEvents.later.achievements)) return state;
   const done = pending(state, trigger).filter((d) => achievementHolds(state, d.when, trigger));
   if (done.length === 0) return state;
   for (const d of done) emit({ type: 'AchievementUnlocked', id: d.id });

@@ -48,7 +48,7 @@ export const incidentDefs: readonly IncidentDef[] = [
     resolve: [
       { type: 'EquipPart', parts: ['hookUnitTest', 'hookFormatter', 'skillReport', 'skillFrontend', 'skillPrReview'] },
     ],
-    unlock: 'harness:hook',
+    unlock: 'harness',
     icon: 'hook',
   },
   {
@@ -80,7 +80,7 @@ export const incidentDefs: readonly IncidentDef[] = [
     trigger: { metric: 'subagents', threshold: 3, perUnit: 0.3, max: 0.7 },
     effect: { successPenalty: 0.08, aiTimeFactor: 1.5, humanTimeFactor: 1 },
     resolve: [{ type: 'TrimParts', category: 'subagent', keep: 2 }],
-    unlock: 'harness:subagent',
+    unlock: 'harness:tool',
     icon: 'subagent',
   },
   {

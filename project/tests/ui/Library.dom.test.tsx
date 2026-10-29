@@ -143,7 +143,7 @@ describe('Workflow Library の UI（企画書25章）', () => {
 
   it('共有コードを読み込むと、未解放の部品を警告してからライブラリに追加できる。壊れたコードは拒む', () => {
     const base = createInitialState('library-import');
-    const state = { ...base, unlocked: base.unlocked.filter((f) => f !== 'harness:subagent') };
+    const state = { ...base, unlocked: base.unlocked.filter((f) => f !== 'harness:tool') };
     const { store, q } = mount('paymentFix', state);
     q<HTMLButtonElement>('[data-harness-open]')?.click();
     q<HTMLButtonElement>('[data-ai-tab="library"]')?.click();

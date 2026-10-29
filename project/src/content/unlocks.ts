@@ -32,21 +32,13 @@ export const unlockDefs: readonly UnlockDef[] = [
   },
   // チュートリアルの案件を納品したら、次に手を打つ場所を教える
   { id: 'problems', feature: 'problems', when: { type: 'projectsCompleted', count: 1 }, message: 'problems' },
-  // 会社として営業を始めたら、会社の Seat を買い足せるようにする（企画書6章）。AI は Seat の使用量の範囲でしか動かないので、
-  // 案件を重ねる前に「AI の容量をどれだけ買うか」を決められるようにする（社員の画面もここから開ける）
+  // 会社として営業を始めたら、社員と Seat の画面を開けるようにする（Seat の枚数を変えるのは seats の解放から）
   { id: 'team', feature: 'team', when: { type: 'projectsCompleted', count: 1 }, message: 'team' },
-  // 2つ目の案件を納品したら、人間の判断を先に置く任せ方を渡す
-  {
-    id: 'humanThenAi',
-    feature: 'mode:humanThenAi',
-    when: { type: 'projectsCompleted', count: 2 },
-    message: 'advanced',
-  },
   // 案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする。
   // 会社の伸びを左右するので、同じ日に条件を満たした解放が重なったら Context や Harness より先に渡す
   { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 4 }, message: 'hire' },
   // Context（企画書9〜12章）。AI のミスが重なってきたら、渡す資料を選べるようにする（遅くとも4件目の納品で）。
-  // 資料のある案件でだけ UI に出る。最初は「必要な資料だけ / すべての資料」の2択
+  // 資料のある案件でだけ UI に出る。必要な資料だけ・すべて・1つずつ選ぶ、をまとめて渡す
   {
     id: 'context',
     feature: 'context',
@@ -59,7 +51,7 @@ export const unlockDefs: readonly UnlockDef[] = [
     },
     message: 'context',
   },
-  // Session が長くなり、履歴のノイズが目立ってきたら New Session と Handoff を渡す
+  // Session が長くなり、履歴のノイズが目立ってきたら、New Session・Handoff・成果物に状態を残す方法をまとめて渡す
   {
     id: 'session',
     feature: 'session',
@@ -72,47 +64,8 @@ export const unlockDefs: readonly UnlockDef[] = [
     },
     message: 'session',
   },
-  // 事件を一度経験したら、資料を1つずつ選べるようにする
-  {
-    id: 'contextPick',
-    feature: 'context:pick',
-    when: {
-      type: 'all',
-      of: [
-        { type: 'unlocked', feature: 'context' },
-        { type: 'contextStat', stat: 'incidents', count: 1 },
-      ],
-    },
-    message: 'contextPick',
-  },
-  // 一度 Reset したら、成果物に状態を残す方法を渡す
-  {
-    id: 'artifacts',
-    feature: 'session:artifacts',
-    when: {
-      type: 'all',
-      of: [
-        { type: 'unlocked', feature: 'session' },
-        { type: 'contextStat', stat: 'resets', count: 1 },
-      ],
-    },
-    message: 'artifacts',
-  },
-  // 決済画面の修正（の型の案件）を納品したら、最後に Context Router（Harness Builder の部品）
-  {
-    id: 'contextRouter',
-    feature: 'context:router',
-    when: {
-      type: 'all',
-      of: [
-        { type: 'unlocked', feature: 'harness' },
-        { type: 'templateCompleted', templateId: 'paymentFix' },
-      ],
-    },
-    message: 'contextRouter',
-  },
-  // Harness Builder（企画書35章）。人間のレビューを何度も繰り返し「毎回同じ確認をしている」と感じた後に、
-  // Model・CLAUDE.md と Rules・Skill を渡す（遅くともスタートアップへの昇格で）
+  // Harness Builder（企画書35章）の1つ目の束「守らせる」。人間のレビューを何度も繰り返し「毎回同じ確認をしている」と感じた後に、
+  // Model・CLAUDE.md と Rules・Skill・Hook（と同じ内容の「お願い」）・権限モードを渡す（遅くともスタートアップへの昇格で）
   {
     id: 'harness',
     feature: 'harness',
@@ -125,13 +78,6 @@ export const unlockDefs: readonly UnlockDef[] = [
     },
     message: 'harness',
   },
-  // Builder と一緒に「お願い」と「Hook」を渡す（同じルールの2つの守らせ方を最初に比べさせる）
-  {
-    id: 'harnessHook',
-    feature: 'harness:hook',
-    when: { type: 'unlocked', feature: 'harness' },
-    message: 'harnessHook',
-  },
   // Harness の部品を1つ導入して AI Worker を整えた後に、工程をまとめて AI に任せる Agent Workflow と、
   // その組み合わせを保存・適用する Workflow Library を渡す
   {
@@ -140,7 +86,8 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'partsOwned', count: 1 },
     message: 'workflow',
   },
-  // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す（遅くともスタートアップへの昇格で）
+  // 2つ目の束「検証する」。自動テスト（簡易 Eval）を使った後に、Eval の部品を渡す（遅くとも小規模企業への昇格で。
+  // 規模ごとに新しく届く機能を2つまでにする。tests/balance/early-game.test.ts）
   {
     id: 'harnessEval',
     feature: 'harness:eval',
@@ -152,27 +99,15 @@ export const unlockDefs: readonly UnlockDef[] = [
           type: 'any',
           of: [
             { type: 'modeCompleted', mode: 'aiThenEval', count: 2 },
-            { type: 'tier', tier: 'startup' },
+            { type: 'tier', tier: 'small' },
           ],
         },
       ],
     },
     message: 'harnessEval',
   },
-  // スタートアップに昇格したら、分担（Subagent）を渡す
-  {
-    id: 'harnessSubagent',
-    feature: 'harness:subagent',
-    when: {
-      type: 'all',
-      of: [
-        { type: 'unlocked', feature: 'harness' },
-        { type: 'tier', tier: 'startup' },
-      ],
-    },
-    message: 'harnessSubagent',
-  },
-  // Workflow で AI に工程をまとめて任せた後に、MCP と権限モードを渡す（遅くともスタートアップへの昇格で）
+  // 3つ目の束「自動化する」。Workflow で AI に工程をまとめて任せた後に、MCP・Subagent・Mod・Routine・Context Router を渡す
+  // （遅くとも小規模企業への昇格で）
   {
     id: 'harnessTool',
     feature: 'harness:tool',
@@ -184,37 +119,26 @@ export const unlockDefs: readonly UnlockDef[] = [
           type: 'any',
           of: [
             { type: 'modeCompleted', mode: 'agentWorkflow', count: 1 },
-            { type: 'tier', tier: 'startup' },
+            { type: 'tier', tier: 'small' },
           ],
         },
       ],
     },
     message: 'harnessTool',
   },
+  // AI の使用量が Seat の上限に達して AI が止まるのを体験したら、Seat を買い足せるようにする（遅くともスタートアップへの昇格で。同じ日に重なったら Harness を先に渡す）。
+  // 個人事業の序盤は Seat を固定にして、考えることを任せ方に絞る
   {
-    id: 'harnessPermission',
-    feature: 'harness:permission',
-    when: { type: 'unlocked', feature: 'harness:tool' },
-    message: 'harnessPermission',
-  },
-  // 小規模企業に昇格したら、人間が見張る時間を減らす Mod と、夜も AI を働かせる Routine を渡す
-  {
-    id: 'harnessMod',
-    feature: 'harness:mod',
+    id: 'seats',
+    feature: 'seats',
     when: {
-      type: 'all',
+      type: 'any',
       of: [
-        { type: 'unlocked', feature: 'harness' },
-        { type: 'tier', tier: 'small' },
+        { type: 'usageCapped', count: 1 },
+        { type: 'tier', tier: 'startup' },
       ],
     },
-    message: 'harnessMod',
-  },
-  {
-    id: 'harnessRoutine',
-    feature: 'harness:routine',
-    when: { type: 'unlocked', feature: 'harness:mod' },
-    message: 'harnessRoutine',
+    message: 'seats',
   },
 ];
 
@@ -253,20 +177,10 @@ export type MenuSpot = 'harness' | 'library' | 'team' | 'context';
  * 担当モードの機能（mode:*）は、担当カードに印を出す（その任せ方で担当を決めたら消す）
  */
 export const menuFeatures: Readonly<Record<MenuSpot, readonly FeatureId[]>> = {
-  harness: [
-    'harness',
-    'harness:hook',
-    'harness:tool',
-    'harness:permission',
-    'harness:eval',
-    'harness:subagent',
-    'harness:mod',
-    'harness:routine',
-    'context:router',
-  ],
+  harness: ['harness', 'harness:eval', 'harness:tool'],
   library: ['mode:agentWorkflow'],
-  team: ['team', 'hire'],
-  context: ['context', 'context:pick', 'session', 'session:artifacts'],
+  team: ['team', 'seats', 'hire'],
+  context: ['context', 'session'],
 };
 
 /** 解放したときに「NEW」の印を付ける機能か（担当カードかメニューの入口に出す場所がある） */

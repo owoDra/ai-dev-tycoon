@@ -9,7 +9,7 @@ const base = {
   installCost: 10_000,
   runningCost: 0,
   enforcement: 'system',
-  unlock: 'harness:subagent',
+  unlock: 'harness:tool',
   modifiers: { success: 0.12, speed: 1.15 },
   burden: { aiCost: 1.1 },
   appliesTo: ['planning', 'research', 'design', 'content', 'code', 'test', 'release'],
@@ -44,6 +44,6 @@ export const worktreeParts: readonly HarnessPartDef[] = [
     pairRelief: { subagent: 0.9 },
     appliesTo: [],
     enforcement: 'system',
-    unlock: 'harness:subagent',
+    unlock: 'harness:tool',
   },
 ];

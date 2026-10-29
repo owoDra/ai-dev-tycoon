@@ -43,8 +43,7 @@ export const runningProjects = (state: GameState) =>
 export function orderTerms(state: GameState, projectId: string): OrderTerms {
   const def = getProject(projectId);
   const o = balance.orders;
-  const r = balance.reputation;
-  const reputation = 1 + ((state.reputation - r.initial) / (r.max - r.min)) * o.reputationWeight;
+  const reputation = reputationPriceFactor(state.reputation);
   const revenue = Math.round((def.revenue * reputation * (1 - priceWarCut(state))) / o.amountStep) * o.amountStep;
   return { revenue, deadlineDays: def.deadlineDays };
 }
@@ -75,17 +74,34 @@ export function expireInquiries(state: GameState): GameState {
   return { ...state, board: { ...board, inquiries: board.inquiries.filter((i) => i.closesAt > state.clock) } };
 }
 
+/** 納品による評判の変化の内訳。timing：納期内なら onTime、炎上していれば 0 / quality：（品質 − 基準）× perQuality */
+export interface RatingParts {
+  readonly timing: number;
+  readonly quality: number;
+}
+
+/** 納品による評判の変化の内訳。納品していない案件は null */
+export function deliveryRatingParts(state: GameState, projectId: string): RatingParts | null {
+  const run = state.projects[projectId];
+  const score = scoreProject(state, projectId);
+  if (!run || !score?.completed) return null;
+  const r = balance.reputation;
+  return { timing: run.burningAt === null ? r.onTime : 0, quality: (score.quality - r.qualityPivot) * r.perQuality };
+}
+
 /**
  * 納品による評判の変化（納期と品質）。期限内なら上がり、炎上した案件は上がらない（炎上した時点で下がっている。core/contract.ts）。
  * 納品していない案件は 0
  */
 export function deliveryRating(state: GameState, projectId: string): number {
-  const run = state.projects[projectId];
-  const score = scoreProject(state, projectId);
-  if (!run || !score?.completed) return 0;
+  const parts = deliveryRatingParts(state, projectId);
+  return parts ? parts.timing + parts.quality : 0;
+}
+
+/** 評判による受注額の補正（1 なら標準価格。orderTerms の評判の項） */
+export function reputationPriceFactor(reputation: number): number {
   const r = balance.reputation;
-  const timing = run.burningAt === null ? r.onTime : 0;
-  return timing + (score.quality - r.qualityPivot) * r.perQuality;
+  return 1 + ((reputation - r.initial) / (r.max - r.min)) * balance.orders.reputationWeight;
 }
 
 /** 納品した案件で評判を変える（案件ボードのある会社だけ） */

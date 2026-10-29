@@ -84,6 +84,23 @@ describe('会社の帯', () => {
     expect(q('[data-achievement="large"]')?.textContent).toContain(ja.achievements.locked);
   });
 
+  it('内訳から「評価のしくみ」を開くと、品質・納期 → 評判 → 受注額と、利益 ÷ 人日 → 月の利益ペースの流れが出る', () => {
+    const q = mount(() => <CompanyStrip store={createGameStore(closed())} />);
+    q<HTMLButtonElement>('[data-strip-toggle]')?.click();
+    expect(q('[data-guide]')).toBeNull();
+    q<HTMLButtonElement>('[data-open-guide]')?.click();
+    expect(q('[data-guide-flow="reputation"]')?.textContent).toContain(ja.evaluation.guide.quality);
+    expect(q('[data-guide-flow="profit"]')?.textContent).toContain(ja.evaluation.guide.profit);
+  });
+
+  it('個人事業のうちは実績を出さない', () => {
+    const solo = { ...closed(), tier: 'solo' as const };
+    const q = mount(() => <CompanyStrip store={createGameStore(solo)} />);
+    q<HTMLButtonElement>('[data-strip-toggle]')?.click();
+    expect(q('[data-open-achievements]')).toBeNull();
+    expect(q('[data-open-guide]')).not.toBeNull();
+  });
+
   it('時価総額は上場（上場企業の規模）してから帯に出し、それまでの決算では推定の企業価値と呼ぶ', () => {
     const state = closed();
     expect(state.tier).not.toBe(listedTier);
@@ -166,6 +183,12 @@ describe('倒産の画面と納品のカード', () => {
     expect(dialog?.textContent).toContain(ja.delivery.title(view.name));
     expect(q('[data-delivery-on-time]')?.textContent).toContain(view.onTime ? ja.delivery.onTime : ja.delivery.late);
     expect(q('[data-delivery-reputation]')?.textContent).toContain(ja.delivery.reputation(view.reputation));
+    // 利益の式（売上から費用を引いて利益）と、人日で割る式、評判の理由、次に直す場所
+    expect(q('[data-line="revenue"]')).not.toBeNull();
+    expect(q('[data-line="profit"]')?.textContent).toContain(ja.score.yen(view.profit));
+    expect(q('[data-formula]')?.textContent).toContain('人日');
+    expect(q('[data-reputation-why]')).not.toBeNull();
+    expect(q('[data-weakest]')).not.toBeNull();
     // 品質が低ければ、色だけでなくアイコンとラベルでも示す
     const low = mount(() => (
       <DeliveryModal delivery={{ ...view, quality: 0.4, qualityGood: false }} onReview={() => {}} onNext={() => {}} />

@@ -16,6 +16,7 @@ import { scoreProject } from '../core/scoring';
 import type { FiscalReport, GameState, ValuationSample } from '../core/state';
 import { projectDelegated, teamName } from '../core/teams';
 import { ja } from '../i18n/ja';
+import { type DeliveryBreakdown, deliveryBreakdown } from './evaluation';
 
 /*
  * 長く遊ぶための画面の ViewModel。決算の画面（4段構成）・倒産の画面（時価総額の推移）・納品のカード・
@@ -233,6 +234,8 @@ export interface DeliveryView {
   readonly direct: boolean;
   /** 評判の変化（core/orders.ts の deliveryRating） */
   readonly reputation: number;
+  /** 利益の式・評判の理由・次に直す場所（view/evaluation.ts） */
+  readonly breakdown: DeliveryBreakdown | null;
 }
 
 export function deliveryView(state: GameState, projectId: string): DeliveryView | null {
@@ -249,6 +252,7 @@ export function deliveryView(state: GameState, projectId: string): DeliveryView 
     qualityGood: score.quality >= balance.reputation.qualityPivot,
     direct: !projectDelegated(state, projectId),
     reputation: state.board ? deliveryRating(state, projectId) : 0,
+    breakdown: deliveryBreakdown(state, projectId),
   };
 }
 

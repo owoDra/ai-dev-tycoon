@@ -1,12 +1,15 @@
-import { For, onCleanup, onMount } from 'solid-js';
+import { For, onCleanup, onMount, Show } from 'solid-js';
+import { balance } from '../../content/balance';
 import { countUp, enter, pop } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
+import type { DeliveryBreakdown } from '../../view/evaluation';
 import type { DeliveryView } from '../../view/fiscal';
 import { paceText } from '../../view/hud';
 import { Icon } from '../Icon';
 import { ghostButton, Meter, panel, primaryButton, smallButton } from '../parts';
 
 const t = ja.delivery;
+const e = ja.evaluation;
 
 /**
  * 直轄の案件の納品のモーダル。一時停止した上に出し、利益 / 人日 をカウントアップして、利益・納期・品質・評判の変化を見せる。
@@ -30,7 +33,7 @@ export function DeliveryModal(props: { delivery: DeliveryView; onReview: () => v
         role="dialog"
         aria-modal="true"
         aria-labelledby="delivery-title"
-        class={`${panel} flex w-full max-w-sm flex-col gap-3 p-5`}
+        class={`${panel} flex max-h-full w-full max-w-sm flex-col gap-3 overflow-y-auto p-5`}
       >
         <p class="text-xs font-bold text-ink-muted">{t.heading}</p>
         <h2 id="delivery-title" class="flex items-center gap-2 font-heading text-xl">
@@ -64,10 +67,20 @@ export function DeliveryModal(props: { delivery: DeliveryView; onReview: () => v
             </span>
           </dd>
           <dt class="font-bold">{ja.board.reputation}</dt>
-          <dd class="flex items-center gap-1" data-delivery-reputation>
-            <Icon name={d().reputation >= 0 ? 'success' : 'warning'} /> {t.reputation(d().reputation)}
+          <dd class="flex flex-col" data-delivery-reputation>
+            <span class="flex items-center gap-1">
+              <Icon name={d().reputation >= 0 ? 'success' : 'warning'} /> {t.reputation(d().reputation)}
+            </span>
+            <Show when={d().breakdown?.reputation}>
+              {(r) => (
+                <span class="text-xs text-ink-muted" data-reputation-why>
+                  {e.reputationWhy(r().timing, r().quality, ja.score.percent(d().quality))}
+                </span>
+              )}
+            </Show>
           </dd>
         </dl>
+        <Show when={d().breakdown}>{(b) => <Breakdown breakdown={b()} />}</Show>
         <div class="flex flex-wrap justify-end gap-2">
           <button type="button" class={ghostButton} data-review onClick={() => props.onReview()}>
             {t.review}
@@ -131,6 +144,58 @@ function Card(props: { card: DeliveryView; onReview: (id: string) => void; onClo
         <button type="button" class={smallButton} data-close onClick={() => props.onClose(c().projectId)}>
           {t.close}
         </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 納品の評価の内訳：利益の式（売上から費用を引いて利益）と、それを人日で割って月の利益ペースにする式、
+ * 品質が基準を下回った工程のうち一番低いもの（次に直す場所）とその任せ方に合った次の一手
+ */
+function Breakdown(props: { breakdown: DeliveryBreakdown }) {
+  const b = () => props.breakdown;
+  return (
+    <section class="flex flex-col gap-2 text-sm" data-breakdown>
+      <h3 class="text-xs font-bold text-ink-muted">{e.breakdown}</h3>
+      <dl class="grid grid-cols-[1fr_auto] gap-x-3 tabular-nums">
+        <For each={b().lines.filter((l) => l.id === 'revenue' || l.amount !== 0)}>
+          {(l) => (
+            <>
+              <dt>{e.lines[l.id]}</dt>
+              <dd class="text-right" data-line={l.id}>
+                {e.signed(l.amount, l.id !== 'revenue')}
+              </dd>
+            </>
+          )}
+        </For>
+        <dt class="border-t-2 border-line font-bold">{e.profit}</dt>
+        <dd class="border-t-2 border-line text-right font-bold" data-line="profit">
+          {ja.score.yen(b().profit)}
+        </dd>
+      </dl>
+      <p class="text-xs text-ink-muted" data-formula>
+        {e.formula(b().personDays, balance.score.workDaysPerMonth)}
+      </p>
+      <div class="flex flex-col gap-0.5 rounded-md border-2 border-line bg-sunken p-2 text-xs" data-weakest>
+        <Show
+          when={b().weakest}
+          fallback={
+            <span class="flex items-center gap-1">
+              <Icon name="success" /> {e.allGood(ja.score.percent(b().qualityPivot))}
+            </span>
+          }
+        >
+          {(w) => (
+            <>
+              <span class="flex items-center gap-1 font-bold">
+                <Icon name="warning" /> {e.weakest}：
+                {e.weakestLine(w().task, ja.modes[w().mode], ja.score.percent(w().quality))}
+              </span>
+              <span>{e.fix[w().mode]}</span>
+            </>
+          )}
+        </Show>
       </div>
     </section>
   );

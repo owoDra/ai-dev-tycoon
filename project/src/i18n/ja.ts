@@ -537,6 +537,55 @@ export const ja = {
     close: '閉じる',
     reputation: (delta: number) => `評判 ${delta >= 0 ? '+' : ''}${delta.toFixed(0)}`,
   },
+  /** 評価のしくみ（view/evaluation.ts）。納品の内訳と、会社の帯から開く1枚の図 */
+  evaluation: {
+    breakdown: '利益の内訳',
+    lines: {
+      revenue: '売上',
+      labor: '人件費',
+      ai: 'AI 費用',
+      rework: '手戻り',
+      other: 'その他（Harness・事故・管理）',
+    },
+    profit: '利益',
+    signed: (v: number, minus: boolean) => `${minus ? '−' : '+'}${Math.abs(Math.round(v)).toLocaleString('ja-JP')}円`,
+    formula: (days: number, monthDays: number) =>
+      `利益 ÷ 人間の稼働 ${days.toFixed(1)}人日 × ${monthDays}日 = 1人あたりの月の利益ペース`,
+    reputationWhy: (timing: number, quality: number, percent: string) =>
+      `納期 ${timing > 0 ? `+${timing.toFixed(0)}` : '±0（炎上）'}・品質 ${percent} → ${quality >= 0 ? '+' : '−'}${Math.abs(quality).toFixed(1)}`,
+    weakest: '次に直す場所',
+    weakestLine: (task: string, mode: string, percent: string) => `${task}（${mode}・品質 ${percent}）`,
+    /** 一番品質の低かった工程の任せ方ごとの、次の一手 */
+    fix: {
+      human: '人間でも品質が低い工程。AI に任せてレビューする方が安定することがある',
+      ai: 'AI に任せきりで確認がない。レビューか自動テストを挟もう',
+      aiThenHumanReview: 'レビューでも見逃している。自動テストや Harness の部品で見逃しを減らそう',
+      aiThenEval: '自動テストで見つからない失敗が残った。Harness（Skill・Eval）で AI のミスを減らそう',
+      agentWorkflow: 'まとめて任せた工程で失敗が残った。検証の部品（Eval）を足そう',
+    },
+    allGood: (percent: string) => `どの工程も品質 ${percent} 以上。この任せ方を続けよう`,
+    /** 案件ボードの、評判が上がる条件 */
+    boardHint: (onTime: number, percent: string, perPoint: number) =>
+      `評判が上がる条件：納期内に納品（+${onTime}）・品質 ${percent} 以上（1%ごとに ±${perPoint.toFixed(1)}）`,
+    priceEffect: (effect: number) =>
+      `評判による受注額 ${effect >= 0 ? '+' : '−'}${Math.abs(Math.round(effect * 100))}%`,
+    guide: {
+      open: '評価のしくみ',
+      title: '評価のしくみ',
+      quality: '品質・納期',
+      reputation: (v: number) => `評判 ${Math.round(v)}`,
+      price: '受注額',
+      promotion: '昇格の条件',
+      profit: '利益 ÷ 人日',
+      pace: (yen: string) => `月の利益ペース ${yen}`,
+      fiscal: '決算・ランク',
+      notes: [
+        '品質は工程ごとの出来の平均。AI に任せきりだと下がり、レビュー・自動テスト・Harness で上がる',
+        '人日は人間が働いた時間。AI に任せるほど減り、同じ利益でも1人あたりの数字が上がる',
+        '昇格には累計の利益・評判・納品数の3つがすべて必要',
+      ],
+    },
+  },
   models: {
     lite: '俳句くん',
     standard: 'ソネ太',

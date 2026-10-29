@@ -63,5 +63,8 @@ describe('案件ボード', () => {
     expect(root.querySelector('[data-inquiry]')).toBe(card);
     expect(card?.querySelector('[data-accept]')).toBe(accept);
     expect(document.activeElement).toBe(accept);
+    // 評判が上がる条件と、いまの評判による受注額の補正を出す
+    expect(root.querySelector('[data-reputation-hint]')?.textContent).toContain('評判が上がる条件');
+    expect(root.querySelector('[data-price-effect]')).not.toBeNull();
   });
 });

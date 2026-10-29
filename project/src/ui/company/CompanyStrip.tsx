@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import type { PromotionProgress } from '../../core/company';
 import { ja } from '../../i18n/ja';
+import { evaluationGuide } from '../../view/evaluation';
 import { achievementsView, companyStatusView } from '../../view/fiscal';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
@@ -14,12 +15,14 @@ const yen = ja.funds.oku;
  * 会社の帯。プレイ画面の上の帯の左にいつも出す。
  * 普段は折り返さない1行のピル（規模・次の目標の達成率・資金・上場していれば時価総額・決算までの日数）で、上の帯の高さに収める。
  * スマホ（dense）では資金だけにし、規模は開いた内訳に出す。幅が足りなければ後ろの項目から省く。押すと次の目標の内訳と実績が、ピルの下に重ねて開く。
+ * 内訳からは「評価のしくみ」（何が評価を決めるかの1枚の図）と実績を開ける。
  * 資金がマイナスのときは警告を出して開いたままにする。引き抜きの打診が来ていれば、引き留めるか見送るかをピルの下で選ぶ
  */
 export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
   const view = createMemo(() => companyStatusView(props.store.state()));
   const [open, setOpen] = createSignal(false);
   const [achievements, setAchievements] = createSignal(false);
+  const [guide, setGuide] = createSignal(false);
   return (
     <Show when={view()}>
       {(v) => (
@@ -114,18 +117,29 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
                         );
                       }}
                     </For>
-                    <Show when={v().achievements}>
-                      {(a) => (
-                        <button
-                          type="button"
-                          class={`${smallButton} self-start`}
-                          data-open-achievements
-                          onClick={() => setAchievements((o) => !o)}
-                        >
-                          <Icon name="trophy" /> {ja.achievements.title} {ja.achievements.count(a().done, a().total)}
-                        </button>
-                      )}
-                    </Show>
+                    <div class="flex flex-wrap gap-x-3">
+                      <button
+                        type="button"
+                        class={smallButton}
+                        aria-expanded={guide()}
+                        data-open-guide
+                        onClick={() => setGuide((o) => !o)}
+                      >
+                        <Icon name="requirements" /> {ja.evaluation.guide.open}
+                      </button>
+                      <Show when={v().achievements}>
+                        {(a) => (
+                          <button
+                            type="button"
+                            class={smallButton}
+                            data-open-achievements
+                            onClick={() => setAchievements((o) => !o)}
+                          >
+                            <Icon name="trophy" /> {ja.achievements.title} {ja.achievements.count(a().done, a().total)}
+                          </button>
+                        )}
+                      </Show>
+                    </div>
                   </div>
                 </Show>
               </section>
@@ -162,6 +176,9 @@ export function CompanyStrip(props: { store: GameStore; dense?: boolean }) {
                 </section>
               )}
             </Keyed>
+            <Show when={guide() && (open() || v().shortDaysLeft !== null)}>
+              <GuidePanel store={props.store} />
+            </Show>
             <Show when={achievements() && (open() || v().shortDaysLeft !== null)}>
               <AchievementList store={props.store} />
             </Show>
@@ -206,3 +223,50 @@ function AchievementList(props: { store: GameStore }) {
     </section>
   );
 }
+
+/**
+ * 評価のしくみ（1枚の図）。品質・納期 → 評判 → 受注額と昇格の条件、利益 ÷ 人日 → 月の利益ペース → 決算とランクの2本の流れを、
+ * いまの数字と一緒に矢印でつなぐ
+ */
+function GuidePanel(props: { store: GameStore }) {
+  const g = createMemo(() => evaluationGuide(props.store.state()));
+  const gt = ja.evaluation.guide;
+  const node = 'rounded-md border-2 border-line bg-sunken px-1.5 py-0.5 text-center font-bold';
+  return (
+    <section class={`${panel} pointer-events-auto flex flex-col gap-2 p-3 text-xs`} data-guide>
+      <h2 class="font-heading text-sm">{gt.title}</h2>
+      <div class="flex flex-wrap items-center gap-1" data-guide-flow="reputation">
+        <span class={node}>{gt.quality}</span>
+        <Arrow />
+        <span class={`${node} tabular-nums`}>{gt.reputation(g().reputation)}</span>
+        <Arrow />
+        <span class="flex flex-col gap-0.5">
+          <span class={`${node} tabular-nums`}>
+            {gt.price}（{ja.evaluation.priceEffect(g().priceEffect)}）
+          </span>
+          <span class={node}>{gt.promotion}</span>
+        </span>
+      </div>
+      <p class="text-ink-muted">
+        {ja.evaluation.boardHint(g().onTime, ja.score.percent(g().qualityPivot), g().perQualityPoint)}
+      </p>
+      <div class="flex flex-wrap items-center gap-1" data-guide-flow="profit">
+        <span class={node}>{gt.profit}</span>
+        <Arrow />
+        <span class={`${node} tabular-nums`}>{gt.pace(ja.funds.money(g().pace))}</span>
+        <Arrow />
+        <span class={node}>{gt.fiscal}</span>
+      </div>
+      <ul class="flex list-disc flex-col gap-0.5 pl-4">
+        <For each={gt.notes}>{(n) => <li>{n}</li>}</For>
+      </ul>
+    </section>
+  );
+}
+
+/** 評価のしくみの図の矢印（読み上げでは飛ばす） */
+const Arrow = () => (
+  <span aria-hidden="true" class="shrink-0 font-bold text-ink-muted">
+    →
+  </span>
+);

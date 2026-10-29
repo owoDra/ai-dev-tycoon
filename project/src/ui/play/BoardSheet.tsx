@@ -5,6 +5,7 @@ import type { SheetLayout } from '../../content/look/layout';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { boardView, type InquiryView } from '../../view/board';
+import { type EvaluationGuide, evaluationGuide } from '../../view/evaluation';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
 import { ghostButton, panel, primaryButton } from '../parts';
@@ -27,6 +28,7 @@ export function BoardSheet(props: {
   onClose: () => void;
 }) {
   const view = createMemo(() => boardView(props.store.state()));
+  const guide = createMemo(() => evaluationGuide(props.store.state()));
   let el!: HTMLElement;
   onMount(() => {
     audio.play('panelOpen');
@@ -66,6 +68,7 @@ export function BoardSheet(props: {
         </button>
       </div>
       <p class="text-xs text-ink-muted">{t.lead}</p>
+      <ReputationHint guide={guide()} />
       <section class="flex flex-col gap-2">
         <h3 class="flex items-center justify-between text-sm font-bold text-ink-muted">
           {t.inquiries}
@@ -138,5 +141,24 @@ function InquiryCard(props: { store: GameStore; inquiry: InquiryView }) {
         </Show>
       </div>
     </li>
+  );
+}
+
+/** 評判が上がる条件（どの引き合いも同じ）と、いまの評判による受注額の補正 */
+function ReputationHint(props: { guide: EvaluationGuide }) {
+  const g = () => props.guide;
+  return (
+    <p
+      class="flex flex-col gap-0.5 rounded-md border-2 border-line bg-accent-100 px-2 py-1 text-xs"
+      data-reputation-hint
+    >
+      <span class="flex items-center gap-1 font-bold">
+        <Icon name="trophy" class="text-sm" />
+        {ja.evaluation.boardHint(g().onTime, ja.score.percent(g().qualityPivot), g().perQualityPoint)}
+      </span>
+      <span class="tabular-nums" data-price-effect>
+        {ja.evaluation.priceEffect(g().priceEffect)}
+      </span>
+    </p>
   );
 }

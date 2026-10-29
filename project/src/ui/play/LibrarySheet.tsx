@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
-import type { SheetLayout } from '../../content/look/layout';
+import { type SheetLayout, sheetHeight } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -58,7 +58,7 @@ export function LibrarySheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
+        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
       }}
     >
       {props.tabs}

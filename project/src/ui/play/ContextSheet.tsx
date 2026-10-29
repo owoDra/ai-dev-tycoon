@@ -1,7 +1,7 @@
 import { For, onCleanup, onMount, Show } from 'solid-js';
 import type { IconName } from '../../assets/icons';
 import { audio } from '../../audio/index';
-import type { SheetLayout } from '../../content/look/layout';
+import { type SheetLayout, sheetHeight } from '../../content/look/layout';
 import type { ContextFeed, HandoffItemId } from '../../content/types';
 import type { Command } from '../../core/commands';
 import type { ContextStatus } from '../../core/context';
@@ -66,7 +66,7 @@ export function ContextSheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
+        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
       }}
     >
       <div class="flex items-start justify-between gap-2">

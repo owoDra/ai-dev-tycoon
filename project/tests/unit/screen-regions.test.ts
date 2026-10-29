@@ -4,13 +4,14 @@ import { type Rect, screenRegions, sheetHeightIn, uiLayout } from '../../src/con
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { createCameraRig } from '../../src/world/camera';
 
-/** 確かめる画面の大きさ（スマホ2つ・タブレット縦・狭い PC・広い PC） */
+/** 確かめる画面の大きさ（スマホ2つ・タブレット縦・狭い PC・広い PC・高さの低いブラウザのウィンドウ） */
 const SIZES = [
   { width: 375, height: 667, shape: 'phone' },
   { width: 390, height: 844, shape: 'phone' },
   { width: 768, height: 1024, shape: 'narrow' },
   { width: 1024, height: 768, shape: 'wide' },
   { width: 1440, height: 900, shape: 'wide' },
+  { width: 1000, height: 483, shape: 'narrow' },
 ] as const;
 
 const overlaps = (a: Rect, b: Rect) =>
@@ -55,6 +56,16 @@ describe('画面の領域（content/look/layout.ts の screenRegions）', () => 
       });
     });
   }
+
+  it('低い画面では、シートを比率より高く（上の帯とドックの間いっぱいまで）伸ばし、担当カードまで見えるようにする', () => {
+    const size = { width: 1000, height: 483 };
+    const r = screenRegions(uiLayout, size);
+    expect(size.height * r.form.sheet.heightRatio).toBeLessThan(r.sheet.height);
+    expect(sheetHeightIn(r, size.height)).toBe(Math.min(r.form.sheet.minHeight, r.sheet.height));
+    // 普通の PC では比率のまま
+    const pc = screenRegions(uiLayout, { width: 1440, height: 900 });
+    expect(sheetHeightIn(pc, 900)).toBe(900 * pc.form.sheet.heightRatio);
+  });
 
   it('スマホではお知らせを上の帯の下に、PC では右端の列に置く', () => {
     const phone = screenRegions(uiLayout, { width: 375, height: 667 });

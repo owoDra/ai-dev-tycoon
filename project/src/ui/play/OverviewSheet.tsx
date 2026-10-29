@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import type { GameStore } from '../../app/store';
 import type { IconName } from '../../assets/icons';
 import { audio } from '../../audio/index';
-import type { SheetLayout } from '../../content/look/layout';
+import { type SheetLayout, sheetHeight } from '../../content/look/layout';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { type GanttRowView, type GanttState, ganttView, type StaffStatus, staffRoster } from '../../view/overview';
@@ -67,7 +67,7 @@ export function OverviewSheet(props: {
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
+        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
       }}
     >
       <div class="flex items-center justify-between gap-2">

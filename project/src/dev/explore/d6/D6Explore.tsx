@@ -35,7 +35,7 @@ export function D6Explore() {
       <div class="absolute inset-0 bg-bg">
         <HarnessSheet
           view={harnessView(state(), PROJECT, AGENT)}
-          layout={{ maxWidth: 760, heightRatio: 1, swipeClose: 60 }}
+          layout={{ maxWidth: 760, heightRatio: 1, minHeight: 0, swipeClose: 60 }}
           bottom={0}
           viewHeight={height()}
           maxHeight={height() - 96}

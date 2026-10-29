@@ -59,6 +59,8 @@ export interface SheetLayout {
   maxWidth: number;
   /** 高さ（画面の高さに対する割合）。上の帯とドックの間（screenRegions の sheet）を超えない */
   heightRatio: number;
+  /** 高さの下限（px）。低い画面でも見出しと担当カードまで見えるよう、割合で足りなければここまで伸ばす（上の帯とドックの間は超えない） */
+  minHeight: number;
   /** 取っ手を下へこれ以上ドラッグしたら閉じる（px） */
   swipeClose: number;
 }
@@ -179,7 +181,7 @@ export const uiLayout: UiLayout = {
       dense: false,
       bottom: 12,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.42, swipeClose: 60 },
+    sheet: { maxWidth: 760, heightRatio: 0.42, minHeight: 360, swipeClose: 60 },
     assignCards: 'grid',
     toast: { max: 3, width: 384 },
     notice: { max: 3, durationMs: 2600 },
@@ -195,7 +197,7 @@ export const uiLayout: UiLayout = {
       dense: true,
       bottom: 8,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.5, swipeClose: 60 },
+    sheet: { maxWidth: 760, heightRatio: 0.5, minHeight: 360, swipeClose: 60 },
     assignCards: 'grid',
     toast: { max: 2, width: 300 },
     notice: { max: 2, durationMs: 2600 },
@@ -212,7 +214,7 @@ export const uiLayout: UiLayout = {
       dense: true,
       bottom: 0,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.6, swipeClose: 60 },
+    sheet: { maxWidth: 760, heightRatio: 0.6, minHeight: 360, swipeClose: 60 },
     assignCards: 'scroll',
     toast: { max: 1, width: null },
     notice: { max: 1, durationMs: 2200 },
@@ -304,7 +306,12 @@ export function screenRegions(layout: UiLayout, size: { width: number; height: n
   return { shape, form, top, notices, world, dock, sheet };
 }
 
-/** シートの高さ：画面の高さ × 比率を、上の帯とドックの間に収める */
+/** シートの高さ：画面の高さ × 比率（低い画面では minHeight まで伸ばす）を、上の帯とドックの間（maxHeight）に収める */
+export function sheetHeight(sheet: SheetLayout, viewHeight: number, maxHeight = Number.POSITIVE_INFINITY): number {
+  return Math.min(Math.max(viewHeight * sheet.heightRatio, sheet.minHeight), maxHeight);
+}
+
+/** 画面の領域でのシートの高さ（sheetHeight） */
 export function sheetHeightIn(regions: ScreenRegions, viewHeight: number): number {
-  return Math.min(viewHeight * regions.form.sheet.heightRatio, regions.sheet.height);
+  return sheetHeight(regions.form.sheet, viewHeight, regions.sheet.height);
 }

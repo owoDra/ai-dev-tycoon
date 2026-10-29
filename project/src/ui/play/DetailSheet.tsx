@@ -1,8 +1,8 @@
-import { createSignal, type JSX, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createSignal, type JSX, on, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import { balance } from '../../content/balance';
-import type { SheetLayout } from '../../content/look/layout';
+import { type SheetLayout, sheetHeight } from '../../content/look/layout';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature } from '../../content/unlocks';
 import type { Command } from '../../core/commands';
@@ -24,6 +24,7 @@ const pickButton =
 
 /**
  * 選んだものの詳細（D3：ドックの上に下から出るシート。企画書33章）。
+ * 取っ手と見出し（閉じるボタン）は固定し、その下だけをスクロールする。中身が収まらない低い画面では、開いたときに担当カードが見える所までスクロールする。
  * 閉じる操作：閉じるボタン・取っ手を下へスワイプ・Esc（PlayScreen）・ワールドの何もない所をクリック（WorldCanvas）
  */
 export function DetailSheet(props: {
@@ -57,11 +58,25 @@ export function DetailSheet(props: {
   const [drag, setDrag] = createSignal(0);
   let dragFrom: number | null = null;
   let el!: HTMLElement;
+  let body!: HTMLDivElement;
   onMount(() => {
     audio.play('panelOpen');
     onCleanup(() => audio.play('panelClose'));
     enter(el, 'below');
   });
+  // 選ぶ Task が変わったら、担当カードの下端がシートの中に見えるまでスクロールする（収まっていれば何もしない）
+  createEffect(
+    on(
+      () => props.detail.row?.id,
+      () =>
+        requestAnimationFrame(() => {
+          const cards = el.querySelector('[data-assign-cards]');
+          if (!cards) return;
+          const overflow = cards.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom + 16;
+          if (overflow > 0) body.scrollTop += overflow;
+        }),
+    ),
+  );
 
   const d = () => props.detail;
   const workflowOn = () => isUnlocked(props.store.state(), modeFeature('agentWorkflow'));
@@ -80,139 +95,143 @@ export function DetailSheet(props: {
       aria-label={d().label}
       data-detail-sheet
       data-task={d().row?.id}
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-1 pb-4 *:shrink-0`}
+      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-hidden rounded-b-none pt-1`}
       style={{
         'max-width': `${props.layout.maxWidth}px`,
         bottom: `${props.bottom}px`,
-        height: `${Math.min(props.viewHeight * props.layout.heightRatio, props.maxHeight ?? Number.POSITIVE_INFINITY)}px`,
+        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
         // 出現の動き（motion）が transform を使うので、スワイプのずれは translate で別に持つ
         translate: `0 ${drag()}px`,
       }}
     >
-      <div
-        class="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center"
-        aria-hidden="true"
-        onPointerDown={(e) => {
-          dragFrom = e.clientY;
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (dragFrom !== null) setDrag(Math.max(0, e.clientY - dragFrom));
-        }}
-        onPointerUp={() => {
-          if (drag() > props.layout.swipeClose) props.onClose();
-          dragFrom = null;
-          setDrag(0);
-        }}
-        onPointerCancel={() => {
-          dragFrom = null;
-          setDrag(0);
-        }}
-      >
-        <span class="h-1.5 w-12 rounded-full bg-line/30" />
-      </div>
-      <div class="flex items-start justify-between gap-2">
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="flex size-10 shrink-0 items-center justify-center rounded-md border-[3px] border-line bg-accent-200 text-2xl">
-            <Icon name={kindIcon[d().kind]} />
-          </span>
-          <div class="flex min-w-0 flex-col leading-tight">
-            <span class="text-[11px] font-bold text-ink-muted">{ja.world.kinds[d().kind]}</span>
-            <h2 class="truncate font-heading text-lg">{d().label}</h2>
-          </div>
+      <div class="flex shrink-0 flex-col gap-3 px-4">
+        <div
+          class="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center"
+          aria-hidden="true"
+          onPointerDown={(e) => {
+            dragFrom = e.clientY;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (dragFrom !== null) setDrag(Math.max(0, e.clientY - dragFrom));
+          }}
+          onPointerUp={() => {
+            if (drag() > props.layout.swipeClose) props.onClose();
+            dragFrom = null;
+            setDrag(0);
+          }}
+          onPointerCancel={() => {
+            dragFrom = null;
+            setDrag(0);
+          }}
+        >
+          <span class="h-1.5 w-12 rounded-full bg-line/30" />
         </div>
-        <button type="button" class={ghostButton} onClick={() => props.onClose()}>
-          {t.close}
-        </button>
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="flex size-10 shrink-0 items-center justify-center rounded-md border-[3px] border-line bg-accent-200 text-2xl">
+              <Icon name={kindIcon[d().kind]} />
+            </span>
+            <div class="flex min-w-0 flex-col leading-tight">
+              <span class="text-[11px] font-bold text-ink-muted">{ja.world.kinds[d().kind]}</span>
+              <h2 class="truncate font-heading text-lg">{d().label}</h2>
+            </div>
+          </div>
+          <button type="button" class={ghostButton} onClick={() => props.onClose()}>
+            {t.close}
+          </button>
+        </div>
       </div>
-      <Facts detail={d()} />
-      <Show when={d().kind === 'agent' && props.onHarness}>
-        {(open) => (
-          <button type="button" data-harness-open class={`${ghostButton} self-start`} onClick={() => open()()}>
-            <Icon name="ai" />
-            {ja.harness.open}
-          </button>
-        )}
-      </Show>
-      <Show when={workflowIds().length >= balance.assign.workflowMinTasks && props.onWorkflow}>
-        {(go) => (
-          <button
-            type="button"
-            data-workflow
-            class={`${ghostButton} flex-col items-start self-start`}
-            onClick={() => go()(workflowIds())}
-          >
-            <span class="flex items-center gap-1.5 font-bold">
-              <Icon name="workflow" />
-              {ja.harness.workflow}
-            </span>
-            <span class="text-[11px] font-normal text-ink-muted">
-              {ja.harness.workflowHint(workflowIds().length - 1)}
-            </span>
-          </button>
-        )}
-      </Show>
-      <Show when={d().row?.editable && props.onLibrary}>
-        {(open) => (
-          <section class="flex flex-col gap-1.5" aria-label={ja.library.recommend} data-workflow-picks>
-            <div class="flex flex-wrap items-baseline gap-x-2">
-              <h3 class="flex items-center gap-1.5 text-sm font-bold">
+      <div ref={body} class="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pb-4 *:shrink-0">
+        <Facts detail={d()} />
+        <Show when={d().kind === 'agent' && props.onHarness}>
+          {(open) => (
+            <button type="button" data-harness-open class={`${ghostButton} self-start`} onClick={() => open()()}>
+              <Icon name="ai" />
+              {ja.harness.open}
+            </button>
+          )}
+        </Show>
+        <Show when={workflowIds().length >= balance.assign.workflowMinTasks && props.onWorkflow}>
+          {(go) => (
+            <button
+              type="button"
+              data-workflow
+              class={`${ghostButton} flex-col items-start self-start`}
+              onClick={() => go()(workflowIds())}
+            >
+              <span class="flex items-center gap-1.5 font-bold">
                 <Icon name="workflow" />
-                {ja.library.recommend}
-              </h3>
-              <span class="text-[11px] text-ink-muted">{ja.library.recommendHint}</span>
-            </div>
-            <div class="flex flex-wrap gap-1.5">
-              <Keyed each={props.picks?.(d().row?.id ?? '') ?? []} by={(p) => p.id}>
-                {(pick) => (
-                  <button
-                    type="button"
-                    class={`${pickButton} ${pick.profitDelta > 0 ? 'bg-success-200' : 'bg-surface'}`}
-                    data-workflow-pick={pick.id}
-                    onClick={() => props.onApplyWorkflow?.(pick.apply)}
-                  >
-                    <span class="text-sm font-bold">{pick.name}</span>
-                    <span
-                      class="flex items-center gap-1 text-[11px] font-bold tabular-nums"
-                      classList={{ 'text-danger-ink': pick.profitDelta < 0 }}
+                {ja.harness.workflow}
+              </span>
+              <span class="text-[11px] font-normal text-ink-muted">
+                {ja.harness.workflowHint(workflowIds().length - 1)}
+              </span>
+            </button>
+          )}
+        </Show>
+        <Show when={d().row?.editable && props.onLibrary}>
+          {(open) => (
+            <section class="flex flex-col gap-1.5" aria-label={ja.library.recommend} data-workflow-picks>
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <h3 class="flex items-center gap-1.5 text-sm font-bold">
+                  <Icon name="workflow" />
+                  {ja.library.recommend}
+                </h3>
+                <span class="text-[11px] text-ink-muted">{ja.library.recommendHint}</span>
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                <Keyed each={props.picks?.(d().row?.id ?? '') ?? []} by={(p) => p.id}>
+                  {(pick) => (
+                    <button
+                      type="button"
+                      class={`${pickButton} ${pick.profitDelta > 0 ? 'bg-success-200' : 'bg-surface'}`}
+                      data-workflow-pick={pick.id}
+                      onClick={() => props.onApplyWorkflow?.(pick.apply)}
                     >
-                      <Icon name={pick.profitDelta > 0 ? 'success' : 'warning'} />
-                      {ja.library.profitDelta(pick.profitDelta, ja.funds.money(Math.abs(pick.profitDelta)))}
-                    </span>
-                  </button>
-                )}
-              </Keyed>
-              <button
-                type="button"
-                data-library-open
-                class={`${pickButton} bg-surface hover:bg-sunken`}
-                onClick={() => open()(d().row?.id ?? '')}
-              >
-                <span class="text-sm font-bold">{ja.library.browse}</span>
-                <span class="text-[11px] font-normal text-ink-muted">{ja.library.applyHint}</span>
-              </button>
-            </div>
-          </section>
-        )}
-      </Show>
-      <Show when={d().row && projectDelegated(props.store.state(), props.projectId)}>
-        <p class="flex items-center gap-1.5 text-sm font-bold text-ink-muted" data-delegated>
-          <Icon name="automation" />
-          {ja.teams.managedByPm}
-        </p>
-      </Show>
-      <Show when={!projectDelegated(props.store.state(), props.projectId) && d().row}>
-        {(row) => (
-          <AssignCards
-            store={props.store}
-            projectId={props.projectId}
-            row={row()}
-            scroll={props.scrollCards}
-            fresh={props.fresh}
-            onAssign={(mode, workerId) => props.onAssign(row().id, mode, workerId)}
-          />
-        )}
-      </Show>
+                      <span class="text-sm font-bold">{pick.name}</span>
+                      <span
+                        class="flex items-center gap-1 text-[11px] font-bold tabular-nums"
+                        classList={{ 'text-danger-ink': pick.profitDelta < 0 }}
+                      >
+                        <Icon name={pick.profitDelta > 0 ? 'success' : 'warning'} />
+                        {ja.library.profitDelta(pick.profitDelta, ja.funds.money(Math.abs(pick.profitDelta)))}
+                      </span>
+                    </button>
+                  )}
+                </Keyed>
+                <button
+                  type="button"
+                  data-library-open
+                  class={`${pickButton} bg-surface hover:bg-sunken`}
+                  onClick={() => open()(d().row?.id ?? '')}
+                >
+                  <span class="text-sm font-bold">{ja.library.browse}</span>
+                  <span class="text-[11px] font-normal text-ink-muted">{ja.library.applyHint}</span>
+                </button>
+              </div>
+            </section>
+          )}
+        </Show>
+        <Show when={d().row && projectDelegated(props.store.state(), props.projectId)}>
+          <p class="flex items-center gap-1.5 text-sm font-bold text-ink-muted" data-delegated>
+            <Icon name="automation" />
+            {ja.teams.managedByPm}
+          </p>
+        </Show>
+        <Show when={!projectDelegated(props.store.state(), props.projectId) && d().row}>
+          {(row) => (
+            <AssignCards
+              store={props.store}
+              projectId={props.projectId}
+              row={row()}
+              scroll={props.scrollCards}
+              fresh={props.fresh}
+              onAssign={(mode, workerId) => props.onAssign(row().id, mode, workerId)}
+            />
+          )}
+        </Show>
+      </div>
     </section>
   );
 }

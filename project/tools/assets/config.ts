@@ -23,8 +23,6 @@ export const rasterConfig: Record<TextureId, RasterConfig> = {
   titleKey: { width: 960, height: 540, quality: 82, lossless: false, budgetBytes: 40 * 1024 },
   resultBg: { width: 960, height: 540, quality: 80, lossless: false, budgetBytes: 30 * 1024 },
   floor: { width: 256, height: 256, quality: 82, lossless: false, budgetBytes: 8 * 1024 },
-  wall: { width: 256, height: 256, quality: 82, lossless: false, budgetBytes: 8 * 1024 },
-  matcapToon: { width: 128, height: 128, quality: 90, lossless: false, budgetBytes: 4 * 1024 },
   toonGradient: { width: 4, height: 1, quality: 100, lossless: true, budgetBytes: 256 },
   faceAtlas: { width: 256, height: 256, quality: 90, lossless: false, budgetBytes: 12 * 1024 },
   blobShadow: { width: 64, height: 64, quality: 90, lossless: false, budgetBytes: 2 * 1024 },

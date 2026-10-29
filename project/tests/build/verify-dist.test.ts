@@ -78,9 +78,9 @@ describe('checkSize: サイズ予算', () => {
     expect(checkSize(0, GZIP_BUDGET_BYTES + 1)).toMatchObject({ rawOk: true, gzipOk: false });
   });
 
-  it('予算は raw 2000KiB・gzip 720KiB（Phase 17 で raw 3.0MB・gzip 1.2MB から締めた）', () => {
-    expect(RAW_BUDGET_BYTES).toBe(2000 * 1024);
-    expect(GZIP_BUDGET_BYTES).toBe(720 * 1024);
+  it('予算は raw 2200KiB・gzip 780KiB（Phase 17 で raw 3.0MB・gzip 1.2MB から締め、Phase 42 の前に持ち込みと書き出しの分を足した）', () => {
+    expect(RAW_BUDGET_BYTES).toBe(2200 * 1024);
+    expect(GZIP_BUDGET_BYTES).toBe(780 * 1024);
   });
 });
 

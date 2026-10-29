@@ -8,12 +8,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 /**
- * 非圧縮サイズの予算（バイト）。Phase 17 で実測（約 1.75 MiB）に 1 割ほどの余裕を足した値に締めた。
+ * 非圧縮サイズの予算（バイト）。Phase 17 で実測（約 1.75 MiB）に 1 割ほどの余裕を足した値に締め、
+ * Phase 42 の前に、使っていない画像を削った実測（約 1942 KiB）に、持ち込みと書き出し（zip の読み書き・評価・画面）の分を足して上げた。
  * モジュールごとの大きさは `npm run build:analyze`（dist-analyze/stats.html）で確かめる
  */
-export const RAW_BUDGET_BYTES = 2000 * 1024;
-/** gzip 後サイズの予算（バイト）。Phase 17 で実測（約 655 KiB）に 1 割ほどの余裕を足した値に締めた */
-export const GZIP_BUDGET_BYTES = 720 * 1024;
+export const RAW_BUDGET_BYTES = 2200 * 1024;
+/** gzip 後サイズの予算（バイト）。Phase 17 で実測（約 655 KiB）に 1 割ほどの余裕を足した値に締め、Phase 42 の前に実測（約 677 KiB）から上げた */
+export const GZIP_BUDGET_BYTES = 780 * 1024;
 
 export const EXPECTED_FILES = ['index.html'] as const;
 

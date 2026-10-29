@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { type TextureId, textureAssets, textureFile } from '../../src/assets/catalog';
 import type { VisualPreset } from '../../src/content/look/visual';
-import { floor, matcapToon, toonGradient, wall } from './art/materials';
+import { floor, toonGradient } from './art/materials';
 import { resultBg, titleKey } from './art/scenes';
 import { blobShadow, faceAtlas } from './art/world';
 import { GENERATED_DIR, rasterConfig } from './config';
@@ -16,8 +16,6 @@ export const artworks: Record<TextureId, Artwork> = {
   titleKey,
   resultBg,
   floor,
-  wall,
-  matcapToon,
   toonGradient,
   faceAtlas,
   blobShadow,

@@ -23,14 +23,10 @@ export interface TextureAsset {
 export const textureAssets = {
   /** タイトル画面のキービジュアル */
   titleKey: { base: 'title-key', scales: [1, 2], srgb: true, repeat: false, nearest: false },
-  /** 結果画面の背景 */
-  resultBg: { base: 'result-bg', scales: [1, 2], srgb: true, repeat: false, nearest: false },
+  /** 結果画面の背景（CSS の背景に 1x だけを使う） */
+  resultBg: { base: 'result-bg', scales: [1], srgb: true, repeat: false, nearest: false },
   /** 床のテクスチャ（敷き詰める） */
   floor: { base: 'floor', scales: [1, 2], srgb: true, repeat: true, nearest: false },
-  /** 壁のテクスチャ（敷き詰める） */
-  wall: { base: 'wall', scales: [1, 2], srgb: true, repeat: true, nearest: false },
-  /** トゥーン調の matcap */
-  matcapToon: { base: 'matcap-toon', scales: [1, 2], srgb: true, repeat: false, nearest: false },
   /** MeshToonMaterial のグラデーションマップ（段の数だけの幅しかないため 1x のみ） */
   toonGradient: { base: 'toon-gradient', scales: [1], srgb: false, repeat: false, nearest: true },
   /** キャラクターの表情のアトラス（2×2 のコマ。並びは content/look/world.ts の expressions） */

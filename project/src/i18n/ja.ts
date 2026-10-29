@@ -1777,8 +1777,6 @@ export const ja = {
       titleKey: 'タイトルのキービジュアル',
       resultBg: '結果画面の背景',
       floor: '床（敷き詰め）',
-      wall: '壁（敷き詰め）',
-      matcapToon: 'トゥーンの matcap',
       toonGradient: 'グラデーションマップ',
       faceAtlas: '表情のアトラス（通常・集中・困り・喜び）',
       blobShadow: '接地影',

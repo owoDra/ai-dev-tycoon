@@ -3,7 +3,7 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -135,6 +135,22 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...state, projects, board, valuationHit: 0 };
     },
   },
+  // v21 → v22：Seat は会社が枚数で買う（Phase 37）。社員ごとの Seat を種類ごとに数えて会社の枚数にし、今日の使用量は合計する
+  {
+    from: 21,
+    migrate: (state) => {
+      if (!isRecord(state) || !isRecord(state.team)) return state;
+      const seats = { standard: 0, premium: 0 };
+      let usage = 0;
+      for (const run of Object.values(state.team)) {
+        if (!isRecord(run)) continue;
+        seats[run.seat === 'premium' ? 'premium' : 'standard']++;
+        if (typeof run.used === 'number') usage += run.used;
+      }
+      const team = Object.fromEntries(Object.keys(state.team).map((id) => [id, {}]));
+      return { ...state, team, seats, usage };
+    },
+  },
 ];
 
 /** 変換できない古い形式のセーブデータ。タイトル画面で「以前のセーブは読み込めない」と知らせる */
@@ -203,6 +219,8 @@ function isGameState(v: unknown): v is GameState {
     isRecord(v.contextStats) &&
     isRecord(v.autonomy) &&
     isRecord(v.team) &&
+    isRecord(v.seats) &&
+    typeof v.usage === 'number' &&
     typeof v.usageDay === 'number' &&
     typeof v.seatCost === 'number' &&
     isRecord(v.market) &&

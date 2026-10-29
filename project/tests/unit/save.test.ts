@@ -94,7 +94,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(21);
+    expect(SAVE_VERSION).toBe(22);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -160,5 +160,17 @@ describe('案件の契約と受注の見直し（core/serialize.ts の v20 → v
     expect(s.projects.tutorialLp).toMatchObject({ burningAt: null, cancelled: null });
     expect(s.valuationHit).toBe(0);
     expect(s.board).not.toHaveProperty('results');
+  });
+});
+
+describe('Seat を会社単位で買う（core/serialize.ts の v21 → v22）', () => {
+  it('社員ごとの Seat を種類ごとに数えて会社の枚数にし、今日の使用量は合計する', () => {
+    const state = createInitialState('v21', { board: true, tutorial: false });
+    const { seats, usage, ...rest } = state;
+    const team = { sato: { seat: 'premium', used: 40 }, suzuki: { seat: 'standard', used: 12 } };
+    const old = { saveVersion: 21, state: { ...rest, team } };
+    const s = deserialize(JSON.stringify(old));
+    expect(s).toEqual({ ...state, seats: { standard: 1, premium: 1 }, usage: 52 });
+    expect(s.team).toEqual({ sato: {}, suzuki: {} });
   });
 });

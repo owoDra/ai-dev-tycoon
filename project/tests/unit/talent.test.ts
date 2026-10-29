@@ -56,7 +56,6 @@ describe('人材の生成（core/talent.ts）', () => {
       const pool = talentRoles.find((r) => r.role === h.role)?.strengths ?? [];
       for (const k of h.strengths) expect(pool).toContain(k);
       expect(h.name).toMatch(/^\S+ \S+$/);
-      expect(h.seat).toBe('standard');
     }
   });
 

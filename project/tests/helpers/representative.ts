@@ -64,11 +64,11 @@ export const smartPolicy: CampaignPolicy = {
     task.aiAptitude >= SMART_APTITUDE && isUnlocked(state, 'mode:aiThenHumanReview') ? 'aiThenHumanReview' : 'human',
 };
 
-/** smart に加えて、社員の画面が解放されたら AI Worker の運用者だけを Premium にする */
+/** smart に加えて、Seat の購入が解放されたら Premium を1枚買い足す */
 export const smartSeatPolicy: CampaignPolicy = {
   ...smartPolicy,
   setup: (state) =>
-    isUnlocked(state, 'team') ? [{ type: 'SetSeat', staffId: 'suzuki', seat: 'premium' } satisfies Command] : [],
+    isUnlocked(state, 'team') ? [{ type: 'SetSeats', seat: 'premium', count: 1 } satisfies Command] : [],
 };
 
 /** smart に加えて、採用が解放されたら人員が size 人になるまで、その日の候補で一番速い人を採用する */

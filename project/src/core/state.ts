@@ -258,7 +258,7 @@ export interface CompanyEventsRun {
   readonly poached: number;
 }
 
-/** チームの管理者。人間 PM はチームの社員を1人任命する。AI PM は運用者の Seat の使用量と AI 費用を使う */
+/** チームの管理者。人間 PM はチームの社員を1人任命する。AI PM は会社の Seat の使用量と AI 費用を使う */
 export type ManagerRun = { readonly kind: 'human'; readonly staffId: string } | { readonly kind: 'ai' };
 
 /**
@@ -277,12 +277,8 @@ export interface TeamRun {
   readonly intervened: boolean;
 }
 
-/** 会社にいる社員の Seat と、今日の AI の使用量 */
-export interface StaffRun {
-  readonly seat: SeatId;
-  /** 今日（state.usageDay の営業日）に、この人が運用する AI Worker が使った量 */
-  readonly used: number;
-}
+/** 会社にいる社員の記録。Seat は会社単位で買う（GameState の seats）ので、今は社員ごとに持つものはない */
+export type StaffRun = Readonly<Record<string, never>>;
 
 /** 採用市場。営業日ごとに候補が入れ替わる（core/team.ts の marketSystem） */
 export interface MarketRun {
@@ -433,6 +429,10 @@ export interface GameState {
   readonly autonomy: Readonly<Record<string, AutonomyRun>>;
   /** 会社にいる社員（人間の Worker の id がキー）。人間の工程はこの人たちが担う */
   readonly team: Readonly<Record<string, StaffRun>>;
+  /** 会社が買っている Seat の枚数（種類ごと）。AI の1営業日の使用量の上限は、枚数 × 1枚の使用量の合計 */
+  readonly seats: Readonly<Record<SeatId, number>>;
+  /** 今日（usageDay の営業日）に、会社の AI Worker と AI PM が使った Seat の使用量 */
+  readonly usage: number;
   /** Seat の使用量を数えている営業日（ゲーム開始からの営業日の番号、0 から） */
   readonly usageDay: number;
   /** 日割りで計上した Seat の固定費の合計（円）。会社の固定費なので案件のスコアには入れず、会社のスコアで引く */
@@ -530,6 +530,8 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     harnessLedger: [],
     autonomy: {},
     team: createTeam(team),
+    seats: { ...balance.seat.initial },
+    usage: 0,
     usageDay: 0,
     seatCost: 0,
     market: { day: 0, candidates: marketCandidates(seed, 0, getCompanyTier(tier).candidates) },
@@ -587,9 +589,9 @@ export function createFunds(): FundsRun {
   return { shortDays: 0, bankruptAt: null, samples: [], sampleEvery: balance.valuation.sampleDays };
 }
 
-/** 社員を入社したときの Seat で迎える */
+/** 社員を迎える */
 export function createTeam(ids: readonly string[]): Record<string, StaffRun> {
-  return Object.fromEntries(ids.map((id) => [id, { seat: getHuman(id).seat, used: 0 }]));
+  return Object.fromEntries(ids.map((id) => [id, {}]));
 }
 
 /**

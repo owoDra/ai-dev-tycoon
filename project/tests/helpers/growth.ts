@@ -21,6 +21,7 @@ import {
   workingStaff,
 } from '../../src/core/teams';
 import { FITTED } from './fitted';
+import { topUpSeats } from './seats';
 
 /*
  * 会社を育てる戦略 Bot（画面なし）。チュートリアルなしで始めた会社で、届いた引き合いすべてに基準の価格で見積を出し、
@@ -152,6 +153,7 @@ export function growCompany(seed: string, days: number, manager: ManagerRun['kin
       s = apply(s, { type: 'AcceptOrder', projectId });
     }
     s = hireIfNeeded(s);
+    s = topUpSeats(s);
     s = organize(s, manager);
     s = equipAgents(s);
     s = distribute(s);

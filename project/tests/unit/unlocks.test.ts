@@ -81,7 +81,7 @@ describe('機能の解放（core/unlocks.ts）', () => {
   it('解放の進み具合はセーブを通っても残り、v2 などキャンペーン以前の形式のセーブは読み込めない（OutdatedSaveError）', () => {
     const { unlocked: _u, revealed: _r, tutorial: _t, ...v2 } = createInitialState('v');
     expect(() => deserialize(JSON.stringify({ saveVersion: 2, state: v2 }))).toThrow(OutdatedSaveError);
-    expect(SAVE_VERSION).toBe(21);
+    expect(SAVE_VERSION).toBe(22);
     const s = reduce(createInitialState('v', { board: true }), { type: 'SkipTutorial' }).state;
     const loaded = deserialize(serialize(s));
     expect(loaded.unlocked).toEqual(s.unlocked);
@@ -174,21 +174,14 @@ describe('段階的な解放（Phase 29。企画書50章「必要になる前に
   };
   const DAY = 1440;
 
-  it('チュートリアルの直後は、Workflow・Harness・Context・採用・上級の任せ方をまだ渡さない', () => {
+  it('チュートリアルの直後は、Workflow・Harness・Context・採用・上級の任せ方をまだ渡さない（Seat の購入は渡す）', () => {
     const s = afterTutorial();
     expect(s.tutorial).toBeNull();
-    for (const f of [
-      'mode:agentWorkflow',
-      'mode:humanThenAi',
-      'harness',
-      'harness:hook',
-      'context',
-      'hire',
-      'team',
-    ] as const) {
+    for (const f of ['mode:agentWorkflow', 'mode:humanThenAi', 'harness', 'harness:hook', 'context', 'hire'] as const) {
       expect(isUnlocked(s, f), f).toBe(false);
     }
     expect(isUnlocked(s, 'problems')).toBe(true);
+    expect(isUnlocked(s, 'team')).toBe(true);
   });
 
   it('条件を満たした解放が重なっても1営業日に1つずつ渡し、解放を条件にする連鎖は同じ日にまとめる', () => {

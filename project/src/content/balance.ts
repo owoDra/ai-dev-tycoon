@@ -200,7 +200,7 @@ export const balance = {
     milestones: [30, 60, 120, 240],
   },
   /**
-   * Seat（企画書6章）。価格（content/seats.ts の米ドル）をゲーム内の円に換算して日割りで計上する。
+   * Seat（企画書6章）。会社が種類ごとに枚数で買う。価格（content/seats.ts の米ドル）をゲーム内の円に換算して日割りで計上する。
    * 人件費や売上と同じ桁で効くよう、為替レートではなくゲームの経済に合わせた係数にしている
    */
   seat: {
@@ -208,8 +208,8 @@ export const balance = {
     yenPerUsd: 2000,
     /** 月額を日割りにするときの1か月の営業日数 */
     businessDaysPerMonth: 20,
-    /** 運用者の Seat の使用量が上限を超えた後の、AI Worker の作業速度の倍率（上限は営業日ごとに戻る） */
-    overLimitSpeed: 0.25,
+    /** 会社を始めたときに持っている Seat の枚数（種類ごと） */
+    initial: { standard: 2, premium: 0 },
   },
   /** 社員（content/staff.ts） */
   staff: {
@@ -523,7 +523,7 @@ export const balance = {
       qualityPivot: 0.7,
       missPerQualityReq: 0.5,
       accidentPerQualityReq: 0.2,
-      /** AI PM が案件を運営している間の AI 費用（円/分）と、運用者の Seat の使用量（/分） */
+      /** AI PM が案件を運営している間の AI 費用（円/分）と、会社の Seat の使用量（/分） */
       costPerMinute: 20,
       usagePerMinute: 0.05,
     },

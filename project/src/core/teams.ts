@@ -7,7 +7,7 @@ import { tierOf } from './company';
 import { dailyCost, laborCost } from './formulas';
 import { createSession, type GameState, type ManagerRun, type TeamRun } from './state';
 import type { System } from './system';
-import { companyOpen, inTeam } from './team';
+import { companyOpen, consumeUsage, inTeam } from './team';
 
 /*
  * チーム。社員と AI Worker をチームに所属させ、チームに案件を割り当てる。
@@ -25,7 +25,7 @@ const TEAM_PREFIX = 't~';
 /** 増やした AI Worker の id か */
 export const isAgentId = (id: string) => id.startsWith(AGENT_PREFIX);
 
-/** 増やした AI Worker の定義（Model は既定、運用者はチームの社員。core/team.ts の operatorOf）。id でなければ undefined */
+/** 増やした AI Worker の定義（Model は既定）。id でなければ undefined */
 export function generateAgent(id: string): AiWorkerDef | undefined {
   if (!isAgentId(id)) return undefined;
   const no = id.slice(AGENT_PREFIX.length);
@@ -88,11 +88,6 @@ export function isDelegated(state: GameState, teamId: string): boolean {
 /** 案件の担当を管理者が決めているか（プレイヤーは担当を決められない） */
 export const projectDelegated = (state: GameState, projectId: string) =>
   isDelegated(state, teamOfProject(state, projectId));
-
-/** チームで AI の使用量を払う社員（チームの最初の社員。いなければ会社の最初の社員） */
-export function teamOperator(state: GameState, teamId: string): string | null {
-  return teamStaff(state, teamId)[0] ?? Object.keys(state.team)[0] ?? null;
-}
 
 /** 社員が仕事を抱えているか（人間の工程を処理中・待ち行列にいる・終わっていない Task の担い手） */
 export function staffBusy(state: GameState, workerId: string): boolean {
@@ -238,7 +233,7 @@ export function managingNow(state: GameState, staffId: string): boolean {
 
 /**
  * 管理者の運営の費用。委任されていて進行中の案件があるチームでは、ステップごとに
- * 人間 PM の稼働（チームの人数に比例する分を人日に数え、給与はすべて人件費）か、AI PM の AI 費用と運用者の Seat の使用量を、進行中の案件に等分して計上する。
+ * 人間 PM の稼働（チームの人数に比例する分を人日に数え、給与はすべて人件費）か、AI PM の AI 費用と会社の Seat の使用量を、進行中の案件に等分して計上する。
  * どちらも勤務時間（core/clock.ts）の分だけ計上する（AI PM は夜も担当を決めるが、費用は勤務時間あたりの契約とする）
  */
 export const managementSystem: System = (state) => {
@@ -265,17 +260,7 @@ export const managementSystem: System = (state) => {
       };
     }
     next = { ...next, projects: projectRuns };
-    if (manager.kind === 'ai') {
-      const op = teamOperator(next, team.id);
-      if (op !== null) next = consumeStaffUsage(next, op, balance.manager.ai.usagePerMinute * tick);
-    }
+    if (manager.kind === 'ai') next = consumeUsage(next, balance.manager.ai.usagePerMinute * tick);
   }
   return next;
 };
-
-/** 社員の Seat から使用量を使う（AI PM は AI Worker ではないので、運用者を直接指定する） */
-function consumeStaffUsage(state: GameState, staffId: string, amount: number): GameState {
-  const run = state.team[staffId];
-  if (!run) return state;
-  return { ...state, team: { ...state.team, [staffId]: { ...run, used: run.used + amount } } };
-}

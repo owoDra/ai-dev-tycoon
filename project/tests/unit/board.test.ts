@@ -101,7 +101,7 @@ describe('案件ボードの進行（core/board.ts）', () => {
     expect(later.unlocked).toContain('hire');
     const hired = reduce(later, { type: 'Hire', staffId: candidate });
     expect(hired.events).toContainEqual({ type: 'StaffJoined', staffId: candidate });
-    expect(hired.state.team[candidate]).toEqual({ seat: 'standard', used: 0 });
+    expect(hired.state.team[candidate]).toEqual({});
   });
 
   it('受注した2件を同時に進められ、タブ（フロア）に始めた順で並ぶ。売上と納期は受注の条件（orderTerms）', () => {

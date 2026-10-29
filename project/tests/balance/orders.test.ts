@@ -9,6 +9,7 @@ import { step } from '../../src/core/step';
 import { teamMembers } from '../../src/core/team';
 import { seeds } from '../helpers/compare';
 import { equipCommands } from '../helpers/fitted';
+import { topUpSeats } from '../helpers/seats';
 
 /**
  * 受注の設計意図（Phase 35）：受注しすぎも、受けなさすぎも最適にならない。人手を見て受けるのが良い。
@@ -82,6 +83,7 @@ function play(policy: Policy, seed: string) {
     s = policy(s);
     accepted += Object.keys(s.projects).length - before;
     s = assignAll(s);
+    s = topUpSeats(s);
     const r = step(s, CHUNK);
     s = r.state;
     missed += r.events.filter((e) => e.type === 'ProjectBurning' || e.type === 'ProjectCancelled').length;

@@ -32,6 +32,9 @@ export const unlockDefs: readonly UnlockDef[] = [
   },
   // チュートリアルの案件を納品したら、次に手を打つ場所を教える
   { id: 'problems', feature: 'problems', when: { type: 'projectsCompleted', count: 1 }, message: 'problems' },
+  // 会社として営業を始めたら、会社の Seat を買い足せるようにする（企画書6章）。AI は Seat の使用量の範囲でしか動かないので、
+  // 案件を重ねる前に「AI の容量をどれだけ買うか」を決められるようにする（社員の画面もここから開ける）
+  { id: 'team', feature: 'team', when: { type: 'projectsCompleted', count: 1 }, message: 'team' },
   // 2つ目の案件を納品したら、人間の判断を先に置く任せ方を渡す
   {
     id: 'humanThenAi',
@@ -39,7 +42,7 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'projectsCompleted', count: 2 },
     message: 'advanced',
   },
-  // 案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする（社員の画面もここから開ける）。
+  // 案件を重ねて人手が足りなくなってきたら、採用市場で人を増やせるようにする。
   // 会社の伸びを左右するので、同じ日に条件を満たした解放が重なったら Context や Harness より先に渡す
   { id: 'hire', feature: 'hire', when: { type: 'projectsCompleted', count: 4 }, message: 'hire' },
   // Context（企画書9〜12章）。AI のミスが重なってきたら、渡す資料を選べるようにする（遅くとも4件目の納品で）。
@@ -137,8 +140,6 @@ export const unlockDefs: readonly UnlockDef[] = [
     when: { type: 'partsOwned', count: 1 },
     message: 'workflow',
   },
-  // スタートアップに昇格し、案件が大きくなってきたら、社員の Seat を変えられるようにする（企画書6章）
-  { id: 'team', feature: 'team', when: { type: 'tier', tier: 'startup' }, message: 'team' },
   // 自動テスト（簡易 Eval）を使った後に、検証の部品を渡す（遅くともスタートアップへの昇格で）
   {
     id: 'harnessEval',
@@ -237,6 +238,7 @@ export const basicFeatures: readonly FeatureId[] = [
   'mode:aiThenHumanReview',
   'mode:aiThenEval',
   'problems',
+  'team',
 ];
 
 /** すべての機能（解放の定義の順） */

@@ -1,17 +1,17 @@
 import { balance } from '../content/balance';
-import { findWorker, getHuman } from '../content/index';
-import { getSeat } from '../content/seats';
+import { getHuman } from '../content/index';
+import { seats } from '../content/seats';
 import type { HumanWorkerDef, SeatDef, SeatId, TaskDef } from '../content/types';
 import { businessDay } from './clock';
 import { tierOf } from './company';
 import type { GameState, StaffRun } from './state';
 import type { System } from './system';
 import { marketCandidates } from './talent';
-import { dropMember, isAgentId, staffBusy, teamOfWorker, teamOperator } from './teams';
+import { dropMember, staffBusy } from './teams';
 
 /*
- * 社員と Seat（企画書6章）・採用市場。AI Worker の使用量は運用者の Seat の上限から消費し、上限を超えると AI Worker が遅くなる。
- * Seat の固定費と待機中の社員の給与は日割りで、会社が営業しているときだけ計上する（companyOpen）。
+ * 社員と Seat（企画書6章）・採用市場。Seat は会社が種類ごとに枚数で買い、AI Worker と AI PM はその使用量の合計から消費する。
+ * 使い切ると AI は翌営業日まで止まる。Seat の固定費と待機中の社員の給与は日割りで、会社が営業しているときだけ計上する（companyOpen）。
  */
 
 /** 会社にいる社員（入社した順） */
@@ -23,76 +23,46 @@ export function inTeam(state: GameState, staffId: string): boolean {
   return state.team[staffId] !== undefined;
 }
 
-/** 社員の Seat。会社にいなければ入社したときの Seat */
-export function seatOf(state: GameState, staffId: string): SeatDef {
-  return getSeat(state.team[staffId]?.seat ?? getHuman(staffId).seat);
-}
-
-/**
- * AI Worker を運用する社員。定義の運用者が会社にいなければ（退職した・チュートリアルなしで始めた）、AI Worker のチームの最初の社員
- * （いなければ会社の最初の社員）が運用する。増やした AI Worker（core/teams.ts）は、そのチームの最初の社員が運用する。
- * 運用者のない AI Worker・社員がいなければ null で、使用量の上限はない
- */
-export function operatorOf(state: GameState, workerId: string): string | null {
-  const w = findWorker(workerId);
-  if (w?.kind !== 'ai') return null;
-  const op = w.operatorId;
-  if (op === undefined && !isAgentId(w.id)) return null;
-  if (op !== undefined && inTeam(state, op)) return op;
-  return teamOperator(state, teamOfWorker(state, workerId));
-}
-
-/** 社員が運用している AI Worker の id */
-export function operatedWorkers(state: GameState, staffId: string): string[] {
-  return state.agents.filter((id) => operatorOf(state, id) === staffId);
-}
-
-/** Seat の1営業日あたりの固定費（円）。月額を日割りにする */
+/** Seat の1営業日あたりの固定費（円、1枚分）。月額を日割りにする */
 export function seatDailyCost(seat: SeatDef): number {
   return (seat.monthlyUsd * balance.seat.yenPerUsd) / balance.seat.businessDaysPerMonth;
 }
 
-/** Seat の月額（円） */
+/** Seat の月額（円、1枚分） */
 export function seatMonthlyCost(seat: SeatDef): number {
   return seat.monthlyUsd * balance.seat.yenPerUsd;
 }
 
-/** 会社にいる社員の Seat の1営業日あたりの固定費の合計（円） */
-export function teamDailyCost(state: GameState): number {
-  return teamMembers(state).reduce((sum, h) => sum + seatDailyCost(seatOf(state, h.id)), 0);
+/** 会社が買っている Seat の1営業日あたりの固定費の合計（円） */
+export function seatsDailyCost(state: GameState): number {
+  return seats.reduce((sum, s) => sum + seatDailyCost(s) * state.seats[s.id], 0);
 }
 
-/** 運用者の今日の使用量が上限に達しているか */
-export function overLimit(state: GameState, staffId: string): boolean {
-  const run = state.team[staffId];
-  return run !== undefined && run.used >= getSeat(run.seat).dailyUsage;
+/** 会社の AI の1営業日の使用量の上限。買っている Seat の枚数 × 1枚の使用量の合計 */
+export function usageLimit(state: GameState): number {
+  return seats.reduce((sum, s) => sum + s.dailyUsage * state.seats[s.id], 0);
 }
 
-/** AI Worker の作業速度の倍率。運用者の Seat の使用量が上限に達していれば balance.seat.overLimitSpeed */
-export function usageSpeed(state: GameState, workerId: string): number {
-  const op = operatorOf(state, workerId);
-  return op !== null && overLimit(state, op) ? balance.seat.overLimitSpeed : 1;
+/** 今日の使用量が上限に達していて、AI（AI Worker と AI PM）が止まっているか。Seat が0枚なら常に止まっている */
+export function overLimit(state: GameState): boolean {
+  return state.usage >= usageLimit(state);
 }
 
-/** AI Worker が amount だけ使用量を使う（運用者の Seat から減らす。運用者がいなければ何もしない） */
-export function consumeUsage(state: GameState, workerId: string, amount: number): GameState {
-  const op = operatorOf(state, workerId);
-  const run = op === null ? undefined : state.team[op];
-  if (op === null || !run || amount <= 0) return state;
-  return { ...state, team: { ...state.team, [op]: { ...run, used: run.used + amount } } };
+/** AI が使用量を amount だけ使う（会社の Seat の使用量から減らす） */
+export function consumeUsage(state: GameState, amount: number): GameState {
+  return amount > 0 ? { ...state, usage: state.usage + amount } : state;
 }
 
-/** 社員の Seat を変える。会社にいない人・同じ Seat なら state をそのまま返す */
-export function setSeat(state: GameState, staffId: string, seat: SeatId): GameState {
-  const run = state.team[staffId];
-  if (!run || run.seat === seat) return state;
-  return { ...state, team: { ...state.team, [staffId]: { ...run, seat } } };
+/** Seat の枚数を変える。0 以上の整数でなければ、同じ枚数なら state をそのまま返す */
+export function setSeats(state: GameState, seat: SeatId, count: number): GameState {
+  if (!Number.isInteger(count) || count < 0 || state.seats[seat] === count) return state;
+  return { ...state, seats: { ...state.seats, [seat]: count } };
 }
 
 /** 社員を迎える。人間の待ち行列も用意する */
 export function joinTeam(state: GameState, staffId: string): GameState {
   if (inTeam(state, staffId)) return state;
-  const run: StaffRun = { seat: getHuman(staffId).seat, used: 0 };
+  const run: StaffRun = {};
   return {
     ...state,
     team: { ...state.team, [staffId]: run },
@@ -162,14 +132,11 @@ export const companyOpen = (state: GameState) =>
 export const seatSystem: System = (state) => {
   let next = state;
   const day = businessDay(state.clock);
-  if (day !== state.usageDay) {
-    const team = Object.fromEntries(Object.entries(state.team).map(([id, r]) => [id, { ...r, used: 0 }]));
-    next = { ...next, team, usageDay: day };
-  }
+  if (day !== state.usageDay) next = { ...next, usage: 0, usageDay: day };
   if (!companyOpen(next)) return next;
   const perTick = balance.time.tickMinutes / balance.time.minutesPerDay;
   const office = tierOf(next).officeDaily * perTick;
-  return { ...next, seatCost: next.seatCost + teamDailyCost(next) * perTick, officeCost: next.officeCost + office };
+  return { ...next, seatCost: next.seatCost + seatsDailyCost(next) * perTick, officeCost: next.officeCost + office };
 };
 
 /** 採用市場。営業日が変わったら、その日の候補（数は会社の規模で決まる）に入れ替える */

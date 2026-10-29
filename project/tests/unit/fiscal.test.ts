@@ -330,7 +330,7 @@ describe('セーブと閉じている間の進行', () => {
     const s = company('migrate');
     const { rank, eventCost, ledger, fiscal, funds, achievements, companyEvents, ...v12 } = s;
     const json = JSON.stringify({ saveVersion: 12, state: v12 });
-    expect(SAVE_VERSION).toBe(21);
+    expect(SAVE_VERSION).toBe(22);
     expect(() => deserialize(json)).toThrow(OutdatedSaveError);
     const loaded = deserialize(json, MIGRATIONS, 13);
     expect(loaded).toMatchObject({ rank: 0, eventCost: 0, achievements: [] });

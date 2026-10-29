@@ -110,7 +110,6 @@ export function generateTalent(id: string): HumanWorkerDef | undefined {
     skill,
     accuracy,
     strengths,
-    seat: 'standard',
   };
   cache.set(id, def);
   return def;

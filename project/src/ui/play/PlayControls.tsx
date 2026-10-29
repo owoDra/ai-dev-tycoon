@@ -28,7 +28,7 @@ export function PlayControls(props: {
   /** 進み具合の一覧（案件のガントチャートと社員の勤務状態）を開く */
   onOverview?: () => void;
   onTeam?: () => void;
-  /** AI Worker の運用者の Seat の使用量が上限を超えている（社員と Seat のボタンに警告を出す） */
+  /** 会社の Seat の使用量を使い切って AI が止まっている（社員と Seat のボタンに警告を出す） */
   teamWarning?: boolean;
   onHarness?: () => void;
   /** Context のシートを開く（ドックの Context の札は、狭い形では「詳細」に入って見えなくなるので、メニューにも置く） */

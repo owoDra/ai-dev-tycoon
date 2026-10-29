@@ -21,6 +21,7 @@ import {
 } from '../../src/core/teams';
 import { tierLabel as viewTierLabel } from '../../src/view/fiscal';
 import { FITTED } from './fitted';
+import { topUpSeats } from './seats';
 
 /*
  * 長く遊ぶ戦略 Bot（画面なし）。チュートリアルなしで始めた会社を、方針（LongStrategy）に従って何年も経営する。
@@ -232,6 +233,7 @@ export function runLong(strategy: LongStrategy, seed: string, days: number): Lon
     s = answerOffers(s, strategy);
     s = bid(s, strategy);
     s = hireIfNeeded(s, strategy);
+    s = topUpSeats(s);
     s = equipAgents(s, strategy);
     s = organize(s, strategy);
     s = distribute(s);

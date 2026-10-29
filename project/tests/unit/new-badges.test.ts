@@ -8,10 +8,11 @@ import { applyUnlocks, freshMenus, isFresh } from '../../src/core/unlocks';
 
 const P = 'ecRenewal';
 
-/** 規模の昇格で Harness Builder と社員と Seat の画面を解放したところ（どちらもまだ開いていない） */
+/** 最初の納品と規模の昇格で、社員と Seat の画面と Harness Builder を解放したところ（どちらもまだ開いていない） */
 function promoted(): GameState {
   const events: GameEvent[] = [];
-  const s = applyUnlocks(createInitialState('new', { tutorial: true, tier: 'startup' }), (e) => events.push(e));
+  const base = createInitialState('new', { tutorial: true, tier: 'startup' });
+  const s = applyUnlocks({ ...base, ledger: { ...base.ledger, delivered: 1 } }, (e) => events.push(e));
   expect(events.some((e) => e.type === 'FeatureUnlocked' && e.feature === 'harness')).toBe(true);
   return s;
 }

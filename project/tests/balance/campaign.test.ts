@@ -65,15 +65,14 @@ describe('チュートリアルと代表的な案件群（企画書21章）', ()
     }
   });
 
-  it('Seat を変えなくてもクリアできるが、運用者の Seat の使用量の上限で遅くなる', () => {
-    // Seat を変えられる段階の会社どうしで比べる。Seat の変更はスタートアップへの昇格で開き、そのときには必ず Context
-    // （と、AI の使用量を押し上げる事件）も解放済み（解放の順番は tests/unit/unlocks.test.ts）
+  it('Seat を買い足さなくてもクリアできるが、会社の Seat の使用量を使い切って AI が止まるぶん遅くなる', () => {
+    // Seat を買える段階の会社どうしで比べる。Context（と、AI の使用量を押し上げる事件）も解放済みにする
     const stage: readonly FeatureId[] = ['context', 'team'];
     const premium = play(smartSeatPolicy, tutorialScript.seed, stage);
     const standard = play(smartPolicy, tutorialScript.seed, stage);
     console.log(
-      `[企画書6章] 通し：全員Standard ${dayOf(standard.clearedAt ?? 0).toFixed(1)} 日目` +
-        ` vs 運用者だけPremium ${dayOf(premium.clearedAt ?? 0).toFixed(1)} 日目`,
+      `[企画書6章] 通し：Standard 2枚のまま ${dayOf(standard.clearedAt ?? 0).toFixed(1)} 日目` +
+        ` vs Premium を1枚買い足し ${dayOf(premium.clearedAt ?? 0).toFixed(1)} 日目`,
     );
     expect(standard.clearedAt).not.toBeNull();
     expect(premium.clearedAt ?? 0).toBeLessThan(standard.clearedAt ?? 0);

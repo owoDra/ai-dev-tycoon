@@ -3,48 +3,45 @@ import { balance } from '../../src/content/balance';
 import { getSeat } from '../../src/content/seats';
 import { reduce } from '../../src/core/commands';
 import { createInitialState } from '../../src/core/state';
+import { usageLimit } from '../../src/core/team';
 import { seatPreview, teamView, usageWarning } from '../../src/view/team';
 
 describe('社員と Seat の表示（view/team.ts）', () => {
-  it('Standard → Premium のプレビューは AI 容量 +400% と、月額の差', () => {
-    const p = seatPreview('standard', 'premium');
-    expect(p.capacity).toBeCloseTo(4);
-    const diff = (getSeat('premium').monthlyUsd - getSeat('standard').monthlyUsd) * balance.seat.yenPerUsd;
-    expect(p.monthlyCost).toBeCloseTo(diff);
-    expect(seatPreview('premium', 'standard').capacity).toBeCloseTo(-0.8);
+  it('Seat を1枚増やすプレビューは、1枚の使用量と月額の差。減らすと符号が逆になる', () => {
+    const p = seatPreview('premium', 1);
+    expect(p.capacity).toBe(getSeat('premium').dailyUsage);
+    expect(p.monthlyCost).toBeCloseTo(getSeat('premium').monthlyUsd * balance.seat.yenPerUsd);
+    expect(seatPreview('standard', -1).capacity).toBe(-getSeat('standard').dailyUsage);
   });
 
-  it('会社にいる社員を並べ、運用者にだけ使用量を出し、選んでいない Seat にだけプレビューと Command を付ける', () => {
+  it('会社の Seat を種類ごとに並べ、枚数・会社の今日の使用量と上限・固定費の合計を出す', () => {
     const v = teamView(createInitialState('s'));
     expect(v.members.map((m) => m.id)).toEqual(['sato', 'suzuki']);
-    const suzuki = v.members.find((m) => m.id === 'suzuki');
-    expect(suzuki?.operator).toBe(true);
-    expect(suzuki?.usage).toEqual({ used: 0, limit: getSeat('standard').dailyUsage, over: false });
-    expect(v.members.find((m) => m.id === 'sato')?.usage).toBeNull();
-    const [standard, premium] = suzuki?.options ?? [];
-    expect(standard).toMatchObject({ id: 'standard', selected: true, preview: null, command: null });
-    expect(premium).toMatchObject({ id: 'premium', selected: false, command: { type: 'SetSeat', staffId: 'suzuki' } });
+    const [standard, premium] = v.seats;
+    expect(standard).toMatchObject({
+      id: 'standard',
+      count: 2,
+      add: { type: 'SetSeats', seat: 'standard', count: 3 },
+      remove: { type: 'SetSeats', seat: 'standard', count: 1 },
+    });
+    // 0枚の種類は減らせない
+    expect(premium).toMatchObject({ id: 'premium', count: 0, remove: null, add: { count: 1 } });
+    expect(v.usage).toEqual({ used: 0, limit: 2 * getSeat('standard').dailyUsage, over: false });
     expect(v.monthlyTotal).toBeCloseTo(2 * getSeat('standard').monthlyUsd * balance.seat.yenPerUsd);
     expect(v.model?.usagePerMinute).toBeGreaterThan(0);
   });
 
-  it('解放前は Command を付けず、上限超えなら警告する', () => {
+  it('解放前は Command を付けず、使い切ったら警告し、買い足すと警告が消える', () => {
     const c = createInitialState('c', { board: true });
     expect(teamView(c).editable).toBe(false);
-    expect(
-      teamView(c)
-        .members.flatMap((m) => m.options)
-        .every((o) => o.command === null),
-    ).toBe(true);
-    // Standard の上限は超えているが Premium の上限には届かない使用量
-    const used = getSeat('standard').dailyUsage + 1;
-    expect(used).toBeLessThan(getSeat('premium').dailyUsage);
-    const over = { ...c, team: { ...c.team, suzuki: { seat: 'standard' as const, used } } };
+    expect(teamView(c).seats.every((s) => s.add === null && s.remove === null)).toBe(true);
+    const over = { ...c, usage: usageLimit(c) };
     expect(usageWarning(over)).toBe(true);
-    const premium = reduce(
-      { ...createInitialState('s'), team: over.team },
-      { type: 'SetSeat', staffId: 'suzuki', seat: 'premium' },
-    ).state;
-    expect(usageWarning(premium)).toBe(false);
+    expect(teamView(over).usage.over).toBe(true);
+    const more = reduce(
+      { ...createInitialState('s'), usage: over.usage },
+      { type: 'SetSeats', seat: 'premium', count: 1 },
+    );
+    expect(usageWarning(more.state)).toBe(false);
   });
 });

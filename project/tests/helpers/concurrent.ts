@@ -18,8 +18,8 @@ const AGENT = 'agent';
 export interface ConcurrentPlan {
   /** Task の担当モード */
   readonly mode: (task: TaskDef) => AssignModeId;
-  /** 社員の Seat（載っていない人は Standard のまま） */
-  readonly seats?: Readonly<Record<string, SeatId>>;
+  /** 会社の Seat の枚数（載っていない種類は始めたときの枚数のまま） */
+  readonly seats?: Partial<Readonly<Record<SeatId, number>>>;
   /** AI Worker に装着する Harness 部品 */
   readonly parts?: readonly string[];
 }
@@ -39,7 +39,9 @@ export function playConcurrent(
   projects: readonly string[] = RUSH,
 ): ConcurrentResult {
   const commands: Command[] = projects.map((projectId) => ({ type: 'StartProject', projectId }));
-  for (const [staffId, seat] of Object.entries(plan.seats ?? {})) commands.push({ type: 'SetSeat', staffId, seat });
+  for (const [seat, count] of Object.entries(plan.seats ?? {}) as [SeatId, number][]) {
+    commands.push({ type: 'SetSeats', seat, count });
+  }
   for (const partId of plan.parts ?? []) commands.push({ type: 'EquipPart', workerId: AGENT, partId });
   let i = 0;
   for (const projectId of projects) {

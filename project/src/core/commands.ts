@@ -20,7 +20,7 @@ import { acceptOrder } from './orders';
 import { settleProgress } from './progress';
 import type { ManagerRun } from './state';
 import { createProjectRun, type GameState, notePlayerAssigned, updateTask } from './state';
-import { hire, inTeam, release, setSeat } from './team';
+import { hire, inTeam, release, setSeats } from './team';
 import {
   addAgent,
   createTeam,
@@ -50,8 +50,11 @@ export type Command =
   | { readonly type: 'Hire'; readonly staffId: string }
   /** 社員を退職させる。担当している Task が終わっていなければできない。最後の1人は退職できない */
   | { readonly type: 'Release'; readonly staffId: string }
-  /** 社員の Seat を変える（企画書6章）。固定費は日割りなので、変えた時点から新しい月額で計上する */
-  | { readonly type: 'SetSeat'; readonly staffId: string; readonly seat: SeatId }
+  /**
+   * 会社の Seat の枚数を種類ごとに変える（企画書6章）。0 以上の整数で、上限はない。固定費は日割りなので、変えた時点から新しい枚数で計上する。
+   * 今日の使用量はそのままで、上限だけが変わる（増やせば止まっていた AI がすぐ動き出す）
+   */
+  | { readonly type: 'SetSeats'; readonly seat: SeatId; readonly count: number }
   /**
    * Task の担当を決める。依存が未完了でも先に決めておける。開始後は変更できない。
    * workerId はモードの主な担い手（AI が関わるモードでは AI Worker）。人間の工程は案件のチームの空いている人が担う。
@@ -246,11 +249,11 @@ function apply(state: GameState, command: Command): Transition {
       const next = answerPoach(state, command.staffId, command.retain, (e) => events.push(e));
       return next === state ? unchanged(state) : { state: next, events };
     }
-    case 'SetSeat': {
-      const { staffId, seat } = command;
+    case 'SetSeats': {
+      const { seat, count } = command;
       if (!isUnlocked(state, 'team') || !seats.some((s) => s.id === seat)) return unchanged(state);
-      const next = setSeat(state, staffId, seat);
-      return next === state ? unchanged(state) : { state: next, events: [{ type: 'SeatChanged', staffId, seat }] };
+      const next = setSeats(state, seat, count);
+      return next === state ? unchanged(state) : { state: next, events: [{ type: 'SeatsChanged', seat, count }] };
     }
     case 'SetContextFeed': {
       const { feed, workerId } = command;

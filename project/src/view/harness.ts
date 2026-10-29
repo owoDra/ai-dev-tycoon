@@ -430,7 +430,7 @@ function groupsOf(row: HarnessRowId, src: HarnessSource): HarnessGroupView[] {
         options: content.models.map((m) => ({
           id: m.id,
           label: m.name,
-          // Model は費用だけでなく、運用者の Seat の使用量の減り方も違う（企画書7章 Model × Harness × Seat）
+          // Model は費用だけでなく、会社の Seat の使用量の減り方も違う（企画書7章 Model × Harness × Seat）
           hint: `${t.running(m.costPerMinute)}・${ja.team.modelUsage(m.usagePerMinute)}`,
           selected: m.id === current,
           command: m.id === current ? null : { type: 'SetModel', workerId, modelId: m.id },

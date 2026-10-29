@@ -121,7 +121,7 @@ describe('規模による上限の変化', () => {
     const solo = company('caps', 'solo');
     const small = company('caps', 'small');
     // 人員：創業の2人＋1人で個人事業は満員、小規模はまだ採用できる
-    const three = { ...solo, team: { ...solo.team, extra: { seat: 'standard' as const, used: 0 } } };
+    const three = { ...solo, team: { ...solo.team, extra: {} } };
     expect(teamFull(three)).toBe(true);
     expect(teamFull({ ...three, tier: 'small' })).toBe(false);
     // 採用候補と引き合いの数

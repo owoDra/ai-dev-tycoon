@@ -70,38 +70,36 @@ function started(...projects: string[]): GameState {
 }
 
 describe('社員と Seat の画面（企画書6章・47章）', () => {
-  it('ドックから開くと社員が並び、運用者にだけ今日の使用量が出る', () => {
+  it('ドックから開くと、会社の Seat と今日の使用量の下に社員が並ぶ', () => {
     const { q, root } = mount(started(P));
     q<HTMLButtonElement>('[data-team-open]')?.click();
     expect(q('[data-team-sheet]')).not.toBeNull();
     const members = [...root.querySelectorAll<HTMLElement>('[data-member]')].map((m) => m.dataset.member);
     expect(members).toEqual(['sato', 'suzuki', tester.id]);
-    expect(q('[data-member="suzuki"]')?.textContent).toContain(ja.team.operator);
-    expect(q('[data-member="suzuki"] [data-usage]')).not.toBeNull();
-    expect(q('[data-member="sato"] [data-usage]')).toBeNull();
+    expect(q('[data-seats] [data-usage]')).not.toBeNull();
+    expect(q('[data-member] [data-usage]')).toBeNull();
+    expect(q('[data-seat="standard"] [data-seat-count]')?.textContent).toBe(ja.team.seatCount(2));
     expect(q(`[data-member="${tester.id}"]`)?.textContent).toContain(ja.taskKinds.test);
   });
 
-  it('選んでいない Seat には「AI 容量 +400% / 費用 +¥XX,XXX / 月」が即座に出て、押すと確定してトーストが出る', () => {
+  it('Seat の ＋ の横には「AI 容量 +750 / 日・費用 +¥XX,XXX / 月」が即座に出て、−/＋ で枚数が変わりトーストが出る', () => {
     const { store, q } = mount(started(P));
     q<HTMLButtonElement>('[data-team-open]')?.click();
-    const premium = q<HTMLButtonElement>('[data-member="suzuki"] [data-seat-option="premium"]');
-    const preview = premium?.querySelector('[data-seat-preview]')?.textContent ?? '';
-    expect(preview).toContain(ja.team.capacity(4));
-    expect(preview).toContain('+¥200,000 / 月');
-    premium?.click();
-    expect(store.state().team.suzuki?.seat).toBe('premium');
-    expect(premium?.getAttribute('aria-pressed')).toBe('true');
-    // 戻す方向の差分は減る
-    const standard = q('[data-member="suzuki"] [data-seat-option="standard"] [data-seat-preview]')?.textContent ?? '';
-    expect(standard).toContain(ja.team.capacity(-0.8));
-    expect(standard).toContain('−¥200,000 / 月');
-    expect(document.body.textContent).toContain(ja.team.changed(getSeat('premium').name));
+    const preview = q('[data-seat="premium"] [data-seat-preview]')?.textContent ?? '';
+    expect(preview).toContain(ja.team.capacity(750));
+    expect(preview).toContain('+¥250,000 / 月');
+    expect(q<HTMLButtonElement>('[data-seat-remove="premium"]')?.disabled).toBe(true);
+    q<HTMLButtonElement>('[data-seat-add="premium"]')?.click();
+    expect(store.state().seats.premium).toBe(1);
+    expect(q('[data-seat="premium"] [data-seat-count]')?.textContent).toBe(ja.team.seatCount(1));
+    expect(document.body.textContent).toContain(ja.team.changed(getSeat('premium').name, 1));
+    q<HTMLButtonElement>('[data-seat-remove="standard"]')?.click();
+    expect(store.state().seats.standard).toBe(1);
   });
 
-  it('運用者の使用量が上限を超えると、ドックのボタンと画面にアイコン付きで警告が出る', () => {
+  it('会社の使用量を使い切ると、ドックのボタンと画面にアイコン付きで警告が出る', () => {
     const base = started(P);
-    const over: GameState = { ...base, team: { ...base.team, suzuki: { seat: 'standard', used: 999 } } };
+    const over: GameState = { ...base, usage: 999 };
     const { q } = mount(over);
     expect(q('[data-team-warning]')).not.toBeNull();
     q<HTMLButtonElement>('[data-team-open]')?.click();

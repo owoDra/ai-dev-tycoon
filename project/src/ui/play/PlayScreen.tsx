@@ -263,8 +263,8 @@ export function PlayScreen(props: {
         if (e.type === 'WorkflowAssigned' && e.projectId === props.projectId) {
           notices.push({ text: ja.notices.workflow(e.taskIds.length), icon: 'workflow', tone: 'success' });
         }
-        if (e.type === 'SeatChanged') {
-          notices.push({ text: ja.team.changed(getSeat(e.seat).name), icon: 'success', tone: 'success' });
+        if (e.type === 'SeatsChanged') {
+          notices.push({ text: ja.team.changed(getSeat(e.seat).name, e.count), icon: 'success', tone: 'success' });
         }
         if (e.type === 'StaffJoined') {
           notices.push({ text: ja.team.joined(getHuman(e.staffId).name), icon: 'human', tone: 'success' });

@@ -49,7 +49,7 @@ const PlayLogHost =
 /** タイトル画面の後ろで動かす（案件を始めていない）ワールドの seed */
 const IDLE_SEED = 'title';
 
-/** 自動セーブの間隔（ms）。納品・受注・Seat の変更のときは、すぐにも保存する */
+/** 自動セーブの間隔（ms）。納品・受注・Seat の枚数の変更のときは、すぐにも保存する */
 const AUTOSAVE_MS = 5000;
 
 /**
@@ -194,7 +194,7 @@ export function App(props: {
       onCleanup(
         store.onEvents((events) => {
           if (events.some((e) => e.type === 'TutorialEnded')) markTutorialDone();
-          if (events.some((e) => e.type === 'SeatChanged' || e.type === 'OrderAccepted')) save();
+          if (events.some((e) => e.type === 'SeatsChanged' || e.type === 'OrderAccepted')) save();
           // ホームで受注したら、その案件のフロアへ移る（担当を決めるまで時間は進まないので、すぐ見せる）
           const won = events.flatMap((e) => (e.type === 'OrderAccepted' ? [e.projectId] : [])).at(0);
           const at = screens.screen();

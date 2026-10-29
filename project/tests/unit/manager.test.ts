@@ -8,7 +8,7 @@ import { scoreProject } from '../../src/core/scoring';
 import { createInitialState, type GameState, type ManagerRun } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { talentId } from '../../src/core/talent';
-import { operatorOf } from '../../src/core/team';
+import { usageLimit } from '../../src/core/team';
 import { DIRECT, isDelegated, oversight, teamOfProject, teamOfWorker } from '../../src/core/teams';
 import { playManaged } from '../helpers/managers';
 
@@ -56,15 +56,20 @@ describe('チーム（core/teams.ts）', () => {
     );
   });
 
-  it('増やした AI Worker はチームの最初の社員が運用し、その人の Seat から使用量を使う', () => {
+  it('増やした AI Worker はチームに移せ、どのチームの AI Worker も会社の Seat の使用量を使う', () => {
     let s = createInitialState('ops', { team: [...W], tier: 'small' });
     s = must(s, { type: 'AddAiWorker' });
     expect(s.agents).toEqual(['agent', 'ai~2']);
     expect(s.sessions['ai~2']).toBeDefined();
     s = must(s, { type: 'CreateTeam' });
-    s = must(s, { type: 'MoveMember', workerId: W[1] ?? '', teamId: 't~2' });
     s = must(s, { type: 'MoveMember', workerId: 'ai~2', teamId: 't~2' });
-    expect(operatorOf(s, 'ai~2')).toBe(W[1]);
+    s = must(s, { type: 'StartProject', projectId: P });
+    s = must(s, { type: 'MoveProject', projectId: P, teamId: 't~2' });
+    const task = getProject(P).tasks.find((t) => t.deps.length === 0);
+    if (!task) throw new Error('依存のない Task がない');
+    s = must(s, { type: 'AssignTask', projectId: P, taskId: task.id, mode: 'ai', workerId: 'ai~2' });
+    for (let i = 0; i < 40 && s.usage === 0; i++) s = step(s, 30).state;
+    expect(s.usage).toBeGreaterThan(0);
   });
 
   it('管理者がいないチームはプレイヤーが担当を決め、管理者に委任すると決められない（介入すると決められる）', () => {
@@ -143,6 +148,17 @@ describe('管理者の判断（core/manager.ts）', () => {
     expect(restSystem).toEqual(restBefore);
   });
 
+  it('AI PM は会社の Seat の使用量を使い切ると判断しない（人間 PM は判断する）', () => {
+    const at = balance.time.tickMinutes;
+    const ai = { ...managed({ kind: 'ai' }), clock: at };
+    const full = { ...ai, usage: usageLimit(ai) };
+    expect(managerSystem(ai, ctx().ctx)).not.toBe(ai);
+    expect(managerSystem(full, ctx().ctx)).toBe(full);
+    const human = { ...managed({ kind: 'human', staffId: PM }), clock: at };
+    const humanFull = { ...human, usage: usageLimit(human) };
+    expect(managerSystem(humanFull, ctx().ctx)).not.toBe(humanFull);
+  });
+
   it('委任していないチーム・直轄チームでは何も判断しない', () => {
     expect(managerCommands(teamed(), 't~2')).toEqual([]);
     expect(managerCommands(teamed(), DIRECT)).toEqual([]);
@@ -161,7 +177,7 @@ describe('管理者の判断（core/manager.ts）', () => {
 });
 
 describe('管理者の費用', () => {
-  it('人間 PM の稼働は人日に数え、AI PM は人日を使わず AI 費用と運用者の Seat の使用量を使う', () => {
+  it('人間 PM の稼働は人日に数え、AI PM は人日を使わず AI 費用と会社の Seat の使用量を使う', () => {
     const human = playManaged(P, 'human', 'cost');
     const ai = playManaged(P, 'ai', 'cost');
     const h = human.projects[P]?.management;

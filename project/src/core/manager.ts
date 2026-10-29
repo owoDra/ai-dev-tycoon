@@ -10,7 +10,7 @@ import { escapedDefectCost, escapedFixMinutes, laborCost, personDays } from './f
 import { hashSeed, next } from './rng';
 import type { GameState, ManagerRun } from './state';
 import type { System } from './system';
-import { humanSpeed } from './team';
+import { humanSpeed, overLimit } from './team';
 import { findTeam, isDelegated, isManager, teamAgents, teamProjects, workingStaff } from './teams';
 import { isUnlocked } from './unlocks';
 
@@ -159,8 +159,10 @@ export const managerSystem: System = (state, ctx) => {
   const atWork = humansAtWork(state.clock);
   for (const team of state.teams) {
     if (!isDelegated(s, team.id)) continue;
-    // 人間 PM は勤務時間だけ判断する。AI PM は夜も担当を決める（Agent Workflow なら夜も Task が進む）
+    // 人間 PM は勤務時間だけ判断する。AI PM は夜も担当を決める（Agent Workflow なら夜も Task が進む）が、
+    // 会社の Seat の使用量を使い切ったら翌営業日まで判断しない
     if (!atWork && team.manager?.kind === 'human') continue;
+    if (team.manager?.kind === 'ai' && overLimit(s)) continue;
     for (;;) {
       const command = managerCommands(s, team.id, 1)[0];
       if (!command) break;

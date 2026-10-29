@@ -67,8 +67,8 @@ export type GameEvent =
   | { readonly type: 'AutonomyMilestone'; readonly workerId: string; readonly minutes: number }
   /** 複数の Task を Workflow にまとめて AI に任せた（企画書5章） */
   | { readonly type: 'WorkflowAssigned'; readonly projectId: string; readonly taskIds: readonly string[] }
-  /** 社員の Seat を変えた */
-  | { readonly type: 'SeatChanged'; readonly staffId: string; readonly seat: SeatId }
+  /** 会社の Seat の枚数を変えた */
+  | { readonly type: 'SeatsChanged'; readonly seat: SeatId; readonly count: number }
   /** 社員が入社した（採用市場から採用した） */
   | { readonly type: 'StaffJoined'; readonly staffId: string }
   /** 社員が退職した */

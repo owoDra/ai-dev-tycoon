@@ -122,20 +122,20 @@ export interface ModelDef {
   readonly speed: number;
   /** AI が1分作業するごとの費用（円） */
   readonly costPerMinute: number;
-  /** AI が1分作業するごとに、運用者の Seat の使用量の上限から消費する量（content/seats.ts の dailyUsage と同じ単位） */
+  /** AI が1分作業するごとに、会社の Seat の使用量から消費する量（content/seats.ts の dailyUsage と同じ単位） */
   readonly usagePerMinute: number;
 }
 
 /** Claude Team のシートの種類（企画書6章） */
 export type SeatId = 'standard' | 'premium';
 
-/** Seat（企画書6章）。月額費用と AI の使用量の上限。文言は i18n の ja.seats */
+/** Seat（企画書6章）。会社が種類ごとに枚数で買う。1枚あたりの月額費用と AI の使用量。文言は i18n の ja.seats */
 export interface SeatDef {
   readonly id: SeatId;
   readonly name: string;
   /** 月額費用（米ドル、企画書6章の月払いの価格）。balance.seat.yenPerUsd でゲーム内の円に換算し、日割りで計上する */
   readonly monthlyUsd: number;
-  /** 1営業日に使える AI の使用量。超えると、その人が運用する AI Worker の作業が遅くなる */
+  /** 1枚で1営業日に使える AI の使用量。会社の上限は買った枚数の合計で、使い切ると AI は翌営業日まで止まる */
   readonly dailyUsage: number;
 }
 
@@ -157,8 +157,6 @@ export interface HumanWorkerDef {
   readonly role: StaffRole;
   /** 得意分野。この種類の Task の人間の工程は balance.staff.strengthSpeed 倍の速さで進む */
   readonly strengths: readonly TaskKind[];
-  /** 入社したときに割り当てる Seat */
-  readonly seat: SeatId;
 }
 
 export interface AiWorkerDef {
@@ -166,8 +164,6 @@ export interface AiWorkerDef {
   readonly id: string;
   readonly name: string;
   readonly modelId: string;
-  /** この AI Worker を運用する社員。AI の使用量はこの人の Seat の上限から消費する（いなければ上限なし） */
-  readonly operatorId?: string;
 }
 
 export type WorkerDef = HumanWorkerDef | AiWorkerDef;

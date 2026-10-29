@@ -8,11 +8,11 @@ import { aiCost } from './formulas';
 import { type GameState, updateTask } from './state';
 import type { System } from './system';
 import { aiActor, finishStep, isAiWorking, startReadyTasks } from './taskFlow';
-import { consumeUsage, usageSpeed } from './team';
+import { consumeUsage, overLimit } from './team';
 
 /**
  * Task の進行。担当が決まった時点で依存が解決している Task を開始し、実行中の Task のリードタイムを数え、AI の工程（と修復）を進めて完了を判定する。
- * AI Worker は複数の Task を同時に処理できるが、そのぶん運用者の Seat の使用量を速く使い、上限を超えると遅くなる（core/team.ts）。
+ * AI Worker は複数の Task を同時に処理できるが、そのぶん会社の Seat の使用量を速く使い、使い切ると翌営業日まで止まる（core/team.ts）。
  * 人間の工程は humanQueueSystem が進める。AI は人間が帰った後も手元の工程を進めるが、次の工程が人間の指示出しや確認なら翌朝まで待つ
  * （Agent Workflow で指示出しを省ける Task と、AI PM が担当を決める案件だけが夜も続けて進む）。
  */
@@ -37,8 +37,9 @@ export const taskSystem: System = (state, ctx) => {
       }
       if (!ai) continue;
       const workerId = run.assignment?.workerId ?? '';
-      // 運用者の Seat の使用量が上限に達していれば、進む量（と、それに比例する費用と使用量）が減る
-      const progress = tick * usageSpeed(next, workerId);
+      // 会社の Seat の使用量を使い切っていれば、AI は進まない（費用も使用量も増えない）
+      if (overLimit(next)) continue;
+      const progress = tick;
       const model = aiActor(next, run, getTask(projectId, taskId)).model;
       let cost = aiCost(progress, model);
       let usage = progress * model.usagePerMinute;
@@ -49,7 +50,7 @@ export const taskSystem: System = (state, ctx) => {
         usage *= factor;
         next = updateSession(next, workerId, (s) => ({ ...s, age: s.age + tick }));
       }
-      next = consumeUsage(next, workerId, usage);
+      next = consumeUsage(next, usage);
       next = updateTask(next, projectId, taskId, (r) => ({
         ...r,
         remaining: r.remaining - progress,

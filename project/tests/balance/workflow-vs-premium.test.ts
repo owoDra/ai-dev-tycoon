@@ -8,7 +8,7 @@ import { EARLY } from '../helpers/fitted';
 /**
  * 「この人を Premium にするより Workflow 直した方が良くない？」（企画書68章）を、キャンペーンの最後の同時進行で確かめる。
  * AI 適性の高い Task を「AI → 人間レビュー」で任せた構成では、人間のレビューがボトルネックで、AI の容量は足りている。
- * ここで運用者を Premium にしても速くならず固定費が増えるだけだが、自動テストで確かめられる Task のレビューを
+ * ここで Premium の Seat を買い足しても速くならず固定費が増えるだけだが、自動テストで確かめられる Task のレビューを
  * 自動テスト（AI → 自動テスト → 確認）に置き換えて Workflow を直すと、人間の時間が大きく減る。
  * 素の AI（Harness なし）はレビューも自動テストも失敗を見逃すので、AI Worker には Skill と Hook を付けておく（tests/helpers/fitted.ts）。
  */
@@ -25,7 +25,7 @@ describe('Premium を増やすより Workflow を直す方が効く（企画書6
     const r = compare(
       {
         before: (seed) => playConcurrent(seed, { mode: reviewed, parts: EARLY }),
-        premium: (seed) => playConcurrent(seed, { mode: reviewed, seats: { suzuki: 'premium' }, parts: EARLY }),
+        premium: (seed) => playConcurrent(seed, { mode: reviewed, seats: { premium: 1 }, parts: EARLY }),
         workflow: (seed) => playConcurrent(seed, { mode: automated, parts: EARLY }),
       },
       SEEDS,

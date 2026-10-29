@@ -8,35 +8,33 @@ import { dailyCost } from '../core/formulas';
 import { harnessOf } from '../core/harness';
 import type { GameState } from '../core/state';
 import { mid } from '../core/talent';
-import {
-  hireBlock,
-  operatedWorkers,
-  overLimit,
-  releaseBlock,
-  seatMonthlyCost,
-  seatOf,
-  signingFee,
-  teamMembers,
-} from '../core/team';
+import { hireBlock, overLimit, releaseBlock, seatMonthlyCost, signingFee, teamMembers, usageLimit } from '../core/team';
 import { isUnlocked } from '../core/unlocks';
 import { ja } from '../i18n/ja';
 
-/** Seat を変えたときの差分（企画書47章「AI 容量 +400% / 費用 +¥XX,XXX / 月」） */
+/** Seat の枚数を変えたときの差分（企画書47章「AI 容量 +150 / 日・費用 +¥XX,XXX / 月」） */
 export interface SeatPreview {
-  /** AI 容量（1営業日の使用量の上限）の変化率。+4 で +400% */
+  /** AI 容量（会社の1営業日の使用量の上限）の差 */
   readonly capacity: number;
   /** 月額の差（円） */
   readonly monthlyCost: number;
 }
 
-/** 社員の Seat の選択肢 */
-export interface SeatOptionView {
+/** 会社の Seat の1種類。枚数と、1枚増やす・減らす操作 */
+export interface SeatCountView {
   readonly id: SeatId;
   readonly label: string;
-  readonly selected: boolean;
-  /** 選んだときの差分。選択中なら null */
-  readonly preview: SeatPreview | null;
-  readonly command: Command | null;
+  readonly count: number;
+  /** 1枚の月額（円） */
+  readonly monthlyCost: number;
+  /** 1枚の1営業日の使用量 */
+  readonly dailyUsage: number;
+  /** 1枚増やしたときの差分 */
+  readonly addPreview: SeatPreview;
+  /** 1枚増やす Command。変えられなければ null */
+  readonly add: Command | null;
+  /** 1枚減らす Command。変えられないか、0枚なら null */
+  readonly remove: Command | null;
 }
 
 /** 社員と採用候補に共通の、比べるための能力と単価 */
@@ -63,12 +61,6 @@ export interface TalentView {
 export type Level = 'high' | 'mid' | 'low';
 
 export interface MemberView extends TalentView {
-  /** AI Worker を運用している（Seat の使用量を使う） */
-  readonly operator: boolean;
-  /** 今日の使用量と上限。運用していなければ null */
-  readonly usage: { readonly used: number; readonly limit: number; readonly over: boolean } | null;
-  readonly monthlyCost: number;
-  readonly options: readonly SeatOptionView[];
   /** 退職の Command。退職できなければ null */
   readonly release: Command | null;
   /** 退職できない理由（文言）。退職できるか、採用が解放されていなければ null */
@@ -84,9 +76,13 @@ export interface CandidateView extends TalentView {
 
 export interface TeamView {
   readonly members: readonly MemberView[];
+  /** 会社の Seat（種類ごと） */
+  readonly seats: readonly SeatCountView[];
+  /** 会社の今日の AI の使用量と上限。over なら AI は翌営業日まで止まっている */
+  readonly usage: { readonly used: number; readonly limit: number; readonly over: boolean };
   /** Seat の固定費の合計（円/月） */
   readonly monthlyTotal: number;
-  /** Seat を変えられるか（解放済み） */
+  /** Seat の枚数を変えられるか（解放済み） */
   readonly editable: boolean;
   /** AI Worker の Model と、1分あたりの使用量 */
   readonly model: { readonly name: string; readonly usagePerMinute: number } | null;
@@ -125,12 +121,11 @@ export function talentView(h: HumanWorkerDef): TalentView {
   };
 }
 
-/** Seat を from から to に変えたときの差分 */
-export function seatPreview(from: SeatId, to: SeatId): SeatPreview {
-  const a = seats.find((s) => s.id === from);
-  const b = seats.find((s) => s.id === to);
-  if (!a || !b) return { capacity: 0, monthlyCost: 0 };
-  return { capacity: b.dailyUsage / a.dailyUsage - 1, monthlyCost: seatMonthlyCost(b) - seatMonthlyCost(a) };
+/** Seat の枚数を delta 枚変えたときの差分 */
+export function seatPreview(seat: SeatId, delta: number): SeatPreview {
+  const s = seats.find((x) => x.id === seat);
+  if (!s) return { capacity: 0, monthlyCost: 0 };
+  return { capacity: s.dailyUsage * delta, monthlyCost: seatMonthlyCost(s) * delta };
 }
 
 /** 社員と Seat の画面の表示用データ（純粋関数） */
@@ -138,22 +133,9 @@ export function teamView(state: GameState): TeamView {
   const editable = isUnlocked(state, 'team');
   const hiring = isUnlocked(state, 'hire');
   const members = teamMembers(state).map((h): MemberView => {
-    const seat = seatOf(state, h.id);
-    const operator = operatedWorkers(state, h.id).length > 0;
-    const used = state.team[h.id]?.used ?? 0;
     const blocked = releaseBlock(state, h.id);
     return {
       ...talentView(h),
-      operator,
-      usage: operator ? { used, limit: seat.dailyUsage, over: overLimit(state, h.id) } : null,
-      monthlyCost: seatMonthlyCost(seat),
-      options: seats.map((s) => ({
-        id: s.id,
-        label: s.name,
-        selected: s.id === seat.id,
-        preview: s.id === seat.id ? null : seatPreview(seat.id, s.id),
-        command: s.id === seat.id || !editable ? null : { type: 'SetSeat', staffId: h.id, seat: s.id },
-      })),
       release: hiring && blocked === null ? { type: 'Release', staffId: h.id } : null,
       releaseBlocked: hiring && blocked !== null && blocked !== 'notMember' ? ja.team.releaseBlocked[blocked] : null,
     };
@@ -168,9 +150,24 @@ export function teamView(state: GameState): TeamView {
   });
   const agent = state.agents[0];
   const model = agent ? getModel(harnessOf(state, agent).modelId) : null;
+  const seatViews = seats.map((s): SeatCountView => {
+    const count = state.seats[s.id];
+    return {
+      id: s.id,
+      label: s.name,
+      count,
+      monthlyCost: seatMonthlyCost(s),
+      dailyUsage: s.dailyUsage,
+      addPreview: seatPreview(s.id, 1),
+      add: editable ? { type: 'SetSeats', seat: s.id, count: count + 1 } : null,
+      remove: editable && count > 0 ? { type: 'SetSeats', seat: s.id, count: count - 1 } : null,
+    };
+  });
   return {
     members,
-    monthlyTotal: members.reduce((sum, m) => sum + m.monthlyCost, 0),
+    seats: seatViews,
+    usage: { used: state.usage, limit: usageLimit(state), over: overLimit(state) },
+    monthlyTotal: seats.reduce((sum, s) => sum + seatMonthlyCost(s) * state.seats[s.id], 0),
     editable,
     model: model ? { name: model.name, usagePerMinute: model.usagePerMinute } : null,
     hiring,
@@ -180,7 +177,7 @@ export function teamView(state: GameState): TeamView {
   };
 }
 
-/** AI Worker の運用者の Seat の使用量が上限を超えているか（ドックのボタンに警告を出す） */
+/** 会社の Seat の使用量を使い切って AI が止まっているか（ドックのボタンに警告を出す） */
 export function usageWarning(state: GameState): boolean {
-  return teamMembers(state).some((h) => operatedWorkers(state, h.id).length > 0 && overLimit(state, h.id));
+  return overLimit(state);
 }

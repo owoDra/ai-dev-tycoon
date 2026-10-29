@@ -57,21 +57,12 @@ export function validateContent(
   return errors;
 }
 
-/** 社員の Seat と、AI Worker の運用者の参照を検査する */
+/** Seat の id の重複を検査する */
 function validateTeam(c: Content): string[] {
-  const errors = duplicates(
+  return duplicates(
     'Seat',
     c.seats.map((s) => s.id),
   );
-  for (const w of c.workers) {
-    if (w.kind === 'human' && !c.seats.some((s) => s.id === w.seat))
-      errors.push(`Worker ${w.id}: 未定義の Seat ${w.seat}`);
-    if (w.kind === 'ai' && w.operatorId !== undefined) {
-      const op = c.workers.find((x) => x.id === w.operatorId);
-      if (op?.kind !== 'human') errors.push(`Worker ${w.id}: 運用者 ${w.operatorId} が人間の Worker ではない`);
-    }
-  }
-  return errors;
 }
 
 /** 案件の型の検査。業種があり、複製する Task と省く Task が型の中にあり、省いても Task が残る */

@@ -9,7 +9,7 @@ import { deserialize, OutdatedSaveError, serialize } from '../../src/core/serial
 import { createInitialState, type GameState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { talentId } from '../../src/core/talent';
-import { operatorOf, signingFee, teamMembers } from '../../src/core/team';
+import { signingFee, teamMembers, usageLimit } from '../../src/core/team';
 import { teamView } from '../../src/view/team';
 
 const DAY = balance.time.minutesPerDay;
@@ -36,7 +36,7 @@ describe('採用と退職（Hire / Release）', () => {
     const id = s.market.candidates[0] ?? '';
     const r = reduce(s, hireCmd(id));
     expect(r.events).toEqual([{ type: 'StaffJoined', staffId: id }]);
-    expect(r.state.team[id]).toEqual({ seat: 'standard', used: 0 });
+    expect(r.state.team[id]).toEqual({});
     expect(r.state.humanQueues[id]).toEqual([]);
     expect(r.state.market.candidates).not.toContain(id);
     expect(r.state.hireCost).toBe(getHuman(id).dailyRate * balance.hire.signingDays);
@@ -93,12 +93,12 @@ describe('採用と退職（Hire / Release）', () => {
     expect(reduce(s, releaseCmd('sato')).state.team.sato).toBeUndefined();
   });
 
-  it('AI Worker の運用者が退職したら、最初に入社した社員が運用を引き継ぐ', () => {
+  it('Seat は会社のものなので、社員が退職しても AI の使用量の上限と Seat の固定費は変わらない', () => {
     const s = fresh();
-    expect(operatorOf(s, 'agent')).toBe('suzuki');
     const r = reduce(s, releaseCmd('suzuki')).state;
-    expect(operatorOf(r, 'agent')).toBe('sato');
-    expect(teamView(r).members[0]?.operator).toBe(true);
+    expect(r.seats).toEqual(s.seats);
+    expect(usageLimit(r)).toBe(usageLimit(s));
+    expect(teamView(r).monthlyTotal).toBe(teamView(s).monthlyTotal);
   });
 
   it('採用と退職は、キャンペーンでは最初の案件を納品するまで（チュートリアルの間）できない', () => {
@@ -174,11 +174,11 @@ describe('セーブと再開', () => {
     const id = talentId('watanabe');
     const current = {
       ...base,
-      team: { ...base.team, [id]: { seat: 'premium' as const, used: 3 } },
+      team: { ...base.team, [id]: {} },
       humanQueues: { ...base.humanQueues, [id]: [{ projectId: P, taskId: 'hearing', queuedAt: 0 }] },
     };
     const loaded = deserialize(serialize(current));
-    expect(loaded.team[id]).toEqual({ seat: 'premium', used: 3 });
+    expect(loaded.team[id]).toEqual({});
     expect(loaded.humanQueues[id]).toHaveLength(1);
     expect(getHuman(id).id).toBe(id);
     expect(loaded.market.candidates).toHaveLength(tierOf(loaded).candidates);

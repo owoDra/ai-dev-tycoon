@@ -61,6 +61,8 @@ export function holds(state: GameState, c: Condition): boolean {
     }
     case 'partsOwned':
       return state.ownedParts.length >= c.count;
+    case 'projectsStarted':
+      return state.ledger.delivered + Object.keys(state.projects).length >= c.count;
     case 'usageCapped':
       return state.cappedDays >= c.count;
     case 'all':

@@ -13,6 +13,7 @@ import { cancelProject } from './contract';
 import type { GameEvent } from './events';
 import { workerHumanHours } from './expectation';
 import { isBankrupt } from './funds';
+import { ackGuide, skipGuide } from './guides';
 import { applyPreset, equipPart, removePart, setModel } from './harness';
 import { resolveIncident, settleIncidents } from './incidents';
 import { applyWorkflow, findWorkflow, saveWorkflow, type WorkflowDraft } from './library';
@@ -84,6 +85,10 @@ export type Command =
   | { readonly type: 'AnswerPoach'; readonly staffId: string; readonly retain: boolean }
   /** チュートリアルをやめる。残りの機能をすべて解放し、案件はそのまま続ける */
   | { readonly type: 'SkipTutorial' }
+  /** チュートリアルの後の案内の「わかった」（core/guides.ts） */
+  | { readonly type: 'AckGuide' }
+  /** 案内の今の章を飛ばす。all なら以後の章もすべて飛ばす */
+  | { readonly type: 'SkipGuide'; readonly all?: boolean }
   /** AI Worker の Session に渡す資料を決める（企画書10章）。pick の資料は、その AI Worker が作業する案件のもの */
   | { readonly type: 'SetContextFeed'; readonly workerId: string; readonly feed: ContextFeed }
   /** 次の Reset で残す項目を決める（企画書11章） */
@@ -197,6 +202,11 @@ function apply(state: GameState, command: Command): Transition {
       if (!state.tutorial) return unchanged(state);
       // 案内をやめるだけで、機能は渡さない（解放は遊んだ人と同じ条件で起きる）
       return { state: { ...state, tutorial: null }, events: [{ type: 'TutorialEnded', skipped: true }] };
+    }
+    case 'AckGuide':
+    case 'SkipGuide': {
+      const next = command.type === 'AckGuide' ? ackGuide(state) : skipGuide(state, command.all === true);
+      return next === state ? unchanged(state) : { state: next, events: [] };
     }
     case 'Hire': {
       if (!isUnlocked(state, 'hire')) return unchanged(state);

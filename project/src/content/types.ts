@@ -204,6 +204,8 @@ export type Condition =
   | { readonly type: 'tier'; readonly tier: CompanyTierId }
   /** 会社の資産になった Harness の部品（導入済み）が count 個以上 */
   | { readonly type: 'partsOwned'; readonly count: number }
+  /** 始めた（受注した）案件の数が count 以上（チュートリアルの案件と、記録に移した納品済みの案件を含む） */
+  | { readonly type: 'projectsStarted'; readonly count: number }
   /** AI の使用量が Seat の上限に達した営業日の数が count 以上 */
   | { readonly type: 'usageCapped'; readonly count: number }
   /** すべてを満たす */
@@ -335,6 +337,27 @@ export interface TutorialScript {
   readonly steps: readonly TutorialStepDef[];
   /** この条件を満たしたらチュートリアルを終える */
   readonly completeWhen: Condition;
+}
+
+/** チュートリアルの後の案内の章（content/guides.ts）。文言は i18n の ja.guides */
+export type GuideChapterId = 'firstOrder' | 'money' | 'startup' | 'small' | 'mid' | 'large';
+
+/** 案内で照らす場所。board：案件ボードの入口 / nextDay：日を進めるボタン / strip：会社の帯 / null：照らさない */
+export type GuideSpot = 'board' | 'nextDay' | 'strip' | null;
+
+export interface GuideStepDef {
+  /** 文言の id（i18n の ja.guides.say） */
+  readonly say: string;
+  readonly spot: GuideSpot;
+  /** この条件を満たしたら次へ進む。ack なら「わかった」（AckGuide）で進む */
+  readonly done: Condition | 'ack';
+}
+
+export interface GuideChapterDef {
+  readonly id: GuideChapterId;
+  /** チュートリアルを終えた会社で、この条件を満たしたら始める（ほかの章の途中なら、それが終わってから） */
+  readonly start: Condition;
+  readonly steps: readonly GuideStepDef[];
 }
 
 /** 資料（企画書9〜10章）。AI に渡すと Context を占める。文言は i18n の ja.documents */

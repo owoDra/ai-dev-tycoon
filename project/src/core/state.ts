@@ -9,6 +9,7 @@ import type {
   ContextFeed,
   ContextStatId,
   FeatureId,
+  GuideChapterId,
   HandoffItemId,
   IncidentId,
   IndustryId,
@@ -381,6 +382,13 @@ export interface TutorialRun {
   readonly step: number;
 }
 
+/** 進めているチュートリアルの後の案内の章（core/guides.ts） */
+export interface GuideRun {
+  readonly chapter: GuideChapterId;
+  /** 今のステップの添字 */
+  readonly step: number;
+}
+
 /**
  * ゲームの全状態。JSON にそのままシリアライズできる値（数値・文字列・真偽値・配列・素のオブジェクト）だけを持つ。
  * Map・class・関数・undefined は入れない。
@@ -414,6 +422,10 @@ export interface GameState {
   readonly revealed: readonly TermId[];
   /** 進行中のチュートリアル。チュートリアルでなければ null */
   readonly tutorial: TutorialRun | null;
+  /** 進めている案内の章。なければ null */
+  readonly guide: GuideRun | null;
+  /** 終えた・飛ばした案内の章 */
+  readonly guidesDone: readonly GuideChapterId[];
   /** AI Worker ごとの Session（AI Worker の id がキー） */
   readonly sessions: Readonly<Record<string, SessionRun>>;
   /** 発生中の事件（発生した順） */
@@ -524,6 +536,8 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     fresh: [],
     revealed: tutorial ? [] : glossary.map((g) => g.id),
     tutorial: tutorial ? { step: 0 } : null,
+    guide: null,
+    guidesDone: [],
     sessions: createSessions(),
     incidents: [],
     contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },

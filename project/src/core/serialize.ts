@@ -1,9 +1,10 @@
+import { guideChapters } from '../content/guides';
 import { migratePartIds } from '../content/harness/legacy';
 import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
@@ -154,6 +155,12 @@ export const MIGRATIONS: readonly Migration[] = [
   // v22 → v23：仕組みの取捨選択（Phase 38）。担当モード「人間 → AI」をなくし、同じ形の工程（人間 → AI）を持つ「AI」に置き換える。
   // 細かく分かれていた解放を束にまとめ、Seat の購入を別の解放にする（社員の画面を開けていた会社は、Seat も買える）
   { from: 22, migrate: (state) => migratePhase38(state) },
+  // v23 → v24：チュートリアルの後の案内（Phase 40）。すでに遊んでいる会社には出さない（すべて終えたことにする）
+  {
+    from: 23,
+    migrate: (state) =>
+      isRecord(state) ? { ...state, guide: null, guidesDone: guideChapters.map((c) => c.id) } : state,
+  },
 ];
 
 /** Phase 38 で束にまとめた機能の、古い id から新しい id への対応 */
@@ -277,6 +284,8 @@ function isGameState(v: unknown): v is GameState {
     Array.isArray(v.fresh) &&
     Array.isArray(v.revealed) &&
     (v.tutorial === null || isRecord(v.tutorial)) &&
+    (v.guide === null || isRecord(v.guide)) &&
+    Array.isArray(v.guidesDone) &&
     isRecord(v.sessions) &&
     Array.isArray(v.incidents) &&
     isRecord(v.contextStats) &&

@@ -4,11 +4,12 @@ import { loadProgress, markTutorialDone, progress } from '../../src/app/progress
 import { createGameStore, type GameStore } from '../../src/app/store';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { tutorialScript } from '../../src/content/tutorial';
+import { advanceGuides } from '../../src/core/guides';
 import { createInitialState } from '../../src/core/state';
 import { ja } from '../../src/i18n/ja';
 import { PlayScreen } from '../../src/ui/play/PlayScreen';
 import { TermCards } from '../../src/ui/play/TermCards';
-import { findHighlight } from '../../src/ui/play/TutorialCoach';
+import { findHighlight, TutorialCoach } from '../../src/ui/play/TutorialCoach';
 import { TitleScreen } from '../../src/ui/screens/TitleScreen';
 import { createSelection } from '../../src/ui/selection';
 import { islandId, worldView } from '../../src/view/world';
@@ -170,5 +171,24 @@ describe('チュートリアルの完了フラグ', () => {
     expect(buttons).toHaveLength(1);
     buttons[0]?.click();
     expect(retried).toBe(1);
+  });
+});
+
+describe('チュートリアルの後の案内（同じ吹き出しで出す）', () => {
+  it('章の名前と文言を出し、「わかった」で進み、「案内をすべて飛ばす」で消える。画面は暗くしない', () => {
+    const base = createInitialState('guide-ui', { board: true, tutorial: false });
+    const store = createGameStore(advanceGuides({ ...base, ledger: { ...base.ledger, delivered: 1 } }));
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(() => <TutorialCoach store={store} padding={4} />, root);
+    expect(root.querySelector('[data-guide-coach]')).not.toBeNull();
+    expect(bubble(root)).toContain(ja.guides.chapters.firstOrder);
+    expect(bubble(root)).toContain(ja.guides.say.result);
+    root.querySelector<HTMLButtonElement>('[data-guide-ok]')?.click();
+    expect(bubble(root)).toContain(ja.guides.say.openBoard);
+    // 条件で進むステップには「わかった」を出さない
+    expect(root.querySelector('[data-guide-ok]')).toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-guide-skip-all]')?.click();
+    expect(root.querySelector('[data-coach-bubble]')).toBeNull();
   });
 });

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { clearCompany, loadCompany, loadSavedAt, saveCompany } from '../../src/app/save';
+import { guideChapters } from '../../src/content/guides';
 import { reduce } from '../../src/core/commands';
 import { deserialize, SAVE_VERSION, serialize } from '../../src/core/serialize';
-import { createInitialState } from '../../src/core/state';
+import { createInitialState, type GameState } from '../../src/core/state';
 
 /** localStorage の代わり */
 function memory() {
@@ -94,7 +95,7 @@ describe('Phase 26 の部品の読み替え（core/serialize.ts の v14 → v15�
         ],
       },
     };
-    expect(SAVE_VERSION).toBe(23);
+    expect(SAVE_VERSION).toBe(24);
     const s = deserialize(JSON.stringify(old));
     // 権限モードは1つだけ（後のものが残る）
     expect(s.harnesses.agent?.parts).toEqual(['mcpGit', 'permAuto', 'skillReport']);
@@ -134,12 +135,15 @@ describe('結果待ちの見積の取り下げ（core/serialize.ts の v18 → v
   });
 });
 
+/** v24 より前のセーブは遊んでいる会社なので、チュートリアルの後の案内をすべて終えたことにして読み込む（v23 → v24） */
+const played = (state: GameState): GameState => ({ ...state, guidesDone: guideChapters.map((c) => c.id) });
+
 describe('速度と一時停止をなくす（core/serialize.ts の v19 → v20）', () => {
   it('速度と一時停止を落とし、ほかはそのまま読み込む（日の途中のセーブは、次に進めたときにその日の終わりまで進む）', () => {
     const state = { ...createInitialState('v19', { board: true }), clock: 300 };
     const old = { saveVersion: 19, state: { ...state, speed: 3, paused: true } };
     const s = deserialize(JSON.stringify(old));
-    expect(s).toEqual(state);
+    expect(s).toEqual(played(state));
     expect(s).not.toHaveProperty('speed');
     expect(s).not.toHaveProperty('paused');
   });
@@ -156,7 +160,7 @@ describe('案件の契約と受注の見直し（core/serialize.ts の v20 → v
     const board = { ...state.board, results: [{ projectId: 'p~1~S', outcome: 'won', amount: 1, winChance: 1, at: 0 }] };
     const old = { saveVersion: 20, state: { ...rest, projects, board } };
     const s = deserialize(JSON.stringify(old));
-    expect(s).toEqual(state);
+    expect(s).toEqual(played(state));
     expect(s.projects.tutorialLp).toMatchObject({ burningAt: null, cancelled: null });
     expect(s.valuationHit).toBe(0);
     expect(s.board).not.toHaveProperty('results');
@@ -170,7 +174,7 @@ describe('Seat を会社単位で買う（core/serialize.ts の v21 → v22）',
     const team = { sato: { seat: 'premium', used: 40 }, suzuki: { seat: 'standard', used: 12 } };
     const old = { saveVersion: 21, state: { ...rest, team } };
     const s = deserialize(JSON.stringify(old));
-    expect(s).toEqual({ ...state, seats: { standard: 1, premium: 1 }, usage: 52 });
+    expect(s).toEqual(played({ ...state, seats: { standard: 1, premium: 1 }, usage: 52 }));
     expect(s.team).toEqual({ sato: {}, suzuki: {} });
   });
 });
@@ -216,5 +220,14 @@ describe('仕組みの取捨選択（core/serialize.ts の v22 → v23）', () =
     expect(s.unlocked).toEqual(['mode:human', 'team', 'context', 'harness', 'harness:tool', 'seats']);
     expect(s.fresh).toEqual(['session', 'harness:tool']);
     expect(s.cappedDays).toBe(0);
+  });
+});
+
+describe('チュートリアルの後の案内（core/serialize.ts の v23 → v24）', () => {
+  it('すでに遊んでいる会社には案内を出さない（すべての章を終えたことにする）', () => {
+    const { guide, guidesDone, ...rest } = createInitialState('v23', { board: true, tutorial: false });
+    const s = deserialize(JSON.stringify({ saveVersion: 23, state: rest }));
+    expect(s.guide).toBeNull();
+    expect(s.guidesDone).toEqual(guideChapters.map((c) => c.id));
   });
 });

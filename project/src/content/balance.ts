@@ -554,21 +554,41 @@ export const balance = {
     maxNameLength: 20,
   },
   /**
-   * 実務モード（core/practice.ts）。実際の業務の1回分を、ゲームと同じ式（工程 = Task、作業量 = 今の人間の分）で見積もる。
-   * 人間は入力した本人（熟練度 1）とし、Model の費用・部品の導入コストはゲームと同じ円で数える
+   * 持ち込み（core/bring.ts）。読み込んだ Claude Code の設定を評価して、Harness の部品（持ち込みカード）にする。
+   * 補正は同じカテゴリの雛形の部品（content/bring.ts の bringTemplates）を 点 / 100 × maxStrength の強さで効かせたもの。
+   * 雛形はカテゴリで最も良い同梱の部品なので、満点のカードをそろえると同梱の部品の組より少し強い。
+   * maxStrength を 1 にして、満点でも同梱の最も良い部品を超えないようにする（tests/balance/bring.test.ts）
    */
-  practice: {
-    /** 頻度ごとの1年の実施回数（毎日は営業日） */
-    runsPerYear: { daily: 240, weekly: 52, monthly: 12 },
-    /** 人件費の既定値（円/人日）。人件費の換算と ROI に使う */
-    dailyWage: 32_000,
-    /** 工程の数の上限 */
-    maxSteps: 8,
-    /** 業務名・工程名の長さの上限（文字） */
-    maxNameLength: 30,
-    /** 1工程の人間時間の上限（分） */
-    maxStepMinutes: 600,
-    /** 1年の実施回数の上限（入力で変えるとき） */
-    maxRunsPerYear: 5000,
+  bring: {
+    /** 読み込みの上限。ファイルの数・1ファイルの大きさ（バイト）・合計の大きさ（バイト）・zip そのものの大きさ（バイト）・作るカードの数 */
+    limits: { files: 200, fileBytes: 100_000, totalBytes: 2_000_000, zipBytes: 4_000_000, cards: 40 },
+    /** カードの名前の長さの上限（文字。部品の id に入れる） */
+    maxNameLength: 24,
+    /** 1枚のカードが効く仕事の種類の上限（CLAUDE.md と権限を除く。毎回読むものと、すべての操作にかかるもの） */
+    maxKinds: 3,
+    /** 満点（100点）のときの、雛形の部品に対する補正の強さ */
+    maxStrength: 1,
+    /** 導入コストの、雛形の部品に対する倍率（自分の設定をゲームの会社に入れる手間） */
+    costRatio: 1,
+    /** CLAUDE.md・Rules の行数を、ゲームの書いた量（size）に直す：切り上げ（行数 / linesPerSize）。上限 maxSize */
+    linesPerSize: 15,
+    maxSize: 40,
+    /** 観点の目安 */
+    skillMaxLines: 300,
+    minSteps: 3,
+    agentMaxTools: 6,
+    claudeMdLines: { min: 10, max: 200 },
+    rulesMaxLines: 120,
+    mcpMaxServers: 3,
+    /** 持ち寄りバトル（core/battle.ts）の案件の規模と、合言葉の長さの上限（文字） */
+    battleSize: 'M',
+    battleWordLength: 16,
+  },
+  /**
+   * プラグインの書き出し（core/pluginExport.ts）。会社の規模ごとに、プラグインに入れられる Workflow の数の上限。
+   * 会社が大きくなるほど、持ち帰れる Workflow が増える
+   */
+  pluginExport: {
+    workflowsByTier: { solo: 1, startup: 2, small: 4, mid: 6, large: 10 },
   },
 } as const;

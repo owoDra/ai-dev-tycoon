@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!src/assets/generated", "!src/styles/tokens.css"]
+    "includes": ["**", "!src/assets/generated", "!src/styles/tokens.css", "!tests/fixtures"]
   },
   "formatter": {
     "enabled": true,

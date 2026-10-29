@@ -3,6 +3,7 @@ import { getHarnessPart, getProject, humans } from '../content/index';
 import type { AssignModeId, ContextFeed, Stage } from '../content/types';
 import { expectedImpact } from '../core/attribution';
 import { stageTimes } from '../core/bottleneck';
+import { type BringSummary, bringSummary, isBroughtPartId } from '../core/bring';
 import { reduce } from '../core/commands';
 import { getSession } from '../core/context';
 import { isDelivered } from '../core/contract';
@@ -118,7 +119,14 @@ export function resultRecord(state: GameState, projectId: string): ResultRecord 
     quality: score.quality,
     elapsedMinutes: score.elapsedMinutes,
     rank: rankOf(score.profitPerPersonDay, baselineProfitPerPersonDay(projectId), score.completed),
+    ...broughtOf(state),
   };
+}
+
+/** 会社で導入した持ち込みカード（導入コストを払った = 一度は付けた）の要約。なければ省く */
+function broughtOf(state: GameState): { brought?: BringSummary[] } {
+  const brought = bringSummary(state.ownedParts.filter(isBroughtPartId));
+  return brought.length > 0 ? { brought } : {};
 }
 
 /** 結果画面の ViewModel（純粋関数）。案件が始まっていなければ null */

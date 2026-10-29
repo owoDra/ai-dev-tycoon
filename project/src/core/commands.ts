@@ -7,6 +7,7 @@ import { seats } from '../content/seats';
 import type { AssignModeId, ContextFeed, FeatureId, HandoffItemId, IncidentId, SeatId } from '../content/types';
 import { modeFeature } from '../content/unlocks';
 import { canStartProject } from './board';
+import { broughtPart } from './bring';
 import { answerPoach } from './companyEvents';
 import { newSession, updateSession } from './context';
 import { cancelProject } from './contract';
@@ -104,6 +105,8 @@ export type Command =
   /** Harness 部品を装着する。同じ group の部品は付け替える。初めての部品は導入コストを払う */
   | { readonly type: 'EquipPart'; readonly workerId: string; readonly partId: string }
   | { readonly type: 'RemovePart'; readonly workerId: string; readonly partId: string }
+  /** Harness Builder で選べる持ち込みカード（core/bring.ts の部品の id）を入れ替える。読めない id は除く。付けている部品はそのまま */
+  | { readonly type: 'SetBroughtParts'; readonly parts: readonly string[] }
   /** おすすめ構成（content/harness/guide.ts）に入れ替える。今の部品を外し、解放済みの部品だけを付ける（Model と資料の渡し方は変えない） */
   | { readonly type: 'ApplyHarnessPreset'; readonly workerId: string; readonly presetId: string }
   /**
@@ -298,6 +301,11 @@ function apply(state: GameState, command: Command): Transition {
     case 'EquipPart': {
       const next = equipPart(state, command.workerId, command.partId, (p) => isUnlocked(state, p.unlock));
       return harnessChanged(state, next, command.workerId, 'equip', command.partId);
+    }
+    case 'SetBroughtParts': {
+      const brought = [...new Set(command.parts.filter((id) => broughtPart(id) !== undefined))];
+      if (brought.join() === state.brought.join()) return unchanged(state);
+      return { state: { ...state, brought }, events: [] };
     }
     case 'RemovePart': {
       const next = removePart(state, command.workerId, command.partId);

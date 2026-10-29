@@ -47,6 +47,8 @@ export function ResultScreen(props: {
   /** 案件ボードへ戻る（会社） */
   onNext?: () => void;
   onTitle: () => void;
+  /** ハーネスを Claude Code のプラグインとして持ち帰る（Phase 43） */
+  onExport?: () => void;
   /** 「この構成を保存する」（Workflow Library への保存は Phase 16） */
   onSaveWorkflow?: (snapshot: WorkflowSnapshot) => void;
 }) {
@@ -296,6 +298,14 @@ export function ResultScreen(props: {
               <Icon name={saved() ? 'success' : 'workflow'} />
               {saved() ? t.savedWorkflow : t.saveWorkflow}
             </button>
+          </Show>
+          <Show when={props.onExport}>
+            {(open) => (
+              <button type="button" class={ghostButton} data-open-export onClick={() => open()()}>
+                <Icon name="release" />
+                {ja.pluginExport.open}
+              </button>
+            )}
           </Show>
           <button type="button" class={ghostButton} onClick={() => props.onTitle()}>
             {t.toTitle}

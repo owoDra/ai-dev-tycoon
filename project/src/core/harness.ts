@@ -1,5 +1,5 @@
 import { balance } from '../content/balance';
-import { content, findWorker, getAiWorker, getHarnessPart, getModel } from '../content/index';
+import { content, findHarnessPart, findWorker, getAiWorker, getHarnessPart, getModel } from '../content/index';
 import type {
   HarnessCategory,
   HarnessModifierKey,
@@ -249,7 +249,7 @@ export function equipPart(
   partId: string,
   isUnlocked: (part: HarnessPartDef) => boolean,
 ): GameState {
-  const part = content.harnessParts.find((p) => p.id === partId);
+  const part = findHarnessPart(partId);
   if (!isAi(workerId) || !part || !isUnlocked(part) || isEquipped(state, workerId, partId)) return state;
   let next = charge(state, part);
   if (part.category === 'contextRouter') {

@@ -1,7 +1,7 @@
 import type { IconName } from '../assets/icons';
 import { balance } from '../content/balance';
 import { harnessPresets, type MistakeStopper, mistakes } from '../content/harness/guide';
-import { content, getAiWorker, getModel } from '../content/index';
+import { content, findHarnessPart, getAiWorker, getModel } from '../content/index';
 import type {
   ContextFeed,
   FeatureId,
@@ -58,6 +58,8 @@ export interface HarnessPartView {
   readonly burden: readonly ModifierLine[];
   /** 効く仕事の種類の名前（空ならすべての仕事に効く補正はない） */
   readonly appliesTo: readonly string[];
+  /** 持ち込みカードの部品（core/bring.ts） */
+  readonly brought: boolean;
 }
 
 export interface ModifierLine {
@@ -239,7 +241,7 @@ const sign = (v: number) => (v > 0 ? `+${v}` : `${v}`);
 const percent = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
 
 /** 補正の値を読める形にする（倍率は ×、確率・割合は %） */
-function modifierLines(mods: Partial<HarnessModifiers>): ModifierLine[] {
+export function modifierLines(mods: Partial<HarnessModifiers>): ModifierLine[] {
   return (Object.entries(mods) as [keyof HarnessModifiers, number][]).map(([key, v]) => ({
     label: t.modifierNames[key],
     value:
@@ -251,10 +253,7 @@ function modifierLines(mods: Partial<HarnessModifiers>): ModifierLine[] {
   }));
 }
 
-/**
- * Harness Builder に表示する構成。ゲームでは AI Worker の state から（harnessSource）、
- * 実務モードでは工程の入力から作る（view/practice.ts）。選択肢の Command は workerId 宛てに作る
- */
+/** Harness Builder に表示する構成。AI Worker の state から作る（harnessSource）。選択肢の Command は workerId 宛てに作る */
 export interface HarnessSource {
   readonly workerId: string;
   readonly modelId: string;
@@ -263,8 +262,10 @@ export interface HarnessSource {
   readonly isUnlocked: (feature: FeatureId) => boolean;
   /** 導入コストを払い済みの部品か */
   readonly owned: (partId: string) => boolean;
-  /** 資料の渡し方。資料のない案件・Context が未解放・実務モードでは null（渡し方と Context Router の選択肢を出さない） */
+  /** 資料の渡し方。資料のない案件・Context が未解放なら null（渡し方と Context Router の選択肢を出さない） */
   readonly feed: ContextFeed['mode'] | null;
+  /** 選べる持ち込みカードの部品（core/bring.ts） */
+  readonly brought: readonly HarnessPartDef[];
 }
 
 /** AI Worker の Harness Builder の構成 */
@@ -277,6 +278,7 @@ export function harnessSource(state: GameState, projectId: string, workerId: str
     isUnlocked: (f) => isUnlocked(state, f),
     owned: (id) => state.ownedParts.includes(id),
     feed: showFeed ? getSession(state, workerId).feed.mode : null,
+    brought: state.brought.flatMap((id) => findHarnessPart(id) ?? []),
   };
 }
 
@@ -288,6 +290,7 @@ function partView(src: HarnessSource, part: HarnessPartDef): HarnessPartView {
     modifiers: modifierLines(part.modifiers),
     burden: modifierLines({ ...part.burden, ...part.offTarget }),
     appliesTo: part.appliesTo.map((k) => t.kinds[k]),
+    brought: part.origin === 'brought',
   };
 }
 
@@ -308,11 +311,11 @@ function toggleOption(src: HarnessSource, part: HarnessPartDef, hint: string | n
 }
 
 const partsOf = (src: HarnessSource, category: HarnessCategory) =>
-  content.harnessParts.filter((p) => p.category === category && src.isUnlocked(p.unlock));
+  [...content.harnessParts, ...src.brought].filter((p) => p.category === category && src.isUnlocked(p.unlock));
 
 const equippedOf = (src: HarnessSource, categories: readonly HarnessCategory[]) =>
   src.equipped
-    .map((id) => content.harnessParts.find((p) => p.id === id))
+    .map(findHarnessPart)
     .filter((p): p is HarnessPartDef => p !== undefined && categories.includes(p.category));
 
 /** 盾のパネル：そのタイミングのルールごとに「なし / お願い / Hook」 */
@@ -337,7 +340,8 @@ function shieldGroups(src: HarnessSource, timing: HookTiming): HarnessGroupView[
       // 選択中のものを押しても外さない（外すのは「なし」）
       command: isOn(src, p.id) ? null : ({ type: 'EquipPart', workerId, partId: p.id } as Command),
     }));
-    return { title: t.rules[group as keyof typeof t.rules] ?? group, options: [none, ...options] };
+    const title = t.rules[group as keyof typeof t.rules] ?? parts[0]?.name ?? group;
+    return { title, options: [none, ...options] };
   });
 }
 
@@ -383,12 +387,31 @@ const kindNames = (kinds: readonly TaskKind[]) =>
       ? [t.sort.noKinds]
       : kinds.map((k) => t.kinds[k]);
 
+/** 持ち込みの Rules のカード。Rules に置くか、渡さないか */
+function broughtRuleCard(src: HarnessSource, r: HarnessPartDef): RuleCardView {
+  const workerId = src.workerId;
+  const place: RulePlace = isOn(src, r.id) ? 'rules' : 'none';
+  const command: Command =
+    place === 'rules' ? { type: 'RemovePart', workerId, partId: r.id } : { type: 'EquipPart', workerId, partId: r.id };
+  const to: RulePlace = place === 'rules' ? 'none' : 'rules';
+  return {
+    key: r.id,
+    name: r.name,
+    size: r.size ?? 0,
+    kinds: kindNames(r.appliesTo),
+    place,
+    moves: [{ place: to, id: `${r.id}:${to}`, command }],
+  };
+}
+
 /** 受け取る：ルールのカードの仕分け。カードは CLAUDE.md と Rules の部品の組（同じ group） */
 function ruleSort(src: HarnessSource): RuleSortView {
   const workerId = src.workerId;
-  const md = partsOf(src, 'claudeMd');
+  // 持ち込みの Rules（CLAUDE.md の組がない）は、Rules に置くか渡さないかだけを選べるカードにする
+  const md = [...partsOf(src, 'claudeMd'), ...partsOf(src, 'rules').filter((r) => r.group === undefined)];
   const cards = md.map((m): RuleCardView => {
-    const rule = partsOf(src, 'rules').find((r) => r.group === m.group);
+    if (m.category === 'rules') return broughtRuleCard(src, m);
+    const rule = partsOf(src, 'rules').find((r) => r.group !== undefined && r.group === m.group);
     const place: RulePlace = isOn(src, m.id) ? 'claudeMd' : rule && isOn(src, rule.id) ? 'rules' : 'none';
     const current = place === 'claudeMd' ? m : place === 'rules' ? rule : undefined;
     const target = (p: RulePlace): Command | null => {
@@ -466,14 +489,14 @@ function mistakeViews(src: HarnessSource): MistakeView[] {
   });
 }
 
-const groupOfPart = (id: string) => content.harnessParts.find((p) => p.id === id)?.group;
+const groupOfPart = (id: string) => findHarnessPart(id)?.group;
 
 /** Harness Builder。解放されていないパネルは出さず、道のスロットと盾は「まだ使えません」にする */
 export function harnessView(state: GameState, projectId: string, workerId: string): HarnessView {
   return harnessCard(harnessSource(state, projectId, workerId), getAiWorker(workerId).name);
 }
 
-/** 構成から Harness Builder を作る（ゲームと実務モードで共通） */
+/** 構成から Harness Builder を作る */
 export function harnessCard(src: HarnessSource, title: string): HarnessView {
   const unlocked = (row: HarnessRowId) => src.isUnlocked(ROWS[row].feature);
   const rows: HarnessRowView[] = ROW_ORDER.filter(unlocked).map((id) => ({

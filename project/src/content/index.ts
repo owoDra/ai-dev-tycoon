@@ -1,3 +1,4 @@
+import { broughtPart } from '../core/bring';
 import { generateProject } from '../core/projectGen';
 import { generateTalent } from '../core/talent';
 import { generateAgent } from '../core/teams';
@@ -93,8 +94,13 @@ export function getModel(id: string): ModelDef {
   return m;
 }
 
+/** Harness 部品の定義。持ち込みカードの部品（core/bring.ts の `x~` で始まる id）も、id から再生成して返す。未定義なら undefined */
+export function findHarnessPart(id: string): HarnessPartDef | undefined {
+  return content.harnessParts.find((x) => x.id === id) ?? broughtPart(id);
+}
+
 export function getHarnessPart(id: string): HarnessPartDef {
-  const p = content.harnessParts.find((x) => x.id === id);
+  const p = findHarnessPart(id);
   if (!p) throw new Error(`未定義の Harness 部品: ${id}`);
   return p;
 }

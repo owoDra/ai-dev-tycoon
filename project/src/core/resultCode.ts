@@ -1,14 +1,18 @@
 import { balance } from '../content/balance';
+import { bringCategories } from '../content/bring';
 import { companyTiers } from '../content/companyTiers';
 import { content } from '../content/index';
 import type { CompanyTierId } from '../content/types';
 import { ByteReader, ByteWriter, crc16, openCode, sealCode } from '../lib/codec';
+import type { BringSummary } from './bring';
 import { RESULT_CODE_FORMAT } from './serialize';
 
 /*
  * 結果コード（企画書28章「同じ Claude を使ったのに、なぜ結果が違ったのか」を比べるためのスコアの書き出し）。
  * 案件1件の主要指標を、読み上げやすい短い英数字にする。インターネットには接続せず、コピーか QR コードで渡す。
- * 中身は [形式のバージョン, ビルドの指紋, seed, 案件の並び順, 指標..., ランク] で、チェックサムと Base32 は lib/codec.ts が受け持つ。
+ * 中身は [形式のバージョン, ビルドの指紋, seed, 案件, 指標..., ランク, 持ち込みカードの数, (カテゴリ, 点)...] で、
+ * チェックサムと Base32 は lib/codec.ts が受け持つ。案件は固定の案件ならデータの並び順 + 1、生成した案件なら 0 の後ろに id を書く。
+ * 持ち込みカード（持ち寄りバトル）はカテゴリと点だけを入れ、設定の中身は入れない。
  */
 
 /** 形式のバージョン（数値は形式のバージョンをまとめている core/serialize.ts に置く） */
@@ -31,6 +35,8 @@ export interface ResultRecord {
   /** 案件開始から納品までの時間 */
   readonly elapsedMinutes: number;
   readonly rank: ResultRank;
+  /** 使った持ち込みカードの要約（カテゴリと点。core/bring.ts）。なければ省く */
+  readonly brought?: readonly BringSummary[];
 }
 
 export type DecodeError =
@@ -65,14 +71,18 @@ export function encodeResultCode(record: ResultRecord, options: EncodeOptions = 
     .byte(options.version ?? RESULT_CODE_VERSION)
     .u16(options.build ?? buildFingerprint())
     .text(record.seed)
-    .uint(content.projects.findIndex((p) => p.id === record.projectId))
-    .int(record.profit)
+    .uint(content.projects.findIndex((p) => p.id === record.projectId) + 1);
+  if (!content.projects.some((p) => p.id === record.projectId)) w.text(record.projectId);
+  w.int(record.profit)
     .int(record.profitPerPersonDay)
     .uint(record.humanMinutes)
     .uint(record.aiCost)
     .ratio(record.quality)
     .uint(record.elapsedMinutes)
     .byte(RANKS.indexOf(record.rank));
+  const brought = record.brought ?? [];
+  w.uint(brought.length);
+  for (const b of brought) w.uint(bringCategories.indexOf(b.category)).uint(b.score);
   return sealCode(w.bytes);
 }
 
@@ -84,9 +94,11 @@ export function decodeResultCode(code: string): DecodeResult {
     const r = new ByteReader(opened.bytes);
     if (r.byte() !== RESULT_CODE_VERSION) return { ok: false, error: 'version' };
     const build = r.u16();
+    const seed = r.text();
+    const at = r.uint();
+    const head = { seed, projectId: at === 0 ? r.text() : projectAt(at - 1) };
     const record: ResultRecord = {
-      seed: r.text(),
-      projectId: projectAt(r.uint()),
+      ...head,
       profit: r.int(),
       profitPerPersonDay: r.int(),
       humanMinutes: r.uint(),
@@ -95,8 +107,10 @@ export function decodeResultCode(code: string): DecodeResult {
       elapsedMinutes: r.uint(),
       rank: rankAt(r.byte()),
     };
+    const brought = Array.from({ length: r.uint() }, () => ({ category: categoryAt(r.uint()), score: r.uint() }));
     if (!r.done()) return { ok: false, error: 'format' };
-    return { ok: true, record, sameBuild: build === buildFingerprint() };
+    const full = brought.length > 0 ? { ...record, brought } : record;
+    return { ok: true, record: full, sameBuild: build === buildFingerprint() };
   } catch {
     return { ok: false, error: 'format' };
   }
@@ -107,6 +121,12 @@ function projectAt(i: number): string {
   const project = content.projects[i];
   if (!project) throw new RangeError(`不正な案件 ${i}`);
   return project.id;
+}
+
+function categoryAt(i: number) {
+  const category = bringCategories[i];
+  if (!category) throw new RangeError(`不正なカテゴリ ${i}`);
+  return category;
 }
 
 function rankAt(i: number): ResultRank {

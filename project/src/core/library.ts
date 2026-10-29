@@ -1,13 +1,14 @@
 import { assignModes, primaryActor } from '../content/assignModes';
 import { balance } from '../content/balance';
 import { migratePartId } from '../content/harness/legacy';
-import { content, findWorker, getProject } from '../content/index';
+import { content, findHarnessPart, findWorker, getProject } from '../content/index';
 import type { FeatureId, LibraryWorkflowDef, WorkflowContext } from '../content/types';
 import { modeFeature } from '../content/unlocks';
 import { ja } from '../i18n/ja';
 import { ByteReader, ByteWriter, openCode, sealCode } from '../lib/codec';
 import { getSession, updateSession } from './context';
 import { averageSkill } from './expectation';
+import { dailyCost, laborCost } from './formulas';
 import { equipPart, equippedParts, harnessOf, removePart, setModel } from './harness';
 import { type GameState, type LibraryUse, updateTask } from './state';
 
@@ -64,7 +65,7 @@ export function validateWorkflow(w: WorkflowDraft): WorkflowProblem[] {
   if (!mode || primaryActor(mode) !== 'ai') problems.push('mode');
   if (!content.models.some((m) => m.id === w.modelId)) problems.push('model');
   if (!CONTEXTS.includes(w.context)) problems.push('context');
-  const parts = w.parts.map((id) => content.harnessParts.find((p) => p.id === id));
+  const parts = w.parts.map(findHarnessPart);
   if (parts.some((p) => p === undefined || p.category === 'contextRouter')) problems.push('part');
   if (new Set(w.parts).size !== w.parts.length) problems.push('duplicate');
   const groups = parts.map((p) => p?.group).filter((g) => g !== undefined);
@@ -76,7 +77,7 @@ export function validateWorkflow(w: WorkflowDraft): WorkflowProblem[] {
 export function lockedFeatures(state: GameState, w: WorkflowDraft): { parts: string[]; mode: boolean } {
   const unlocked = (f: FeatureId) => state.unlocked.includes(f);
   const parts = w.parts.filter((id) => {
-    const part = content.harnessParts.find((p) => p.id === id);
+    const part = findHarnessPart(id);
     return !part || !unlocked(part.unlock);
   });
   const router = content.harnessParts.find((p) => p.id === ROUTER);
@@ -150,6 +151,8 @@ export interface WorkflowStats {
   readonly uses: number;
   /** 削減した人間時間の累計（分）。完了した Task で、人間だけで作業した場合の見込みから実際の人間時間を引いた合計 */
   readonly savedHumanMinutes: number;
+  /** 稼いだ利益（円）。削減した人間時間を、平均的な社員（balance.talent.rate.mean）の原価で人件費に直したもの */
+  readonly profit: number;
 }
 
 /**
@@ -169,7 +172,7 @@ export function workflowStats(state: GameState, workflowId: string): WorkflowSta
   const archived = state.ledger.library[workflowId];
   let uses = archived?.uses ?? 0;
   let saved = archived?.savedHumanMinutes ?? 0;
-  if (!findWorkflow(state, workflowId)) return { uses: 0, savedHumanMinutes: 0 };
+  if (!findWorkflow(state, workflowId)) return { uses: 0, savedHumanMinutes: 0, profit: 0 };
   for (const u of state.libraryUses) {
     if (u.workflowId !== workflowId) continue;
     const saving = libraryUseSaving(state, u);
@@ -177,7 +180,11 @@ export function workflowStats(state: GameState, workflowId: string): WorkflowSta
     uses++;
     saved += saving;
   }
-  return { uses, savedHumanMinutes: saved };
+  return {
+    uses,
+    savedHumanMinutes: saved,
+    profit: laborCost(saved, dailyCost({ dailyRate: balance.talent.rate.mean })),
+  };
 }
 
 /*

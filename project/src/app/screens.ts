@@ -8,7 +8,8 @@ import { type Accessor, createSignal } from 'solid-js';
  * （決算は App が画面の上に重ねて出す）。
  * 会社はチュートリアルから始まり、タイトルから直接チュートリアルの案件へ進む。プレイ中はタブで案件を切り替える。
  * 「続きから」・会社で最後の案件を納品したあと・結果の後は、ホームへ戻る。
- * 実務モード（実際の仕事の試算）はタイトルから開き、タイトルへ戻る
+ * 持ち込み（自分の Claude Code の設定をゲームの部品にする）はタイトルから開き、タイトルへ戻る。
+ * 持ち寄りバトルは持ち込みから単発の案件のプレイへ進み、結果の後に持ち込みへ戻る
  */
 export type Screen =
   | { readonly id: 'title' }
@@ -16,7 +17,7 @@ export type Screen =
   | { readonly id: 'play'; readonly projectId?: string }
   /** from は振り返りを開く前に見ていた案件（ホームからなら省く。閉じたら戻る先） */
   | { readonly id: 'result'; readonly projectId: string; readonly from?: string }
-  | { readonly id: 'practice' };
+  | { readonly id: 'bring' };
 
 /** 画面遷移のきっかけ */
 export type ScreenAction =
@@ -31,8 +32,10 @@ export type ScreenAction =
   | { readonly type: 'Switch'; readonly projectId: string }
   /** プレイ中・結果の後にホームへ戻る */
   | { readonly type: 'Home' }
-  /** タイトルから実務モードを開く */
-  | { readonly type: 'Practice' }
+  /** タイトルから持ち込みを開く。持ち寄りバトルの結果の後にも戻ってくる */
+  | { readonly type: 'Bring' }
+  /** 持ち込みから持ち寄りバトル（単発の案件）を始める */
+  | { readonly type: 'Battle'; readonly projectId: string }
   /** 納品のカードなどから、その案件の結果画面（振り返り）を開く（プレイから） */
   | { readonly type: 'Review'; readonly projectId: string }
   /** 振り返りを閉じて、開く前に見ていた画面（案件のフロアかホーム）へ戻る */
@@ -47,7 +50,7 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
     case 'Open':
       return screen.id === 'title' ? homeScreen : screen;
     case 'Back':
-      return screen.id === 'practice' ? titleScreen : screen;
+      return screen.id === 'bring' ? titleScreen : screen;
     case 'StartTutorial':
       return screen.id === 'title' ? { id: 'play', projectId: action.projectId } : screen;
     case 'Complete':
@@ -62,8 +65,10 @@ export function nextScreen(screen: Screen, action: ScreenAction): Screen {
       return screen.id === 'play' ? { id: 'play', projectId: action.projectId } : screen;
     case 'Home':
       return screen.id === 'play' || screen.id === 'result' ? homeScreen : screen;
-    case 'Practice':
-      return screen.id === 'title' ? { id: 'practice' } : screen;
+    case 'Bring':
+      return screen.id === 'title' || screen.id === 'result' ? { id: 'bring' } : screen;
+    case 'Battle':
+      return screen.id === 'bring' ? { id: 'play', projectId: action.projectId } : screen;
     case 'Review':
       if (screen.id !== 'play') return screen;
       return screen.projectId === undefined

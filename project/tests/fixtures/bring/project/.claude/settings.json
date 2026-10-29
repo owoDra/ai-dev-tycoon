@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": ["Bash(npm run lint)", "Bash(npm test:*)", "Read"],
+    "deny": ["Read(./.env)", "Read(./.env.*)", "Bash(git push:*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "npm test >&2 || exit 2" }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard.sh" }]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [{ "type": "command", "command": "notify-send 'Claude Code'" }]
+      }
+    ]
+  }
+}

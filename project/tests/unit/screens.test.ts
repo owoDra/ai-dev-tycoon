@@ -49,12 +49,16 @@ describe('画面遷移（キャンペーン）', () => {
     expect(nextScreen(titleScreen, { type: 'Home' })).toBe(titleScreen);
   });
 
-  it('実務モードはタイトルから開き、タイトルへ戻る。ほかの画面からは開かない', () => {
-    const practice = nextScreen(titleScreen, { type: 'Practice' });
-    expect(practice).toEqual({ id: 'practice' });
-    expect(nextScreen(practice, { type: 'Back' })).toEqual(titleScreen);
+  it('持ち込みはタイトルから開き、タイトルへ戻る。持ち寄りバトルは持ち込みから始め、結果の後に持ち込みへ戻る', () => {
+    const bring = nextScreen(titleScreen, { type: 'Bring' });
+    expect(bring).toEqual({ id: 'bring' });
+    expect(nextScreen(bring, { type: 'Back' })).toEqual(titleScreen);
+    const battle = nextScreen(bring, { type: 'Battle', projectId: 'p~BATTLE-X~M' });
+    expect(battle).toEqual({ id: 'play', projectId: 'p~BATTLE-X~M' });
+    expect(nextScreen({ id: 'result', projectId: 'p~BATTLE-X~M' }, { type: 'Bring' })).toEqual(bring);
+    expect(nextScreen(titleScreen, { type: 'Battle', projectId: 'x' })).toBe(titleScreen);
     const home = nextScreen(titleScreen, { type: 'Open' });
-    expect(nextScreen(home, { type: 'Practice' })).toBe(home);
+    expect(nextScreen(home, { type: 'Bring' })).toBe(home);
   });
 });
 

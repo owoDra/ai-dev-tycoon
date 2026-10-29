@@ -4,13 +4,14 @@ import { getHarnessPart } from '../content/index';
 import { createFiscal, createFunds, createLedger, type GameState } from './state';
 
 /** セーブデータの形式のバージョン。GameState の形を変えたら上げ、MIGRATIONS に変換を足す */
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 /**
  * 結果コード（core/resultCode.ts）の形式のバージョン。並び・フィールド・単位を変えたら上げる。違うバージョンのコードは読まない。
  * 2：KPI を円/人時から円/人日に変更
+ * 3：生成した案件を id で書く・持ち込みカードの要約を足す
  */
-export const RESULT_CODE_FORMAT = 2;
+export const RESULT_CODE_FORMAT = 3;
 
 /** バージョン from のセーブデータの state を、バージョン from + 1 の形に変換する */
 export interface Migration {
@@ -161,6 +162,8 @@ export const MIGRATIONS: readonly Migration[] = [
     migrate: (state) =>
       isRecord(state) ? { ...state, guide: null, guidesDone: guideChapters.map((c) => c.id) } : state,
   },
+  // v24 → v25：持ち込みカード（Phase 42）。まだ何も持ち込んでいない
+  { from: 24, migrate: (state) => (isRecord(state) ? { ...state, brought: [] } : state) },
 ];
 
 /** Phase 38 で束にまとめた機能の、古い id から新しい id への対応 */

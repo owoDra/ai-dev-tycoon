@@ -162,7 +162,8 @@ describe('Workflow Library（core/library.ts）', () => {
     expect(stats.uses).toBe(taskIds.length);
     expect(state.projects.paymentFix?.completedAt).not.toBeNull();
     expect(stats.savedHumanMinutes).toBeGreaterThan(0);
-    expect(workflowStats(state, 'custom2')).toEqual({ uses: 0, savedHumanMinutes: 0 });
+    expect(stats.profit).toBeGreaterThan(0);
+    expect(workflowStats(state, 'custom2')).toEqual({ uses: 0, savedHumanMinutes: 0, profit: 0 });
   });
 
   it('不正な下書きは保存しない', () => {

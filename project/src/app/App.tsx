@@ -2,12 +2,15 @@ import { createEffect, createMemo, createSignal, lazy, Match, on, onCleanup, Sho
 import { screenRegions, uiLayout } from '../content/look/layout';
 import { defaultWorldLookId, type WorldLook, type WorldLookId, worldLooks } from '../content/look/world';
 import { tutorialScript } from '../content/tutorial';
+import { createBattle } from '../core/battle';
 import { activeProjects } from '../core/board';
 import { isBankrupt } from '../core/funds';
 import { createInitialState, type GameState } from '../core/state';
 import type { FxDirector } from '../fx/director';
 import { ja } from '../i18n/ja';
 import { AudioHost } from '../ui/audio/AudioHost';
+import { BringScreen } from '../ui/bring/BringScreen';
+import { PluginExportSheet } from '../ui/bring/PluginExportSheet';
 import { CompanyStrip } from '../ui/company/CompanyStrip';
 import { DeliveryCards, DeliveryModal } from '../ui/company/DeliveryCard';
 import { fitColumn } from '../ui/fitColumn';
@@ -15,7 +18,6 @@ import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
 import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
-import { PracticeScreen } from '../ui/practice/PracticeScreen';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { BankruptScreen } from '../ui/screens/BankruptScreen';
 import { FiscalScreen } from '../ui/screens/FiscalScreen';
@@ -28,6 +30,7 @@ import { type DeliveryView, deliveryView } from '../view/fiscal';
 import type { WorldViewModel } from '../view/world';
 import { DRAW_CALL_BUDGET, type World } from '../world/index';
 import { PARTICLE_TOTAL } from '../world/vfx/particles';
+import { loadBringCards } from './bringStore';
 import { startLoop } from './loop';
 import { createMilestones } from './milestones';
 import { markTutorialDone, progress } from './progress';
@@ -53,7 +56,7 @@ const IDLE_SEED = 'title';
 const AUTOSAVE_MS = 5000;
 
 /**
- * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → プレイ（ホーム）→ 結果、タイトル → 実務モード）を重ねる。
+ * ゲーム本体。3D ワールドを画面全体に1つだけ敷き、その上に画面（タイトル → プレイ（ホーム）→ 結果、タイトル → 持ち込み）を重ねる。
  * 会社1つごとに新しい GameStore を作り、ゲームループを回す。会社はチュートリアル案件から始まり、終えると案件ボード（ホームの上のシート）に引き合いが届く。
  * 進み具合（解放・社員・Harness・案件・評判）は1つの GameState で持ち越して自動セーブする（タイトルの「続きから」で再開）。
  * 複数の案件はプレイ画面のタブで切り替え（3D は案件ごとのフロア）、最後の進行中の案件を納品したらホーム（会社のオフィス）へ戻る。
@@ -75,6 +78,8 @@ export function App(props: {
   const [lookId, setLookId] = createSignal<WorldLookId>(defaultWorldLookId);
   const [look, setLook] = createSignal<WorldLook>(worldLooks[defaultWorldLookId]);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  /** ハーネスの書き出し（Phase 43）を開いているか */
+  const [exportOpen, setExportOpen] = createSignal(false);
   /** 案件ボードを開いているか（見積を考えている間は時間を止める） */
   const [boardOpen, setBoardOpen] = createSignal(false);
   /** 納品・決算・倒産（設定を開いている間は、納品の結果を Space で閉じない） */
@@ -90,7 +95,7 @@ export function App(props: {
   /**
    * 時間を止める画面（決算・倒産・納品の結果・設定）を開いているか。開いている間はプレイ画面のキー操作を効かせない
    */
-  const modal = () => settingsOpen() || milestones.open();
+  const modal = () => settingsOpen() || exportOpen() || milestones.open();
   /**
    * ゲーム内の時間を止めているか（時間を止める画面・結果（振り返り）・案件ボード）。
    * ゲームループのほか、お知らせ・納品と用語のカードの消えるまでの時間もこの間は数えない
@@ -107,7 +112,7 @@ export function App(props: {
     w.setFrame(screens.screen().id === 'play' ? { ...r, x: r.x + s.x, y: r.y + s.y } : null);
   });
 
-  /** ワールドに映す案件（フロア）。ホームでは null（会社のオフィス）、タイトルと実務モードではチュートリアルの案件 */
+  /** ワールドに映す案件（フロア）。ホームでは null（会社のオフィス）、タイトルと持ち込みではチュートリアルの案件 */
   const worldProject = (): string | null => {
     const s = screens.screen();
     if (s.id === 'play' || s.id === 'result') return s.projectId ?? null;
@@ -131,10 +136,14 @@ export function App(props: {
     setOutdated(false);
   };
 
+  /** 持ち込みカード（このブラウザに保存したもの）を、会社の Harness Builder で選べるようにする */
+  const syncBrought = () => game().dispatch({ type: 'SetBroughtParts', parts: loadBringCards().map((c) => c.id) });
+
   /** 会社をはじめから始める。最初の案件（チュートリアル）をすぐに始めてプレイへ進む。終えるとホームへ */
   const newCampaign = () => {
     clearCompany();
     useState(createInitialState(tutorialScript.seed, { board: true }));
+    syncBrought();
     game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
     save();
     screens.go({ type: 'StartTutorial', projectId: tutorialScript.projectId });
@@ -148,6 +157,7 @@ export function App(props: {
   const quickCampaign = () => {
     clearCompany();
     useState(createInitialState(`run-${Date.now().toString(36)}`, { board: true, talent: true }));
+    syncBrought();
     game().dispatch({ type: 'StartProject', projectId: tutorialScript.projectId });
     game().dispatch({ type: 'SkipTutorial' });
     save();
@@ -159,13 +169,32 @@ export function App(props: {
     const state = loadCompany();
     if (!state) return newCampaign();
     useState(state);
+    syncBrought();
     screens.go({ type: 'Open' });
+  };
+
+  /** 書き出す会社：遊んでいる会社か、持ち寄りバトル中・タイトルなら保存した会社（なければ null） */
+  const exportSource = (): GameState | null => (game().state().board ? game().state() : loadCompany());
+  const openExport = () => {
+    save();
+    setExportOpen(true);
   };
 
   /** 納品した案件の振り返り（結果画面）を開く */
   const review = (projectId: string) => {
     selection.dispatch({ type: 'SelectEntity', entityId: null });
     screens.go({ type: 'Review', projectId });
+  };
+
+  /**
+   * 持ち寄りバトルを始める（会社のセーブは変えない。単発のプレイなので保存もしない）。
+   * 合言葉の案件のフロアへ進み、納品すると結果画面（結果コード）へ
+   */
+  const startBattle = (word: string, parts: readonly string[]) => {
+    const state = createBattle(word, parts);
+    useState(state);
+    const projectId = Object.keys(state.projects)[0];
+    if (projectId) screens.go({ type: 'Battle', projectId });
   };
 
   const toTitle = () => {
@@ -277,15 +306,15 @@ export function App(props: {
                 onStart={newCampaign}
                 onContinue={saved() ? continueCampaign : undefined}
                 onQuickStart={progress().tutorialDone ? quickCampaign : undefined}
-                onPractice={() => screens.go({ type: 'Practice' })}
+                onBring={() => screens.go({ type: 'Bring' })}
                 onSettings={openSettings}
                 outdatedSave={outdated() && !saved()}
               />
             </div>
           </Match>
-          <Match when={screens.screen().id === 'practice'}>
+          <Match when={screens.screen().id === 'bring'}>
             <div class="pointer-events-auto contents">
-              <PracticeScreen onBack={() => screens.go({ type: 'Back' })} />
+              <BringScreen onBack={() => screens.go({ type: 'Back' })} onBattle={startBattle} onExport={openExport} />
             </div>
           </Match>
           <Match when={screens.screen().id === 'play'}>
@@ -312,6 +341,7 @@ export function App(props: {
               }
               held={held}
               onSettings={openSettings}
+              onExport={game().state().board ? openExport : undefined}
               onBoardOpen={setBoardOpen}
               onSwitch={(projectId) => {
                 selection.dispatch({ type: 'SelectEntity', entityId: null });
@@ -330,6 +360,12 @@ export function App(props: {
                 store={game()}
                 projectId={worldProject() ?? ''}
                 onNext={() => {
+                  // 持ち寄りバトル（会社でない単発のプレイ）の後は、結果を比べられるよう持ち込みへ戻る
+                  if (game().state().board === null) {
+                    useState(createInitialState(IDLE_SEED));
+                    screens.go({ type: 'Bring' });
+                    return;
+                  }
                   // 開く前に見ていた案件がまだ進行中ならそのフロアへ、なければホームへ戻る
                   const at = screens.screen();
                   const from = at.id === 'result' ? at.from : undefined;
@@ -337,6 +373,7 @@ export function App(props: {
                   screens.go(active ? { type: 'Return' } : { type: 'Home' });
                 }}
                 onTitle={toTitle}
+                onExport={openExport}
               />
             </div>
           </Match>
@@ -395,6 +432,9 @@ export function App(props: {
             screens.go({ type: 'ToTitle' });
           }}
         />
+      </Show>
+      <Show when={exportOpen()}>
+        <PluginExportSheet state={exportSource()} cards={loadBringCards()} onClose={() => setExportOpen(false)} />
       </Show>
       <Show when={settingsOpen()}>
         <SettingsSheet

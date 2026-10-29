@@ -435,6 +435,8 @@ export interface GameState {
   readonly harnesses: Readonly<Record<string, HarnessRun>>;
   /** 導入コストを払い、会社の資産になった部品（付け直しても再び払わない） */
   readonly ownedParts: readonly string[];
+  /** Harness Builder で選べる持ち込みカードの部品の id（core/bring.ts。プレイヤーが読み込んだ設定から作る） */
+  readonly brought: readonly string[];
   /** 導入コストの支払い（払った順） */
   readonly harnessLedger: readonly HarnessLedgerEntry[];
   /** AI Worker ごとの自律の記録（AI Worker の id がキー。なければまだ何も処理していない） */
@@ -543,6 +545,7 @@ export function createInitialState(seed: string, options: InitialStateOptions = 
     contextStats: { resets: 0, handoffResets: 0, incidents: 0, resolved: 0, routedWorks: 0 },
     harnesses: {},
     ownedParts: [],
+    brought: [],
     harnessLedger: [],
     autonomy: {},
     team: createTeam(team),

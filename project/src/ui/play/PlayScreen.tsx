@@ -110,6 +110,8 @@ export function PlayScreen(props: {
    */
   held?: Accessor<boolean>;
   onSettings?: () => void;
+  /** ハーネスを Claude Code のプラグインとして持ち帰る（会社のメニュー） */
+  onExport?: () => void;
   /** 案件ボードの開閉を知らせる（App は開いている間、ゲーム内の時間を止める） */
   onBoardOpen?: (open: boolean) => void;
   /** 別の案件のタブへ切り替える（複数案件の同時進行） */
@@ -694,6 +696,7 @@ export function PlayScreen(props: {
       teamWarning={usageWarning(props.store.state())}
       onHarness={harnessOn() ? openHarness : undefined}
       onContext={contextOn() ? openContext : undefined}
+      onExport={props.onExport}
       onSettings={props.onSettings}
     />
   );

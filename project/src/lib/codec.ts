@@ -202,3 +202,10 @@ function fromBase32(s: string): Uint8Array | null {
   if (bits >= BITS_PER_CHAR || acc !== 0) return null;
   return Uint8Array.from(out);
 }
+
+/** 文字列の短い指紋（FNV-1a 32 ビットの36進）。同じ中身の見分けに使う（暗号的な強さはない） */
+export function shortHash(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+}

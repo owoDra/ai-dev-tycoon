@@ -223,6 +223,12 @@ function OptionCard(props: { option: HarnessOptionView; onFocus: () => void; onP
           </Show>
           {o().label}
         </span>
+        <Show when={o().part?.brought}>
+          <span class="flex items-center gap-1 text-[11px] font-bold text-primary-700" data-brought>
+            <Icon name="handoff" />
+            {ja.bring.badge}
+          </span>
+        </Show>
         <Show when={o().hint}>
           <span class="text-[11px] leading-snug text-ink-muted">{o().hint}</span>
         </Show>

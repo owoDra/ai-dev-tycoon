@@ -15,7 +15,7 @@ const t = ja.hud;
 const phaseIcon: Record<DayPhase, IconName> = { work: 'day', lunch: 'clock', night: 'night' };
 
 /**
- * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・日を進めるボタン・メニュー（「会社」：案件ボード・進み具合・社員と Seat、
+ * 上の帯の右の操作の列：日付と時刻（勤務中・昼休み・退勤後をアイコンとラベルで示す）・日を進めるボタン・メニュー（「会社」：案件ボード・進み具合・社員と Seat・ハーネスを持ち帰る、
  * 「AI の仕組み」：Context・Harness。まとまりごとに MenuGroup・設定）。
  * compact ではメニューをアイコンだけにする。part で一部だけを出せる
  * （スマホでは時計と日を進めるボタンを右上に、メニューをドックの2段目に分けて出す。content/look/layout.ts の controls）。
@@ -34,6 +34,8 @@ export function PlayControls(props: {
   onHarness?: () => void;
   /** Context のシートを開く（ドックの Context の札は、狭い形では「詳細」に入って見えなくなるので、メニューにも置く） */
   onContext?: () => void;
+  /** ハーネスを Claude Code のプラグインとして持ち帰る（Phase 43） */
+  onExport?: () => void;
   onSettings?: () => void;
   /** all: すべて / clock: 時計と一時停止・速度だけ / menu: メニューだけ（枠なし） */
   part?: 'all' | 'clock' | 'menu';
@@ -76,6 +78,12 @@ export function PlayControls(props: {
                 fresh: fresh().has('team'),
                 onClick: props.onTeam,
                 data: { 'data-team-open': '' },
+              },
+              props.onExport && {
+                icon: 'release',
+                label: ja.pluginExport.open,
+                onClick: props.onExport,
+                data: { 'data-menu-export': '' },
               },
             ]}
           />

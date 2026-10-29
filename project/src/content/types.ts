@@ -333,7 +333,7 @@ export interface TutorialScript {
   /** AI の作業の成否をシナリオで決める（true: 成功 / false: 失敗）。載っていない Task は通常どおり確率で決まる */
   readonly forcedAiOutcomes: Readonly<Record<string, boolean>>;
   /** ステップに関係なく、いつでも受け付ける Command */
-  readonly alwaysAllowed: readonly ('SeeFeatures' | 'StartProject' | 'SkipTutorial')[];
+  readonly alwaysAllowed: readonly ('SeeFeatures' | 'StartProject' | 'SkipTutorial' | 'SetBroughtParts')[];
   readonly steps: readonly TutorialStepDef[];
   /** この条件を満たしたらチュートリアルを終える */
   readonly completeWhen: Condition;
@@ -548,6 +548,8 @@ export interface HarnessPartDef {
   readonly timing?: HookTiming;
   /** この機能が解放されると選べる */
   readonly unlock: FeatureId;
+  /** brought: プレイヤーが持ち込んだ設定から作った部品（core/bring.ts）。省けば同梱の部品 */
+  readonly origin?: 'brought';
 }
 
 /**
@@ -569,54 +571,6 @@ export interface LibraryWorkflowDef {
   readonly context: WorkflowContext;
   /** 装着する部品の id（Context Router は context で表すので含めない） */
   readonly parts: readonly string[];
-}
-
-/** 実務モードの業務の頻度 */
-export type PracticeFrequency = 'daily' | 'weekly' | 'monthly';
-
-/** 実務モードの工程の AI 適性（選択式）。content/practice の practiceAptitudes で Task の性質に置き換える */
-export type PracticeAptitude = 'high' | 'mid' | 'low';
-
-/** AI 適性の選択肢が表す Task の性質（TaskDef の同名の値） */
-export interface PracticeAptitudeDef {
-  readonly aiAptitude: number;
-  readonly difficulty: number;
-  readonly qualityReq: number;
-  readonly failRisk: number;
-}
-
-/** 実務モードの工程。今の人間時間と、改善後の担当モード・Model・Harness 部品 */
-export interface PracticeStepInput {
-  readonly name: string;
-  /** 今、人間がこの工程にかけている時間（分） */
-  readonly minutes: number;
-  /** 仕事の種類。Harness 部品が効くかどうかを決める */
-  readonly kind: TaskKind;
-  readonly aptitude: PracticeAptitude;
-  readonly mode: AssignModeId;
-  readonly modelId: string;
-  /** 割り当てる部品（Context Router を除く。実務モードには案件の資料がない） */
-  readonly parts: readonly string[];
-}
-
-/** 実務モードで入力する実際の業務（1回分） */
-export interface PracticeJobInput {
-  readonly name: string;
-  readonly frequency: PracticeFrequency;
-  /** 1年の実施回数。省けば頻度の既定値（balance.practice.runsPerYear） */
-  readonly runsPerYear?: number;
-  /** 人件費（円/人日）。人件費の換算に使う */
-  readonly dailyWage: number;
-  /** 業務1回が生む価値（円）。人日あたりの利益に使う */
-  readonly valuePerRun: number;
-  /** 上から順に行う工程（最大 balance.practice.maxSteps） */
-  readonly steps: readonly PracticeStepInput[];
-}
-
-/** 実務モードのテンプレート（企画書24章の例） */
-export interface PracticeTemplateDef {
-  readonly id: string;
-  readonly job: PracticeJobInput;
 }
 
 /** 会社の規模の段階（balance.company.tiers の並びが昇格の順） */

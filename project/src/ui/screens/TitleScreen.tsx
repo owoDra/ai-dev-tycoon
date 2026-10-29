@@ -10,7 +10,7 @@ import { ghostButton, iconButton, panel, primaryButton, SettingsIcon } from '../
  * タイトル・はじめるボタンを重ねる。ワールドが透けて見えるよう、カードの外は薄く覆うだけにする。
  * チュートリアルを終えた後は「チュートリアルをもう一度」と「チュートリアルなしで始める」を出す（onTutorial・onQuickStart を渡したときだけ）。
  * セーブがあれば（onContinue を渡したとき）「続きから」を先頭に出し、「はじめから」はセーブを消す確認を1回挟む。
- * 以前の形式で読み込めないセーブが残っていれば、その旨を知らせる。実務モード（企画書24章）への入口も置く。
+ * 以前の形式で読み込めないセーブが残っていれば、その旨を知らせる。持ち込み（自分の Claude Code の設定をゲームの部品にする）への入口も置く。
  */
 export function TitleScreen(props: {
   onStart: () => void;
@@ -18,8 +18,8 @@ export function TitleScreen(props: {
   onTutorial?: () => void;
   /** チュートリアルなしで始める（最初の社員は seed から生成した2人）。セーブがあれば確認を1回挟む */
   onQuickStart?: () => void;
-  /** 実務モード（実際の仕事の改善効果の試算）を開く */
-  onPractice?: () => void;
+  /** 持ち込み（自分の Claude Code の設定の評価と持ち寄りバトル）を開く */
+  onBring?: () => void;
   onSettings: () => void;
   /** 以前の形式（固定の案件のキャンペーン）で読み込めないセーブが残っている */
   outdatedSave?: boolean;
@@ -124,12 +124,12 @@ export function TitleScreen(props: {
             </button>
           )}
         </Show>
-        <Show when={props.onPractice}>
+        <Show when={props.onBring}>
           {(open) => (
-            <button type="button" data-open-practice class={ghostButton} onClick={() => open()()}>
+            <button type="button" data-open-bring class={ghostButton} onClick={() => open()()}>
               <span class="flex flex-col items-center leading-tight">
-                <span>{ja.practice.open}</span>
-                <span class="text-[11px] font-normal text-ink-muted">{ja.practice.openHint}</span>
+                <span>{ja.bring.open}</span>
+                <span class="text-[11px] font-normal text-ink-muted">{ja.bring.openHint}</span>
               </span>
             </button>
           )}

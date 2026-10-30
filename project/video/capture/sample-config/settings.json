@@ -1,4 +1,0 @@
-{
-  "permissions": { "allow": ["Bash(npm test)", "Bash(npm run lint)"], "deny": ["Bash(rm -rf *)"] },
-  "hooks": { "PostToolUse": [{ "matcher": "Edit|Write", "hooks": [{ "type": "command", "command": "npm run lint" }] }] }
-}

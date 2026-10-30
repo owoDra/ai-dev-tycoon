@@ -9,7 +9,7 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 
 ## リポジトリ構成
 
-ルートは `.claude/` `docs/` `project/` `mise.toml`（と Phase 17 で作る `README.md`）だけに保つ。ルートにファイルを増やさない。
+ルートには `.claude/` `docs/` `project/` `mise.toml` `README.md` `LICENSE` を置く。その他のソース・ツールは `project/` にまとめる。
 
 - `docs/`：コードで表せないもの（企画意図・計画・デザイン決定の理由）だけ
 - `project/`：ソース（`src/`）・テスト（`tests/`）・ツール（`tools/`）・設定ファイルのすべて。`node_modules` やビルド成果物もここに閉じ込める
@@ -29,7 +29,7 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 | `npm run verify:pages` | dist に必要なファイルがあり・外部参照なし・Pages の1ファイル上限内であることの検証 |
 | `npm run verify:dist` | dist-standalone が単一ファイル・外部参照なし・サイズ予算内であることの検証 |
 
-後続で追加する予定のコマンド：`npm run build:explore`（デザイン比較用のビルド。D1 で追加）、`npm run assets`（SVG・WebP・glb の生成。生成物は `src/assets/generated/` にコミット。Phase 04 で追加）。
+補助コマンド：`npm run build:explore`（デザイン比較用）、`npm run assets`（SVG・WebP・glb の生成）。生成物は `src/assets/generated/` にコミットする。
 
 ## 正本の扱い
 
@@ -44,7 +44,7 @@ AIを適切な仕事へ配置し、人間1人あたりの利益を最大化す�
 3. 新しい要素はまず `src/content/` のデータで表現する。バランス値は `content/balance.ts`、見た目と手触りの値は `content/look/` に集約する。
 4. UI の文言は `src/i18n/ja.ts` に集約する。状態は色だけでなくアイコンとラベルでも示す。絵文字をアイコンやキャラクターの代わりに使わない。
 5. 演出は操作をブロックしない。`prefers-reduced-motion` を尊重する。
-6. 外部URL・CDN・外部フォント・音声ファイルを使わない。素材はリポジトリ内のコードと SVG から生成する。例外は紹介動画（`project/public/intro.mp4`。`project/video/` の Remotion で作り、`npm run publish` で書き出してコミットする）で、Cloudflare Pages の版にだけ入れる。
+6. 外部URL・CDN・外部フォント・音声ファイルを使わない。素材はリポジトリ内のコードと SVG から生成する。例外は配布済み紹介動画（`project/public/intro.mp4`）で、Cloudflare Pages の版にだけ入れる。動画生成プロジェクトはこのリポジトリの公開範囲に含めない。
 
 ## テスト
 

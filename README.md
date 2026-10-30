@@ -7,8 +7,7 @@ AI を適切な仕事へ配置し、人間1人あたりの利益（Profit / Huma
 [紹介動画を見る](project/public/intro.mp4)
 
 このリポジトリは、AIに任せる仕事の選択、Harnessによる品質改善、人間による確認といった開発の意思決定をゲームとして表現・検証するためのものです。
-Web 版は https://ai-dev-tycoon.pages.dev/ で遊べる（Cloudflare Pages。タイトル画面の右下から紹介動画も見られる）。
-外部依存ゼロの単一 HTML 版（`project/dist-standalone/index.html`）もあり、ブラウザで直接開けば遊べる。
+リポジトリからローカルでビルドしてプレイできます。また、外部依存ゼロの単一HTML版（`project/dist-standalone/index.html`）も生成でき、ブラウザで直接開いて遊べます。
 
 ## 検証するゲーム性
 
@@ -19,7 +18,7 @@ Web 版は https://ai-dev-tycoon.pages.dev/ で遊べる（Cloudflare Pages。�
 
 ## 遊び方
 
-1. Web 版か、単一 HTML 版（`project/dist-standalone/index.html`）をブラウザで開き、「はじめる」を押す。
+1. `npm run dev` で起動した画面、またはビルドした単一HTML版（`project/dist-standalone/index.html`）をブラウザで開き、「はじめる」を押す。
 2. 案件の Task を選び、担当（人間 / AI / AI → 人間レビュー など）を決める。最初の3分はチュートリアルが案内する。
 3. Context・Harness（Skill / Hook / Tool / Permission / Eval / Subagent）・Seat を整え、ボトルネックを動かしながら案件を納品する。
 4. 結果画面で、どの改善がどれだけ効いたかを振り返る。良い構成は Workflow Library に保存して次の案件や他のチームに使い回せる。

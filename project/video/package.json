@@ -1,0 +1,28 @@
+{
+  "name": "ai-dev-tycoon-video",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture/capture.mjs",
+    "capture:voice": "tsx capture/voice.ts",
+    "capture:sound": "tsx capture/sound.ts",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Intro out/intro.mp4",
+    "typecheck": "tsc --noEmit",
+    "publish": "remotion render src/index.ts Intro ../public/intro.mp4 --crf=26 --audio-bitrate=160k && remotion still src/index.ts Intro ../public/intro-poster.jpg --frame=100 --image-format=jpeg --jpeg-quality=82 && tsx capture/captions.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/transitions": "4.0.539",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "playwright-core": "^1.64.1",
+    "tsx": "4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

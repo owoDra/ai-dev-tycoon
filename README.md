@@ -48,7 +48,8 @@ npm run check             # typecheck → lint → test → build → verify:pag
 | `project/src/` | ソース（`core/` シミュレーション・`content/` ゲームデータとバランス値・`ui/` `world/` `fx/` `audio/` 表示と演出） |
 | `project/tests/` | テスト（`balance/` に企画書の設計意図を戦略シミュレーションとして書いている） |
 | `project/tools/` | アセット生成・dist の検証・バランスレポート |
-| `project/public/` | 公開済みの紹介動画・字幕・ポスター（動画の制作プロジェクトは含めない） |
+| `project/public/` | 紹介動画・字幕・ポスター |
+| `project/video/` | Remotionによる紹介動画の制作ソース |
 
 仕様の正本はソースコード・テスト・コメント。詳細はコードを参照してほしい。
 
@@ -62,4 +63,4 @@ npm run check             # typecheck → lint → test → build → verify:pag
 
 持ち込み設定の読み込みはブラウザ内で実施し、内容を外部サービスには送信しません。読み込んだカードの元データはブラウザの`localStorage`に保存されることがあり、プラグイン書き出し時に元の内容を含む場合があります。秘密情報を含むファイルは読み込まないでください。実際のClaude Codeへ導入する前に、書き出された設定・コマンドを確認してください。
 
-`project/public/intro.mp4` は配布済みのプレビュー用成果物です。動画制作に用いたRemotionのソースは、このPoCの公開範囲に含めていません。
+`project/public/intro.mp4` は紹介動画です。制作に用いたRemotionのソースは `project/video/` にあります。公開停止予定のサイトURL・QRコードは動画末尾に掲載しません。

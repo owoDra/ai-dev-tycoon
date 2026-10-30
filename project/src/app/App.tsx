@@ -17,7 +17,8 @@ import { fitColumn } from '../ui/fitColumn';
 import { FxHost } from '../ui/fx/FxHost';
 import { createHoldTimers } from '../ui/holdTimers';
 import { IntroVideoSheet, introVideo } from '../ui/IntroVideo';
-import { PlayScreen, rectStyle } from '../ui/play/PlayScreen';
+import { rectStyle } from '../ui/parts';
+import { PlayScreen } from '../ui/play/PlayScreen';
 import { createTermCards, TermCardList } from '../ui/play/TermCards';
 import { SettingsSheet } from '../ui/SettingsSheet';
 import { BankruptScreen } from '../ui/screens/BankruptScreen';
@@ -81,8 +82,8 @@ export function App(props: {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   /** ハーネスの書き出し（Phase 43）を開いているか */
   const [exportOpen, setExportOpen] = createSignal(false);
-  /** 案件ボードを開いているか（見積を考えている間は時間を止める） */
-  const [boardOpen, setBoardOpen] = createSignal(false);
+  /** プレイ画面のモーダル（詳細・案件ボード・メニューから開く画面）を開いているか（考えている間は時間を止める） */
+  const [playModal, setPlayModal] = createSignal(false);
   /** 納品・決算・倒産（設定を開いている間は、納品の結果を Space で閉じない） */
   const milestones = createMilestones(settingsOpen);
   const { fiscal, bankrupt } = milestones;
@@ -100,10 +101,12 @@ export function App(props: {
    */
   const modal = () => settingsOpen() || exportOpen() || milestones.open();
   /**
-   * ゲーム内の時間を止めているか（時間を止める画面・結果（振り返り）・案件ボード）。
+   * ゲーム内の時間を止めているか（時間を止める画面・結果（振り返り）・プレイ画面のモーダル）。
    * ゲームループのほか、お知らせ・納品と用語のカードの消えるまでの時間もこの間は数えない
    */
-  const held = () => modal() || screens.screen().id === 'result' || boardOpen();
+  const held = () => modal() || screens.screen().id === 'result' || playModal();
+  /** プレイ画面の外で時間を止めているか（プレイ画面は、自分のモーダルの間はキー操作を受ける） */
+  const heldOutside = () => modal() || screens.screen().id === 'result';
   const later = createHoldTimers(held);
   const terms = createTermCards(game, uiLayout.flow.termCardMs, held);
   // カメラはプレイ中、3D の世界の領域（上の帯・お知らせの列・ドックを除いた範囲）に構図を合わせる。ほかの画面では画面全体
@@ -343,10 +346,10 @@ export function App(props: {
                   <TermCardList cards={terms.cards()} onClose={terms.close} />
                 </>
               }
-              held={held}
+              held={heldOutside}
               onSettings={openSettings}
               onExport={game().state().board ? openExport : undefined}
-              onBoardOpen={setBoardOpen}
+              onModalOpen={setPlayModal}
               onSwitch={(projectId) => {
                 selection.dispatch({ type: 'SelectEntity', entityId: null });
                 screens.go({ type: 'Switch', projectId });

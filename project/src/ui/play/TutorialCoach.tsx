@@ -114,7 +114,7 @@ export function TutorialCoach(props: { store: GameStore; padding: number }) {
     <Show when={coach()}>
       {(c) => (
         <div
-          class="pointer-events-none absolute inset-0 z-20"
+          class="pointer-events-none absolute inset-0 z-30"
           data-tutorial-coach
           data-guide-coach={c().guide ? '' : undefined}
         >

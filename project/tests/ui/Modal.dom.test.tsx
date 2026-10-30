@@ -151,6 +151,37 @@ describe('時間を止める画面の間のキー操作', () => {
   });
 });
 
+describe('プレイ画面のモーダル', () => {
+  it('詳細を開いている間は時間を止めるよう知らせ、外側の暗い背景を押すと閉じる', () => {
+    const store = createGameStore(createInitialState('modal'));
+    store.dispatch({ type: 'StartProject', projectId: P });
+    const selection = createSelection();
+    const [open, setOpen] = createSignal(false);
+    const root = document.createElement('div');
+    document.body.append(root);
+    dispose = render(
+      () => (
+        <PlayScreen
+          store={store}
+          projectId={P}
+          selection={selection}
+          onModalOpen={setOpen}
+          vm={() => worldView(store.state(), P, worldLooks[defaultWorldLookId])}
+        />
+      ),
+      root,
+    );
+    expect(open()).toBe(false);
+    expect(root.querySelector('[data-modal-backdrop]')).toBeNull();
+    selection.dispatch({ type: 'SelectEntity', entityId: islandId('hearing') });
+    expect(open()).toBe(true);
+    expect(root.querySelector('[data-detail-sheet]')?.getAttribute('aria-modal')).toBe('true');
+    root.querySelector<HTMLElement>('[data-modal-backdrop]')?.click();
+    expect(selection.selected()).toBeNull();
+    expect(open()).toBe(false);
+  });
+});
+
 describe('節目の画面（app/milestones.ts）', () => {
   /** 直轄の案件を納品した会社（時間が進んでいる）と、納品の結果2件 */
   function delivered() {

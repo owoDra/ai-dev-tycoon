@@ -1,10 +1,19 @@
 import type { JSX } from 'solid-js';
 import type { IconName } from '../assets/icons';
+import type { Rect } from '../content/look/layout';
 import type { AssignModeId } from '../content/types';
 import { ja } from '../i18n/ja';
 import type { TaskStatusView } from '../view/project';
 import type { EntityKind } from '../view/world';
 import { Icon } from './Icon';
+
+/** 領域の矩形を、絶対配置の style にする */
+export const rectStyle = (r: Rect): JSX.CSSProperties => ({
+  left: `${r.x}px`,
+  top: `${r.y}px`,
+  width: `${r.width}px`,
+  height: `${r.height}px`,
+});
 
 /** 共通の見た目（D1 キャンディポップ：太い輪郭と押し込める影） */
 export const panel = 'rounded-lg border-[3px] border-line bg-surface text-ink shadow-pop';

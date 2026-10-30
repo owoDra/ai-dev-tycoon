@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -9,7 +9,7 @@ import type { ImportView, LibraryEntryView, LibraryView, WorkflowSummary } from 
 import { CopyButton, selectText } from '../CopyButton';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, panel, primaryButton } from '../parts';
+import { ghostButton, panel, primaryButton, rectStyle } from '../parts';
 import { ForecastMetrics } from './HarnessSheet';
 
 const t = ja.library;
@@ -23,11 +23,8 @@ export function LibrarySheet(props: {
   view: LibraryView;
   /** 適用先の Task の名前。null なら棚を見るだけ */
   target: string | null;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   forecast: (command: Command) => HarnessForecast;
   readCode: (code: string) => ImportView;
   dispatch: (command: Command) => void;
@@ -51,14 +48,12 @@ export function LibrarySheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.title}
       data-library-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4 *:shrink-0`}
+      class={`${panel} absolute flex flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4 *:shrink-0`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       {props.tabs}

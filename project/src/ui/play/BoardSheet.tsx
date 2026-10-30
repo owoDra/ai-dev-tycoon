@@ -1,30 +1,27 @@
 import { createMemo, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { boardView, type InquiryView } from '../../view/board';
 import { type EvaluationGuide, evaluationGuide } from '../../view/evaluation';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, panel, primaryButton } from '../parts';
+import { ghostButton, panel, primaryButton, rectStyle } from '../parts';
 
 const t = ja.board;
 const contractIcon = { strict: 'warning', lenient: 'clock' } as const;
 
 /**
- * 案件ボードのシート（ホームとプレイの上に、ほかのシートと同じ場所に開く）。営業日ごとに届く引き合いを見て、選べば必ず受注できる
+ * 案件ボードのモーダル（ホームとプレイの上に、ほかのシートと同じ画面中央に開く）。営業日ごとに届く引き合いを見て、選べば必ず受注できる
  * （core/orders.ts）。条件は報酬・納期・規模・契約（期限厳守か、炎上しても続行か）で、契約はアイコンとラベルで示す。
  * 同時に進められる数に達していたら受注のボタンを押せない表示にして、理由を添える。「閉じる」はシートを閉じるだけ
  */
 export function BoardSheet(props: {
   store: GameStore;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   onClose: () => void;
 }) {
   const view = createMemo(() => boardView(props.store.state()));
@@ -40,14 +37,12 @@ export function BoardSheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.board}
       data-board-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-4 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute flex flex-col gap-4 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       <div class="flex items-start justify-between gap-2">

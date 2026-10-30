@@ -17,11 +17,12 @@ describe('画面構成（content/look/layout.ts）', () => {
     expect(layoutFormFor(uiLayout, 1440)).toEqual({ compact: false, form: uiLayout.wide });
   });
 
-  it('シートはドックの上に収まり、画面の上部（トースト）を残す', () => {
-    for (const form of [uiLayout.wide, uiLayout.compact]) {
+  it('モーダルは画面いっぱいにせず、外側に暗い背景を残す（押せば閉じる）', () => {
+    for (const form of [uiLayout.wide, uiLayout.narrow, uiLayout.compact]) {
       expect(form.sheet.heightRatio).toBeGreaterThan(0);
-      expect(form.sheet.heightRatio).toBeLessThanOrEqual(0.7);
+      expect(form.sheet.heightRatio).toBeLessThanOrEqual(0.9);
     }
+    expect(uiLayout.flow.dismiss).toContain('backdropClick');
   });
 });
 

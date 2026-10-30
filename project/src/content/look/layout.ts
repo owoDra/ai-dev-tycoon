@@ -5,7 +5,7 @@
  * - お知らせの列：「次に対応すべき問題」のトースト・短いお知らせ・納品のカード・用語のカード。PC では右端の列、スマホでは上の帯の下の帯
  * - 3D の世界：残りの範囲。カメラはこの範囲に構図を合わせる
  * - 下部のドック：いま見ている案件の HUD（案件名と常時表示の項目）をまとめる。PC では中央に浮かせ、スマホでは画面幅いっぱいの2段にする
- * - 下から出るシート：選んだものの詳細と担当変更（大きなカード）。ドックのすぐ上に出し、上の帯とドックは隠さない
+ * - モーダル：選んだものの詳細と担当変更（大きなカード）、案件ボードやメニューから開く画面。画面中央に出し、外側を暗くして時間を止める
  * 幅で3つの形に分ける：スマホ（breakpoints.compact 未満）・狭い PC（breakpoints.wide 未満）・広い PC。
  * 寸法はセーフエリアの内側（ブラウザのバーやノッチを除いた範囲）の CSS ピクセル。
  */
@@ -53,16 +53,17 @@ export interface DockTabsLayout {
   others: number;
 }
 
-/** 下から出るシート（選んだものの詳細） */
+/**
+ * 画面中央のモーダル（選んだものの詳細・案件ボード・メニューから開く画面）。
+ * 下から出るシートでは上の帯とドックに挟まれて低く見づらかったので、画面いっぱいの範囲の中央に大きく出す
+ */
 export interface SheetLayout {
-  /** これより広い画面では中央に寄せる（px） */
+  /** 幅の上限（px）。これより広い画面では中央に寄せる */
   maxWidth: number;
-  /** 高さ（画面の高さに対する割合）。上の帯とドックの間（screenRegions の sheet）を超えない */
+  /** 高さ（画面の高さに対する割合）。画面の余白の内側（screenRegions の sheet）を超えない */
   heightRatio: number;
-  /** 高さの下限（px）。低い画面でも見出しと担当カードまで見えるよう、割合で足りなければここまで伸ばす（上の帯とドックの間は超えない） */
+  /** 高さの下限（px）。低い画面でも見出しと担当カードまで見えるよう、割合で足りなければここまで伸ばす（画面の余白の内側は超えない） */
   minHeight: number;
-  /** 取っ手を下へこれ以上ドラッグしたら閉じる（px） */
-  swipeClose: number;
 }
 
 /** 担当変更のカードの並べ方。grid: 1行に全部並べる / scroll: 横にスクロールする */
@@ -117,17 +118,17 @@ export interface LayoutForm {
 }
 
 /** 詳細を閉じる操作 */
-export type DismissGesture = 'esc' | 'emptyClick' | 'closeButton' | 'swipeDown';
+export type DismissGesture = 'esc' | 'closeButton' | 'backdropClick';
 
-/** 操作の流れ：島を選ぶ → シートが出る → カードで担当を変える → トーストの「次の行動」で島へ移動する */
+/** 操作の流れ：島を選ぶ → モーダルが出る → カードで担当を変える → トーストの「次の行動」で島へ移動する */
 export interface LayoutFlow {
   /** 担当を変えた後にシートを開いたままにするか（false なら閉じてワールドに戻る） */
   keepDetailAfterAssign: boolean;
-  /** 問題の「次の行動」を押したとき、該当する島を選び、シートとドックに隠れない範囲の中心へカメラを寄せる。そのときのズームの下限 */
+  /** 問題の「次の行動」を押したとき、該当する島を選び、3D の世界の領域の中心へカメラを寄せる。そのときのズームの下限 */
   focusZoom: number;
   /** トーストを「あとで」で閉じられるか（閉じたものはドックの問題ボタンで出し直す） */
   toastDismissible: boolean;
-  /** シートを閉じる操作 */
+  /** モーダルを閉じる操作 */
   dismiss: readonly DismissGesture[];
   /** 用語のカード（体験の後に名前を明かす）を出しておく時間（ms）。閉じるボタンでも閉じられる */
   termCardMs: number;
@@ -181,7 +182,7 @@ export const uiLayout: UiLayout = {
       dense: false,
       bottom: 12,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.42, minHeight: 360, swipeClose: 60 },
+    sheet: { maxWidth: 880, heightRatio: 0.8, minHeight: 360 },
     assignCards: 'grid',
     toast: { max: 3, width: 384 },
     notice: { max: 3, durationMs: 2600 },
@@ -197,7 +198,7 @@ export const uiLayout: UiLayout = {
       dense: true,
       bottom: 8,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.5, minHeight: 360, swipeClose: 60 },
+    sheet: { maxWidth: 760, heightRatio: 0.82, minHeight: 360 },
     assignCards: 'grid',
     toast: { max: 2, width: 300 },
     notice: { max: 2, durationMs: 2600 },
@@ -214,7 +215,7 @@ export const uiLayout: UiLayout = {
       dense: true,
       bottom: 0,
     },
-    sheet: { maxWidth: 760, heightRatio: 0.6, minHeight: 360, swipeClose: 60 },
+    sheet: { maxWidth: 760, heightRatio: 0.86, minHeight: 360 },
     assignCards: 'scroll',
     toast: { max: 1, width: null },
     notice: { max: 1, durationMs: 2200 },
@@ -224,7 +225,7 @@ export const uiLayout: UiLayout = {
     keepDetailAfterAssign: false,
     focusZoom: 1.4,
     toastDismissible: true,
-    dismiss: ['esc', 'closeButton', 'emptyClick', 'swipeDown'],
+    dismiss: ['esc', 'closeButton', 'backdropClick'],
     termCardMs: 9000,
     coachPadding: 10,
     deliveryCards: 3,
@@ -260,7 +261,7 @@ export interface Rect {
   readonly height: number;
 }
 
-/** 画面の領域。top・notices・world・dock は互いに重ならない。sheet は開いたときに world（と PC では notices）の上へ出す */
+/** 画面の領域。top・notices・world・dock は互いに重ならない。sheet（モーダル）は開いたときにすべての上へ出す */
 export interface ScreenRegions {
   readonly shape: ScreenShape;
   readonly form: LayoutForm;
@@ -268,7 +269,7 @@ export interface ScreenRegions {
   readonly notices: Rect;
   readonly world: Rect;
   readonly dock: Rect;
-  /** シートを出せる範囲（上の帯の下からドックの上まで）。シートの高さはこれを超えない */
+  /** モーダルを出せる範囲（画面の余白の内側。幅は sheet.maxWidth まで）。モーダルの高さはこれを超えない */
   readonly sheet: Rect;
 }
 
@@ -301,17 +302,24 @@ export function screenRegions(layout: UiLayout, size: { width: number; height: n
     const worldY = below + height + g;
     world = { x: 0, y: worldY, width: W, height: Math.max(0, dockY - g - worldY) };
   }
-  const sheetWidth = Math.min(form.sheet.maxWidth, W);
-  const sheet: Rect = { x: (W - sheetWidth) / 2, y: below, width: sheetWidth, height: Math.max(0, dockY - below) };
+  const sheetWidth = Math.max(0, Math.min(form.sheet.maxWidth, W - 2 * g));
+  const sheet: Rect = { x: (W - sheetWidth) / 2, y: g, width: sheetWidth, height: Math.max(0, H - 2 * g) };
   return { shape, form, top, notices, world, dock, sheet };
 }
 
-/** シートの高さ：画面の高さ × 比率（低い画面では minHeight まで伸ばす）を、上の帯とドックの間（maxHeight）に収める */
+/** モーダルの高さ：画面の高さ × 比率（低い画面では minHeight まで伸ばす）を、画面の余白の内側（maxHeight）に収める */
 export function sheetHeight(sheet: SheetLayout, viewHeight: number, maxHeight = Number.POSITIVE_INFINITY): number {
   return Math.min(Math.max(viewHeight * sheet.heightRatio, sheet.minHeight), maxHeight);
 }
 
-/** 画面の領域でのシートの高さ（sheetHeight） */
+/** 画面の領域でのモーダルの高さ（sheetHeight） */
 export function sheetHeightIn(regions: ScreenRegions, viewHeight: number): number {
   return sheetHeight(regions.form.sheet, viewHeight, regions.sheet.height);
+}
+
+/** モーダルの矩形：出せる範囲（regions.sheet）の上下中央に、高さ sheetHeightIn で置く */
+export function sheetRect(regions: ScreenRegions, viewHeight: number): Rect {
+  const height = sheetHeightIn(regions, viewHeight);
+  const area = regions.sheet;
+  return { x: area.x, y: area.y + (area.height - height) / 2, width: area.width, height };
 }

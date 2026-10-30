@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { type Rect, screenRegions, sheetHeightIn, uiLayout } from '../../src/content/look/layout';
+import { type Rect, screenRegions, sheetHeightIn, sheetRect, uiLayout } from '../../src/content/look/layout';
 import { defaultWorldLookId, worldLooks } from '../../src/content/look/world';
 import { createCameraRig } from '../../src/world/camera';
 
@@ -48,17 +48,19 @@ describe('画面の領域（content/look/layout.ts の screenRegions）', () => 
         expect(r.world.width).toBeGreaterThanOrEqual(r.shape === 'phone' ? size.width : size.width / 3);
       });
 
-      it('シートは上の帯とドックの間に収まる', () => {
-        expect(overlaps(r.sheet, r.top)).toBe(false);
-        expect(overlaps(r.sheet, r.dock)).toBe(false);
-        expect(sheetHeightIn(r, size.height)).toBeLessThanOrEqual(r.sheet.height);
-        expect(sheetHeightIn(r, size.height)).toBeGreaterThan(0);
+      it('モーダルは画面の中央に、画面からはみ出さずに収まる', () => {
+        const m = sheetRect(r, size.height);
+        expect(inside(r.sheet, size)).toBe(true);
+        expect(inside(m, size)).toBe(true);
+        expect(m.height).toBeGreaterThan(0);
+        expect(m.x + m.width / 2).toBeCloseTo(size.width / 2);
+        expect(m.y + m.height / 2).toBeCloseTo(size.height / 2);
       });
     });
   }
 
-  it('低い画面では、シートを比率より高く（上の帯とドックの間いっぱいまで）伸ばし、担当カードまで見えるようにする', () => {
-    const size = { width: 1000, height: 483 };
+  it('低い画面では、モーダルを比率より高く（画面の余白の内側いっぱいまで）伸ばし、担当カードまで見えるようにする', () => {
+    const size = { width: 1000, height: 400 };
     const r = screenRegions(uiLayout, size);
     expect(size.height * r.form.sheet.heightRatio).toBeLessThan(r.sheet.height);
     expect(sheetHeightIn(r, size.height)).toBe(Math.min(r.form.sheet.minHeight, r.sheet.height));

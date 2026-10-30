@@ -1,6 +1,6 @@
 import { createSignal, Index, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
@@ -18,7 +18,7 @@ import type {
 import type { TeamsView } from '../../view/teams';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, Meter, panel, primaryButton, stateColor } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, rectStyle, stateColor } from '../parts';
 import { TeamsPanel } from './TeamsPanel';
 
 const t = ja.team;
@@ -52,11 +52,8 @@ export function TeamSheet(props: {
   teams?: TeamsView | null;
   /** 納品した案件（案件ボードのある会社だけ。「実績」のタブ） */
   delivered?: readonly BoardProjectView[] | null;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   dispatch: (command: Command) => void;
   onClose: () => void;
   /** 納品した案件の振り返りを開く（実績の行のボタン） */
@@ -76,14 +73,12 @@ export function TeamSheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.title}
       data-team-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute flex flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       <div class="flex items-start justify-between gap-2">

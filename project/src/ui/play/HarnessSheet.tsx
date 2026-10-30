@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from 'solid-js';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import type { Command } from '../../core/commands';
 import type { WorkerExpectation } from '../../core/expectation';
 import { enter } from '../../fx/motion';
@@ -8,7 +8,7 @@ import { ja } from '../../i18n/ja';
 import type { HarnessForecast, HarnessOptionView, HarnessRowId, HarnessView } from '../../view/harness';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, panel } from '../parts';
+import { ghostButton, panel, rectStyle } from '../parts';
 import { type Direction, MorphValue, Trend } from './ForecastPreview';
 import { HarnessLane, RuleSort } from './HarnessLane';
 
@@ -46,11 +46,8 @@ function direction(row: MetricRow, before: number, after: number): Direction {
  */
 export function HarnessSheet(props: {
   view: HarnessView;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   /** 選択肢の Command を確定した場合の予測 */
   forecast: (command: Command | null) => HarnessForecast;
   dispatch: (command: Command) => void;
@@ -87,14 +84,12 @@ export function HarnessSheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.title}
       data-harness-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4 *:shrink-0`}
+      class={`${panel} absolute flex flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4 *:shrink-0`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       {props.tabs}

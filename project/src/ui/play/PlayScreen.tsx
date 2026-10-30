@@ -15,14 +15,7 @@ import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import { getCompanyTier } from '../../content/companyTiers';
 import { findWorker, getHarnessPart, getHuman, getModel, getProject, getTask } from '../../content/index';
-import {
-  type Rect,
-  type ScreenRegions,
-  screenRegions,
-  sheetHeightIn,
-  type UiLayout,
-  uiLayout,
-} from '../../content/look/layout';
+import { type ScreenRegions, screenRegions, sheetRect, type UiLayout, uiLayout } from '../../content/look/layout';
 import { getSeat } from '../../content/seats';
 import { eventSfx } from '../../content/sfx';
 import type { AssignModeId, FeatureId } from '../../content/types';
@@ -52,7 +45,7 @@ import { Icon } from '../Icon';
 import { keyAction, nextIsland } from '../keyboard';
 import { createNotices } from '../notices';
 import { Presence } from '../Presence';
-import { NewBadge } from '../parts';
+import { NewBadge, rectStyle } from '../parts';
 import type { Selection } from '../selection';
 import { BoardSheet } from './BoardSheet';
 import { BottleneckGuide } from './BottleneckGuide';
@@ -71,24 +64,13 @@ import { TeamSheet } from './TeamSheet';
 import { TutorialCoach } from './TutorialCoach';
 import { UnlockCard, type UnlockNote } from './UnlockCard';
 
-/** シートの縁をドックの縁に重ねる量（px）。太い輪郭を1本に見せる */
-const SHEET_OVERLAP = 3;
-
-/** 領域の矩形を、絶対配置の style にする */
-export const rectStyle = (r: Rect): JSX.CSSProperties => ({
-  left: `${r.x}px`,
-  top: `${r.y}px`,
-  width: `${r.width}px`,
-  height: `${r.height}px`,
-});
-
 /**
  * プレイ画面の UI（3D ワールドの上に重ねる）。D3「ゲームのドック」の構成で、画面を重ならない領域（content/look/layout.ts の screenRegions）に分け、
- * 上の帯（会社の帯と操作の列）・お知らせの列（次に対応すべき問題・お知らせ・納品と用語のカード）・下部のドック（HUD）・下から出るシート（詳細と担当変更）・島のラベルを置く。
+ * 上の帯（会社の帯と操作の列）・お知らせの列（次に対応すべき問題・お知らせ・納品と用語のカード）・下部のドック（HUD）・画面中央のモーダル（詳細と担当変更・メニューから開く画面）・島のラベルを置く。
  * state は読むだけで、変更は store.dispatch（Command）で行う。選択は UI の state（Selection）。
  * チュートリアル中はコーチマークを重ね、「次に対応すべき問題」は解放されるまで出さない。
  * 案件を開いていない（projectId が null）ときはホーム：3D は会社のオフィスで、ドックは引き合いの入口と会社の状態だけを出す。
- * 案件ボードは、ホームでもプレイ中でもほかのシートと同じ場所に開く。
+ * モーダルは1つだけ開き、開いている間は外側を暗くしてゲーム内の時間を止める（onModalOpen）。案件ボードはホームでもプレイ中でも開く。
  */
 export function PlayScreen(props: {
   store: GameStore;
@@ -105,15 +87,15 @@ export function PlayScreen(props: {
   /** お知らせの列の後ろに積むもの（納品と用語のカード） */
   notices?: JSX.Element;
   /**
-   * 時間を止める画面（決算・あらすじ・設定など。App が1か所で判定する）を見ているか。この間はお知らせの消えるまでの時間を数えず、
-   * 自分の案件ボードのほかは、キー操作を効かせない
+   * プレイ画面の外の、時間を止める画面（決算・あらすじ・設定など。App が1か所で判定する）を見ているか。
+   * この間（と自分のモーダルを開いている間）はお知らせの消えるまでの時間を数えない。この間はキー操作を効かせない
    */
   held?: Accessor<boolean>;
   onSettings?: () => void;
   /** ハーネスを Claude Code のプラグインとして持ち帰る（会社のメニュー） */
   onExport?: () => void;
-  /** 案件ボードの開閉を知らせる（App は開いている間、ゲーム内の時間を止める） */
-  onBoardOpen?: (open: boolean) => void;
+  /** モーダル（詳細・案件ボード・メニューから開く画面）の開閉を知らせる（App は開いている間、ゲーム内の時間を止める） */
+  onModalOpen?: (open: boolean) => void;
   /** 別の案件のタブへ切り替える（複数案件の同時進行） */
   onSwitch?: (projectId: string) => void;
   /** ホームへ戻る（ドックのタブの「オフィス」） */
@@ -150,8 +132,10 @@ export function PlayScreen(props: {
     ro.observe(el);
     onCleanup(() => ro.disconnect());
   };
-  const sheetBottom = () => dockHeight() + form().form.dock.bottom - SHEET_OVERLAP;
-  const sheetHeight = () => sheetHeightIn(regions(), view().height);
+  /** 画面の下端からドックの上端までの高さ（px） */
+  const dockTop = () => dockHeight() + form().form.dock.bottom;
+  /** モーダルの位置と大きさ */
+  const frame = createMemo(() => sheetRect(regions(), view().height));
 
   // 問題は中身が同じなら同じ配列を返し、トーストを毎フレーム作り直さない
   const problems = createMemo(() => (inProject() ? adviseProblems(props.store.state(), pid()) : []), [], {
@@ -176,7 +160,10 @@ export function PlayScreen(props: {
     heard = ids;
   });
 
-  const notices = createNotices(() => form().form.notice, props.held);
+  const notices = createNotices(
+    () => form().form.notice,
+    () => (props.held?.() ?? false) || modalOpen(),
+  );
   /** 「新しくできること」のカードの項目（閉じるまで残し、新しい解放は同じカードに足す） */
   const [unlocks, setUnlocks] = createSignal<readonly UnlockNote[]>([]);
   const addUnlocks = (notes: readonly UnlockNote[]) =>
@@ -517,7 +504,6 @@ export function PlayScreen(props: {
       setBoardOpen(true);
     });
   };
-  createEffect(() => props.onBoardOpen?.(boardOpen() && boardOn()));
   createEffect(
     on(
       () => props.boardCall?.() ?? 0,
@@ -527,7 +513,7 @@ export function PlayScreen(props: {
       { defer: true },
     ),
   );
-  onCleanup(() => props.onBoardOpen?.(false));
+  onCleanup(() => props.onModalOpen?.(false));
   const tabs = createMemo(() => projectTabs(props.store.state(), props.projectId), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
@@ -565,6 +551,17 @@ export function PlayScreen(props: {
     return id && vm && inProject() ? detailView(props.store.state(), pid(), vm, id) : null;
   });
 
+  /** 開いているモーダルがあるか（どれか1つだけ開く） */
+  const modalOpen = () =>
+    detail() !== null ||
+    context() !== null ||
+    harness() !== null ||
+    library() !== null ||
+    team() !== null ||
+    (overviewOpen() && overviewOn()) ||
+    (boardOpen() && boardOn());
+  createEffect(() => props.onModalOpen?.(modalOpen()));
+
   let sheetEl: HTMLElement | undefined;
   let root!: HTMLDivElement;
   /** 矢印キーで移る起点。担当を決めてシートが閉じても、続けて隣の島へ進めるように最後に選んだ島を覚えておく */
@@ -573,16 +570,9 @@ export function PlayScreen(props: {
     if (entityId?.startsWith('island:')) lastIsland = entityId;
     props.selection.dispatch({ type: 'SelectEntity', entityId });
   };
-  /**
-   * 3D の世界の領域のうち、シートに隠れない範囲の中心へカメラを寄せる。
-   * カメラは世界の領域の中心を基準にする（world/camera.ts の setFrame）ので、そこからのずれを渡す
-   */
+  /** 3D の世界の領域の中心へカメラを寄せる（world/camera.ts の setFrame。モーダルは閉じた後に世界が見えるよう、ずらさない） */
   const focusCamera = (entityId: string) => {
-    const w = regions().world;
-    const sheetTop = sheetBottom() > 0 ? view().height - sheetBottom() - sheetHeight() : w.y + w.height;
-    const visibleBottom = Math.max(w.y, Math.min(w.y + w.height, sheetTop));
-    const offsetY = (w.y + visibleBottom) / 2 - (w.y + w.height / 2);
-    props.world?.()?.focus(entityId, { x: 0, y: offsetY }, layout().flow.focusZoom);
+    props.world?.()?.focus(entityId, { x: 0, y: 0 }, layout().flow.focusZoom);
   };
 
   const close = () => {
@@ -634,7 +624,7 @@ export function PlayScreen(props: {
       // 時間を止める画面（決算・納品の結果など）の裏では、島の選択やシートの開閉を動かさない。
       // そこで先に処理したキー（納品の結果を Space で閉じた）は、日を進める操作にしない
       if (e.defaultPrevented) return;
-      if (props.held?.() && !(boardOpen() && boardOn())) return;
+      if (props.held?.()) return;
       const action = keyAction(e);
       if (!action) return;
       if (action.type === 'close') {
@@ -767,7 +757,7 @@ export function PlayScreen(props: {
             rows={rows()}
             world={props.world?.()}
             compact={form().compact}
-            bottom={sheetBottom() + SHEET_OVERLAP + 8}
+            bottom={dockTop() + 8}
             compare={compare()}
             onCompare={setCompare}
             onGo={(entityId) => {
@@ -779,154 +769,143 @@ export function PlayScreen(props: {
           />
         )}
       </Show>
-      <Presence when={detail()} enter={false} class="pointer-events-auto">
-        {(d) => (
-          <DetailSheet
-            ref={(el) => {
-              sheetEl = el;
-            }}
-            store={props.store}
-            projectId={sheetPid()}
-            detail={d()}
-            layout={form().form.sheet}
-            scrollCards={form().form.assignCards === 'scroll'}
-            fresh={fresh()}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            onClose={close}
-            onAssign={assign}
-            onHarness={harnessOn() ? openHarness : undefined}
-            onLibrary={libraryOn() ? (taskId) => openLibrary(taskId) : undefined}
-            picks={(taskId) =>
-              recommendWorkflows(
-                props.store.state(),
-                { projectId: sheetPid(), taskId, workerId: harnessWorker() },
-                layout().flow.workflowPicks,
-              )
-            }
-            onApplyWorkflow={(command) => {
-              props.store.dispatch(command);
-              if (!layout().flow.keepDetailAfterAssign) close();
-            }}
-            workflow={(taskId) => workflowTasks(props.store.state(), sheetPid(), taskId)}
-            // Agent Workflow を解放するまでは出さない（押しても受け付けないボタンにしない）
-            onWorkflow={
-              isUnlocked(props.store.state(), modeFeature('agentWorkflow'))
-                ? (taskIds) => {
+      {/* モーダルの層：上の帯・お知らせの列・ドックより上に、外側を暗くする背景と、開いているモーダル1つを出す */}
+      <div class="pointer-events-none absolute inset-0 z-30" data-modal-layer>
+        <Presence when={modalOpen()} from="none" class="pointer-events-auto absolute inset-0">
+          {() => (
+            <div
+              aria-hidden="true"
+              class="absolute inset-0 bg-line/30"
+              data-modal-backdrop
+              onClick={() => {
+                closeSheets();
+                if (selected() !== null) close();
+              }}
+            />
+          )}
+        </Presence>
+        <Presence when={detail()} enter={false} class="pointer-events-auto">
+          {(d) => (
+            <DetailSheet
+              ref={(el) => {
+                sheetEl = el;
+              }}
+              store={props.store}
+              projectId={sheetPid()}
+              detail={d()}
+              frame={frame()}
+              scrollCards={form().form.assignCards === 'scroll'}
+              fresh={fresh()}
+              onClose={close}
+              onAssign={assign}
+              onHarness={harnessOn() ? openHarness : undefined}
+              onLibrary={libraryOn() ? (taskId) => openLibrary(taskId) : undefined}
+              picks={(taskId) =>
+                recommendWorkflows(
+                  props.store.state(),
+                  { projectId: sheetPid(), taskId, workerId: harnessWorker() },
+                  layout().flow.workflowPicks,
+                )
+              }
+              onApplyWorkflow={(command) => {
+                props.store.dispatch(command);
+                if (!layout().flow.keepDetailAfterAssign) close();
+              }}
+              workflow={(taskId) => workflowTasks(props.store.state(), sheetPid(), taskId)}
+              // Agent Workflow を解放するまでは出さない（押しても受け付けないボタンにしない）
+              onWorkflow={
+                isUnlocked(props.store.state(), modeFeature('agentWorkflow'))
+                  ? (taskIds) => {
+                      props.store.dispatch({
+                        type: 'AssignWorkflow',
+                        projectId: sheetPid(),
+                        taskIds,
+                        workerId: harnessWorker(),
+                      });
+                      if (!layout().flow.keepDetailAfterAssign) close();
+                    }
+                  : undefined
+              }
+            />
+          )}
+        </Presence>
+        <Presence when={context()} enter={false} class="pointer-events-auto">
+          {(v) => (
+            <ContextSheet
+              view={v()}
+              frame={frame()}
+              dispatch={(c) => props.store.dispatch(c)}
+              toggleDoc={(docId) => toggleDoc(props.store.state(), sheetPid(), v().workerId, docId)}
+              onClose={() => setContextOpen(false)}
+            />
+          )}
+        </Presence>
+        <Presence when={harness()} enter={false} class="pointer-events-auto">
+          {(v) => (
+            <HarnessSheet
+              view={v()}
+              frame={frame()}
+              forecast={(command) => harnessForecast(props.store.state(), sheetPid(), v().workerId, command)}
+              dispatch={(c) => props.store.dispatch(c)}
+              onClose={() => setHarnessOpen(false)}
+              tabs={aiTabs('harness')}
+              footer={
+                <SaveWorkflowForm
+                  modes={saveModes(props.store.state())}
+                  defaultMode={defaultSaveMode(props.store.state(), sheetPid(), v().workerId)}
+                  defaultName={defaultWorkflowName(props.store.state())}
+                  onSave={(name, mode) =>
                     props.store.dispatch({
-                      type: 'AssignWorkflow',
-                      projectId: sheetPid(),
-                      taskIds,
-                      workerId: harnessWorker(),
-                    });
-                    if (!layout().flow.keepDetailAfterAssign) close();
+                      type: 'SaveLibraryWorkflow',
+                      workflow: workflowFromWorker(props.store.state(), v().workerId, mode, name),
+                    })
                   }
-                : undefined
-            }
-          />
-        )}
-      </Presence>
-      <Presence when={context()} enter={false} class="pointer-events-auto">
-        {(v) => (
-          <ContextSheet
-            view={v()}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            dispatch={(c) => props.store.dispatch(c)}
-            toggleDoc={(docId) => toggleDoc(props.store.state(), sheetPid(), v().workerId, docId)}
-            onClose={() => setContextOpen(false)}
-          />
-        )}
-      </Presence>
-      <Presence when={harness()} enter={false} class="pointer-events-auto">
-        {(v) => (
-          <HarnessSheet
-            view={v()}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            forecast={(command) => harnessForecast(props.store.state(), sheetPid(), v().workerId, command)}
-            dispatch={(c) => props.store.dispatch(c)}
-            onClose={() => setHarnessOpen(false)}
-            tabs={aiTabs('harness')}
-            footer={
-              <SaveWorkflowForm
-                modes={saveModes(props.store.state())}
-                defaultMode={defaultSaveMode(props.store.state(), sheetPid(), v().workerId)}
-                defaultName={defaultWorkflowName(props.store.state())}
-                onSave={(name, mode) =>
-                  props.store.dispatch({
-                    type: 'SaveLibraryWorkflow',
-                    workflow: workflowFromWorker(props.store.state(), v().workerId, mode, name),
-                  })
-                }
-              />
-            }
-          />
-        )}
-      </Presence>
-      <Presence when={library()} enter={false} class="pointer-events-auto">
-        {(v) => (
-          <LibrarySheet
-            view={v()}
-            target={libraryTask() ? getTask(sheetPid(), libraryTask() ?? '').name : null}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            forecast={(command) => harnessForecast(props.store.state(), sheetPid(), harnessWorker(), command)}
-            readCode={(code) => importPreview(props.store.state(), code)}
-            dispatch={(c) => props.store.dispatch(c)}
-            onClose={() => setLibraryOpen(false)}
-            tabs={aiTabs('library')}
-          />
-        )}
-      </Presence>
-      <Presence when={team()} enter={false} class="pointer-events-auto">
-        {(v) => (
-          <TeamSheet
-            view={v()}
-            teams={teams()}
-            delivered={delivered()}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            dispatch={(c) => props.store.dispatch(c)}
-            onClose={() => setTeamOpen(false)}
-            onReview={leaveTo(props.onReview)}
-          />
-        )}
-      </Presence>
-      <Presence when={overviewOpen() && overviewOn()} enter={false} class="pointer-events-auto">
-        {() => (
-          <OverviewSheet
-            store={props.store}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            onClose={() => setOverviewOpen(false)}
-            onOpen={leaveTo(props.onSwitch)}
-          />
-        )}
-      </Presence>
-      <Presence when={boardOpen() && boardOn()} enter={false} class="pointer-events-auto">
-        {() => (
-          <BoardSheet
-            store={props.store}
-            layout={form().form.sheet}
-            bottom={sheetBottom()}
-            viewHeight={view().height}
-            maxHeight={regions().sheet.height}
-            onClose={() => setBoardOpen(false)}
-          />
-        )}
-      </Presence>
+                />
+              }
+            />
+          )}
+        </Presence>
+        <Presence when={library()} enter={false} class="pointer-events-auto">
+          {(v) => (
+            <LibrarySheet
+              view={v()}
+              target={libraryTask() ? getTask(sheetPid(), libraryTask() ?? '').name : null}
+              frame={frame()}
+              forecast={(command) => harnessForecast(props.store.state(), sheetPid(), harnessWorker(), command)}
+              readCode={(code) => importPreview(props.store.state(), code)}
+              dispatch={(c) => props.store.dispatch(c)}
+              onClose={() => setLibraryOpen(false)}
+              tabs={aiTabs('library')}
+            />
+          )}
+        </Presence>
+        <Presence when={team()} enter={false} class="pointer-events-auto">
+          {(v) => (
+            <TeamSheet
+              view={v()}
+              teams={teams()}
+              delivered={delivered()}
+              frame={frame()}
+              dispatch={(c) => props.store.dispatch(c)}
+              onClose={() => setTeamOpen(false)}
+              onReview={leaveTo(props.onReview)}
+            />
+          )}
+        </Presence>
+        <Presence when={overviewOpen() && overviewOn()} enter={false} class="pointer-events-auto">
+          {() => (
+            <OverviewSheet
+              store={props.store}
+              frame={frame()}
+              onClose={() => setOverviewOpen(false)}
+              onOpen={leaveTo(props.onSwitch)}
+            />
+          )}
+        </Presence>
+        <Presence when={boardOpen() && boardOn()} enter={false} class="pointer-events-auto">
+          {() => <BoardSheet store={props.store} frame={frame()} onClose={() => setBoardOpen(false)} />}
+        </Presence>
+      </div>
       <div class="pointer-events-auto">
         <Dock
           ref={observeDock}
@@ -944,6 +923,7 @@ export function PlayScreen(props: {
           controls={form().form.controls === 'dock' ? controls('menu') : undefined}
         />
       </div>
+      {/* コーチはモーダルの層と同じ重なり順で後ろに置き、モーダルの中の担当カードも照らせるようにする */}
       <TutorialCoach store={props.store} padding={layout().flow.coachPadding} />
     </div>
   );

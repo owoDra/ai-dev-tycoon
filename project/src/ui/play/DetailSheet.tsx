@@ -1,8 +1,8 @@
-import { createEffect, createSignal, type JSX, on, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, type JSX, on, onCleanup, onMount, Show } from 'solid-js';
 import type { GameStore } from '../../app/store';
 import { audio } from '../../audio/index';
 import { balance } from '../../content/balance';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import type { AssignModeId, FeatureId } from '../../content/types';
 import { modeFeature } from '../../content/unlocks';
 import type { Command } from '../../core/commands';
@@ -14,7 +14,7 @@ import type { DetailView } from '../../view/detail';
 import type { WorkflowPick } from '../../view/library';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, kindIcon, Meter, modeIcon, panel, StatusIcon } from '../parts';
+import { ghostButton, kindIcon, Meter, modeIcon, panel, rectStyle, StatusIcon } from '../parts';
 import { AssignCards } from './AssignCards';
 
 const t = ja.detail;
@@ -23,24 +23,19 @@ const pickButton =
   'inline-flex min-h-11 flex-col items-start justify-center gap-0.5 rounded-md border-[3px] border-line px-3 py-1 text-ink';
 
 /**
- * 選んだものの詳細（D3：ドックの上に下から出るシート。企画書33章）。
- * 取っ手と見出し（閉じるボタン）は固定し、その下だけをスクロールする。中身が収まらない低い画面では、開いたときに担当カードが見える所までスクロールする。
- * 閉じる操作：閉じるボタン・取っ手を下へスワイプ・Esc（PlayScreen）・ワールドの何もない所をクリック（WorldCanvas）
+ * 選んだものの詳細（画面中央のモーダル。企画書33章）。
+ * 見出し（閉じるボタン）は固定し、その下だけをスクロールする。中身が収まらない低い画面では、開いたときに担当カードが見える所までスクロールする。
+ * 閉じる操作：閉じるボタン・Esc・外側の暗い背景をクリック（PlayScreen）
  */
 export function DetailSheet(props: {
   store: GameStore;
   projectId: string;
   detail: DetailView;
-  layout: SheetLayout;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   scrollCards: boolean;
   /** 解放されたばかりの機能（担当カードの「NEW」バッジ） */
   fresh?: ReadonlySet<FeatureId>;
-  /** シートの下端（px）。ドックのすぐ上 */
-  bottom: number;
-  /** 画面の高さ（px） */
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
   onClose: () => void;
   onAssign: (taskId: string, mode: AssignModeId, workerId?: string) => void;
   /** Harness Builder を開く（AI のキャラクターを選んだとき。解放前は渡さない） */
@@ -55,8 +50,6 @@ export function DetailSheet(props: {
   onWorkflow?: (taskIds: readonly string[]) => void;
   ref?: (el: HTMLElement) => void;
 }) {
-  const [drag, setDrag] = createSignal(0);
-  let dragFrom: number | null = null;
   let el!: HTMLElement;
   let body!: HTMLDivElement;
   onMount(() => {
@@ -91,42 +84,14 @@ export function DetailSheet(props: {
         props.ref?.(e);
       }}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={d().label}
       data-detail-sheet
       data-task={d().row?.id}
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-hidden rounded-b-none pt-1`}
-      style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
-        // 出現の動き（motion）が transform を使うので、スワイプのずれは translate で別に持つ
-        translate: `0 ${drag()}px`,
-      }}
+      class={`${panel} absolute flex flex-col gap-3 overflow-hidden pt-3`}
+      style={rectStyle(props.frame)}
     >
       <div class="flex shrink-0 flex-col gap-3 px-4">
-        <div
-          class="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center"
-          aria-hidden="true"
-          onPointerDown={(e) => {
-            dragFrom = e.clientY;
-            e.currentTarget.setPointerCapture(e.pointerId);
-          }}
-          onPointerMove={(e) => {
-            if (dragFrom !== null) setDrag(Math.max(0, e.clientY - dragFrom));
-          }}
-          onPointerUp={() => {
-            if (drag() > props.layout.swipeClose) props.onClose();
-            dragFrom = null;
-            setDrag(0);
-          }}
-          onPointerCancel={() => {
-            dragFrom = null;
-            setDrag(0);
-          }}
-        >
-          <span class="h-1.5 w-12 rounded-full bg-line/30" />
-        </div>
         <div class="flex items-start justify-between gap-2">
           <div class="flex min-w-0 items-center gap-2">
             <span class="flex size-10 shrink-0 items-center justify-center rounded-md border-[3px] border-line bg-accent-200 text-2xl">

@@ -1,7 +1,7 @@
 import { For, onCleanup, onMount, Show } from 'solid-js';
 import type { IconName } from '../../assets/icons';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import type { ContextFeed, HandoffItemId } from '../../content/types';
 import type { Command } from '../../core/commands';
 import type { ContextStatus } from '../../core/context';
@@ -10,7 +10,7 @@ import { ja } from '../../i18n/ja';
 import type { ContextView } from '../../view/context';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, Meter, panel, primaryButton } from '../parts';
+import { ghostButton, Meter, panel, primaryButton, rectStyle } from '../parts';
 
 const t = ja.context;
 
@@ -22,17 +22,14 @@ export const contextStatusIcon: Record<ContextStatus, IconName> = {
 };
 
 /**
- * Context のシート（企画書9〜12章）。ドックの Context の状態を押すと、詳細のシートと同じ場所に下から出る。
+ * Context のシート（企画書9〜12章）。ドックの Context の状態を押すと、詳細と同じ画面中央のモーダルに開く。
  * 内訳（Relevant と Noise）・AI に渡す資料・Session（New Session と Handoff）を、解放済みの範囲で見せる。
  * 状態は読むだけで、変更は Command（SetContextFeed / SetHandoff / SetArtifactDriven / NewSession）で行う。
  */
 export function ContextSheet(props: {
   view: ContextView;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  /** 高さの上限（上の帯とドックの間。content/look/layout.ts の screenRegions） */
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   dispatch: (command: Command) => void;
   /** 資料を1つ渡す・外したときの渡し方 */
   toggleDoc: (docId: string) => ContextFeed;
@@ -59,14 +56,12 @@ export function ContextSheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.title}
       data-context-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute flex flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       <div class="flex items-start justify-between gap-2">

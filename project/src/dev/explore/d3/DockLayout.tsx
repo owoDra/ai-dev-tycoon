@@ -15,6 +15,9 @@ import {
   usePicked,
 } from './parts';
 
+/** 取っ手を下へこれ以上ドラッグしたら閉じる（px。D3 の比較のときの値。本編はモーダルにしたので使わない） */
+const SWIPE_CLOSE = 60;
+
 /**
  * D3 で採用した「ゲームのドック」のプロトタイプ：HUD は下部のドックにまとめ（先頭に案件名）、詳細はドックの上に
  * 下から出るシート（大きなカードで担当を選ぶ）、問題は上に積み重なるトーストで知らせる。
@@ -53,7 +56,7 @@ export function DockLayout(props: { proto: Proto }) {
     if (dragFrom !== null) setDrag(Math.max(0, e.clientY - dragFrom));
   };
   const onHandleUp = () => {
-    if (drag() > sheet().swipeClose) proto.select(null);
+    if (drag() > SWIPE_CLOSE) proto.select(null);
     dragFrom = null;
     setDrag(0);
   };

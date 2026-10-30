@@ -19,8 +19,12 @@ export function D6Explore() {
     reduce(createInitialState('d6'), { type: 'StartProject', projectId: PROJECT }).state,
   );
   const dispatch = (c: Command) => setState((s) => reduce(s, c).state);
-  const [height, setHeight] = createSignal(window.innerHeight);
-  window.addEventListener('resize', () => setHeight(window.innerHeight));
+  const [size, setSize] = createSignal({ width: window.innerWidth, height: window.innerHeight });
+  window.addEventListener('resize', () => setSize({ width: window.innerWidth, height: window.innerHeight }));
+  const frame = () => {
+    const width = Math.min(760, size().width);
+    return { x: (size().width - width) / 2, y: 96, width, height: size().height - 96 };
+  };
   return (
     <ExploreShell
       title={ja.explore.d6.title}
@@ -35,10 +39,7 @@ export function D6Explore() {
       <div class="absolute inset-0 bg-bg">
         <HarnessSheet
           view={harnessView(state(), PROJECT, AGENT)}
-          layout={{ maxWidth: 760, heightRatio: 1, minHeight: 0, swipeClose: 60 }}
-          bottom={0}
-          viewHeight={height()}
-          maxHeight={height() - 96}
+          frame={frame()}
           forecast={(command) => harnessForecast(state(), PROJECT, AGENT, command)}
           dispatch={dispatch}
           onClose={() => undefined}

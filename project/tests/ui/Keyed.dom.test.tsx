@@ -2,7 +2,6 @@ import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createGameStore } from '../../src/app/store';
-import { uiLayout } from '../../src/content/look/layout';
 import { createInitialState } from '../../src/core/state';
 import { step } from '../../src/core/step';
 import { Keyed } from '../../src/ui/Keyed';
@@ -53,7 +52,7 @@ describe('案件ボード', () => {
     const root = document.createElement('div');
     document.body.append(root);
     dispose = render(
-      () => <BoardSheet store={store} layout={uiLayout.wide.sheet} bottom={0} viewHeight={800} onClose={() => {}} />,
+      () => <BoardSheet store={store} frame={{ x: 0, y: 0, width: 760, height: 800 }} onClose={() => {}} />,
       root,
     );
     const card = root.querySelector<HTMLElement>('[data-inquiry]');

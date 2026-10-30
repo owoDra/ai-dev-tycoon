@@ -2,13 +2,13 @@ import { createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-j
 import type { GameStore } from '../../app/store';
 import type { IconName } from '../../assets/icons';
 import { audio } from '../../audio/index';
-import { type SheetLayout, sheetHeight } from '../../content/look/layout';
+import type { Rect } from '../../content/look/layout';
 import { enter } from '../../fx/motion';
 import { ja } from '../../i18n/ja';
 import { type GanttRowView, type GanttState, ganttView, type StaffStatus, staffRoster } from '../../view/overview';
 import { Icon } from '../Icon';
 import { Keyed } from '../Keyed';
-import { ghostButton, panel } from '../parts';
+import { ghostButton, panel, rectStyle } from '../parts';
 
 const t = ja.overview;
 const stateIcon: Record<GanttState, IconName> = {
@@ -39,10 +39,8 @@ const staffIcon: Record<StaffStatus, IconName> = {
  */
 export function OverviewSheet(props: {
   store: GameStore;
-  layout: SheetLayout;
-  bottom: number;
-  viewHeight: number;
-  maxHeight?: number;
+  /** モーダルの位置と大きさ（content/look/layout.ts の sheetRect） */
+  frame: Rect;
   onClose: () => void;
   /** 案件のフロアを開く */
   onOpen?: (projectId: string) => void;
@@ -60,14 +58,12 @@ export function OverviewSheet(props: {
     <section
       ref={el}
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label={t.title}
       data-overview-sheet
-      class={`${panel} absolute inset-x-0 mx-auto flex w-full flex-col gap-3 overflow-x-hidden overflow-y-auto rounded-b-none px-4 pt-3 pb-4`}
+      class={`${panel} absolute flex flex-col gap-3 overflow-x-hidden overflow-y-auto px-4 pt-3 pb-4`}
       style={{
-        'max-width': `${props.layout.maxWidth}px`,
-        bottom: `${props.bottom}px`,
-        height: `${sheetHeight(props.layout, props.viewHeight, props.maxHeight)}px`,
+        ...rectStyle(props.frame),
       }}
     >
       <div class="flex items-center justify-between gap-2">
